@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use App\Models\User;
+use App\Services\Kpi\ClaudeKpiAnalyzer;
+use App\Services\Kpi\KpiAnalyzer;
 use App\Services\QuickLinkService;
 use App\Support\Navigation;
 use Illuminate\Cache\RateLimiting\Limit;
@@ -21,7 +23,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->bind(KpiAnalyzer::class, fn () => new ClaudeKpiAnalyzer(
+            config('services.anthropic.key'),
+            config('services.anthropic.model'),
+            config('services.anthropic.effort'),
+        ));
     }
 
     /**

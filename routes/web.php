@@ -6,6 +6,7 @@ use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EventController;
+use App\Http\Controllers\KpiReportController;
 use App\Http\Controllers\MeetingNoteController;
 use App\Http\Controllers\NoteController;
 use App\Http\Controllers\PerformanceCompetencyController;
@@ -205,6 +206,17 @@ Route::middleware('auth')->group(function () {
             Route::post('performance/competencies/{competency}/toggle', [PerformanceCompetencyController::class, 'toggle'])->name('performance.competencies.toggle');
             Route::delete('performance/competencies/{competency}', [PerformanceCompetencyController::class, 'destroy'])->name('performance.competencies.destroy');
         });
+    });
+
+    /*
+     | KPI review reports — admin only. Claude-drafted performance reviews are
+     | sensitive HR data; generation is queued (see KpiReportController).
+     */
+    Route::middleware('admin')->group(function () {
+        Route::get('kpi-reports', [KpiReportController::class, 'index'])->name('kpi-reports.index');
+        Route::post('kpi-reports', [KpiReportController::class, 'store'])->name('kpi-reports.store');
+        Route::get('kpi-reports/{report}/download', [KpiReportController::class, 'download'])->name('kpi-reports.download');
+        Route::delete('kpi-reports/{report}', [KpiReportController::class, 'destroy'])->name('kpi-reports.destroy');
     });
 
     /*

@@ -45,53 +45,29 @@
             @else
                 @php $o = $overview; $avg = $o['teamAverage']; @endphp
 
-                {{-- KPI row --}}
-                <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
-                    {{-- Team average --}}
-                    <div class="card card-pad">
-                        <div class="flex items-center justify-between gap-2">
-                            <span class="text-xs font-medium text-slate-500">Team average</span>
-                            <span class="flex h-8 w-8 items-center justify-center rounded-lg text-white" style="background-color: {{ ScoreColor::hex($avg) }}">
-                                <x-icon name="activity" class="h-4 w-4" />
-                            </span>
-                        </div>
-                        <p class="mt-2 text-3xl font-semibold tracking-tight" style="color: {{ ScoreColor::hex($avg) }}">
-                            {{ ScoreColor::fmt($avg) }}<span class="text-lg text-slate-300">/5</span>
-                        </p>
-                        <p class="mt-1 text-xs text-slate-400">{{ $avg !== null ? ScoreColor::pct($avg).'% · '.ScoreColor::label($avg) : 'Not yet evaluated' }}</p>
-                    </div>
-
-                    @include('partials.stat-tile', [
-                        'label' => 'Evaluation coverage',
-                        'value' => $o['coverage']['pct'] !== null ? $o['coverage']['pct'].'%' : '—',
-                        'sub' => $o['coverage']['covered'].' of '.$o['coverage']['expected'].' ratings',
-                        'icon' => 'list',
-                        'tone' => ($o['coverage']['pct'] ?? 0) >= 80 ? 'emerald' : (($o['coverage']['pct'] ?? 0) >= 40 ? 'amber' : 'slate'),
-                    ])
-
-                    <div class="card card-pad">
-                        <div class="flex items-center justify-between gap-2">
-                            <span class="text-xs font-medium text-slate-500">Top performer</span>
-                            <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600">
-                                <x-icon name="rocket" class="h-4 w-4" />
-                            </span>
-                        </div>
-                        @if ($o['topPerformer'])
-                            <p class="mt-2 truncate text-lg font-semibold text-slate-900">{{ $o['topPerformer']['member']->name }}</p>
-                            <p class="mt-1">@include('partials.perf-score', ['value' => $o['topPerformer']['overall'], 'showLabel' => true])</p>
-                        @else
-                            <p class="mt-2 text-lg font-semibold text-slate-300">—</p>
-                            <p class="mt-1 text-xs text-slate-400">No ratings yet</p>
-                        @endif
-                    </div>
-
-                    @include('partials.stat-tile', [
-                        'label' => 'Needs attention',
-                        'value' => $o['needsAttention']->count(),
-                        'sub' => 'below 3.0 or declining',
-                        'icon' => 'pause',
-                        'tone' => $o['needsAttention']->isNotEmpty() ? 'rose' : 'slate',
-                    ])
+                {{-- KPI strip --}}
+                @php
+                    $covPct = $o['coverage']['pct'];
+                    $attention = $o['needsAttention']->count();
+                    $outOfFive = new \Illuminate\Support\HtmlString(e(ScoreColor::fmt($avg)).'<span class="text-base font-medium text-slate-300">/5</span>');
+                @endphp
+                <div class="stat-strip">
+                    <x-stat label="Team average" :value="$outOfFive"
+                            :sub="$avg !== null ? ScoreColor::pct($avg).'% · '.ScoreColor::label($avg) : 'Not yet evaluated'"
+                            icon="chart-bar" :tone="ScoreColor::tone($avg)" />
+                    <x-stat label="Evaluation coverage" :value="$covPct !== null ? $covPct.'%' : '—'"
+                            :sub="$o['coverage']['covered'].' of '.$o['coverage']['expected'].' ratings'"
+                            icon="clipboard-check" :tone="($covPct ?? 0) >= 80 ? 'emerald' : (($covPct ?? 0) >= 40 ? 'amber' : 'slate')" />
+                    @if ($o['topPerformer'])
+                        <x-stat label="Top performer" :value="$o['topPerformer']['member']->name" icon="rocket" tone="emerald"
+                                class="[&_.stat-value]:truncate [&_.stat-value]:text-xl">
+                            <p class="mt-1.5">@include('partials.perf-score', ['value' => $o['topPerformer']['overall'], 'showLabel' => true])</p>
+                        </x-stat>
+                    @else
+                        <x-stat label="Top performer" value="—" sub="No ratings yet" icon="rocket" tone="slate" />
+                    @endif
+                    <x-stat label="Needs attention" :value="$attention" sub="below 3.0 or declining"
+                            icon="exclamation-circle" tone="slate" :alert="$attention > 0" />
                 </div>
 
                 <div class="grid gap-6 lg:grid-cols-3">

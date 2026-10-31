@@ -33,11 +33,15 @@
         <div class="app-container space-y-6">
 
             {{-- ============ KPI band ============ --}}
-            <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
-                @include('partials.stat-tile', ['label' => 'Members', 'value' => $team->members->count(), 'sub' => 'on this team', 'icon' => 'users', 'tone' => 'sky'])
-                @include('partials.stat-tile', ['label' => 'Releases', 'value' => $releases->count(), 'sub' => 'owned by team', 'icon' => 'rocket', 'tone' => 'brand'])
-                @include('partials.stat-tile', ['label' => 'Booked through', 'value' => $busyThrough ? $busyThrough->format('M j') : '—', 'sub' => $busyThrough ? 'next free ' . $busyThrough->copy()->addDay()->format('M j, Y') : 'no releases yet', 'icon' => 'calendar', 'tone' => 'emerald'])
-                @include('partials.stat-tile', ['label' => 'Overlapping', 'value' => $conflictCount, 'sub' => 'double-booked windows', 'icon' => 'activity', 'tone' => $conflictCount ? 'amber' : 'slate'])
+            <div class="stat-strip">
+                <x-stat label="Members" :value="$team->members->count()" sub="on this team" icon="user-group" tone="sky" />
+                <x-stat label="Releases" :value="$releases->count()" sub="owned by team" icon="rocket" tone="brand" />
+                <x-stat label="Booked through" :value="$busyThrough ? $busyThrough->format('M j') : '—'"
+                        :sub="$busyThrough ? 'next free ' . $busyThrough->copy()->addDay()->format('M j, Y') : 'no releases yet'"
+                        icon="calendar" tone="emerald" />
+                <x-stat label="Overlapping" :value="$conflictCount" sub="double-booked windows"
+                        :icon="$conflictCount ? 'exclamation-circle' : 'check'" :tone="$conflictCount ? 'amber' : 'slate'"
+                        :alert="$conflictCount > 0" />
             </div>
 
             {{-- ============ Two-column body ============ --}}

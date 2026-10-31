@@ -18,25 +18,17 @@
             @if ($stats['total'] > 0)
                 @php
                     $summary = [
-                        ['label' => 'Users', 'value' => $stats['total'], 'sub' => 'total accounts', 'icon' => 'users', 'tone' => 'bg-brand-50 text-brand-600'],
-                        ['label' => 'Active', 'value' => $stats['active'], 'sub' => 'can sign in', 'icon' => 'user', 'tone' => 'bg-emerald-50 text-emerald-600'],
-                        ['label' => 'Deactivated', 'value' => $stats['inactive'], 'sub' => 'access revoked', 'icon' => 'pause', 'tone' => 'bg-slate-100 text-slate-600'],
-                        ['label' => 'Engineers', 'value' => $stats['engineers'], 'sub' => 'developers + QA', 'icon' => 'team', 'tone' => 'bg-sky-50 text-sky-600'],
+                        ['label' => 'Users', 'value' => $stats['total'], 'sub' => 'total accounts', 'icon' => 'user-group', 'tone' => 'brand'],
+                        ['label' => 'Active', 'value' => $stats['active'], 'sub' => 'can sign in', 'icon' => 'check', 'tone' => 'emerald'],
+                        ['label' => 'Deactivated', 'value' => $stats['inactive'], 'sub' => 'access revoked', 'icon' => 'lock-closed', 'tone' => 'slate'],
+                        ['label' => 'Engineers', 'value' => $stats['engineers'], 'sub' => 'developers + QA', 'icon' => 'identification', 'tone' => 'sky'],
                     ];
                 @endphp
-                <dl class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <div class="stat-strip">
                     @foreach ($summary as $s)
-                        <div class="card flex items-center gap-3 px-4 py-3">
-                            <span class="flex h-8 w-8 flex-none items-center justify-center rounded-lg {{ $s['tone'] }}">
-                                <x-icon :name="$s['icon']" class="h-4 w-4" />
-                            </span>
-                            <div class="min-w-0">
-                                <dt class="truncate text-xs font-medium text-slate-500" title="{{ $s['sub'] }}">{{ $s['label'] }}</dt>
-                                <dd class="tabular text-lg font-semibold leading-tight text-slate-900">{{ $s['value'] }}</dd>
-                            </div>
-                        </div>
+                        <x-stat :label="$s['label']" :value="$s['value']" :sub="$s['sub']" :icon="$s['icon']" :tone="$s['tone']" />
                     @endforeach
-                </dl>
+                </div>
             @endif
 
             <x-filter-bar :action="route('users.index')" :active="$hasFilters" :count="$users->count()" noun="user">

@@ -5,19 +5,20 @@
         ['id' => 'update_password_password_confirmation', 'name' => 'password_confirmation', 'label' => __('Confirm Password'), 'autocomplete' => 'new-password'],
     ];
 @endphp
-<section class="card">
+<section id="password" class="card scroll-mt-24">
     <form method="post" action="{{ route('password.update') }}">
         @csrf
         @method('put')
 
         <div class="card-pad">
             <x-form-section :title="__('Update Password')" :description="__('Ensure your account is using a long, random password to stay secure.')">
+                <div class="grid gap-5 sm:grid-cols-2">
                 @foreach ($pwFields as $f)
                     @php $err = $errors->updatePassword->first($f['name']); @endphp
                     {{-- Errors live in the "updatePassword" bag, so they're rendered here rather than by x-field. --}}
-                    <x-field :label="$f['label']" :for="$f['id']">
+                    <x-field :label="$f['label']" :for="$f['id']" @class(['sm:col-span-2' => $loop->first])>
                         <input id="{{ $f['id'] }}" name="{{ $f['name'] }}" type="password" autocomplete="{{ $f['autocomplete'] }}"
-                               class="field-input sm:max-w-md"
+                               @class(['field-input', 'sm:max-w-[calc(50%-0.625rem)]' => $loop->first])
                                @if ($err) aria-invalid="true" aria-describedby="{{ $f['id'] }}-error" @endif>
                         @if ($err)
                             <p id="{{ $f['id'] }}-error" class="field-error">
@@ -26,6 +27,8 @@
                         @endif
                     </x-field>
                 @endforeach
+                </div>
+                <p class="field-hint !mt-0">At least 8 characters. A longer passphrase is stronger.</p>
             </x-form-section>
         </div>
 

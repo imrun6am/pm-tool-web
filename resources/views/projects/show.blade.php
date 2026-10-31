@@ -88,35 +88,16 @@
             </div>
 
             {{-- ============================ KPI TILES ============================ --}}
-            <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
-                @include('partials.stat-tile', [
-                    'label' => 'Releases',
-                    'value' => $stats['releaseTotal'],
-                    'sub' => $stats['upcoming'] > 0 ? $stats['upcoming'].' starting soon' : 'total',
-                    'icon' => 'rocket',
-                    'tone' => 'brand',
-                ])
-                @include('partials.stat-tile', [
-                    'label' => 'Ongoing',
-                    'value' => $stats['ongoing'],
-                    'sub' => 'in flight',
-                    'icon' => 'activity',
-                    'tone' => 'sky',
-                ])
-                @include('partials.stat-tile', [
-                    'label' => 'Completed',
-                    'value' => $stats['completed'],
-                    'sub' => $stats['completionPct'].'% of releases',
-                    'icon' => 'archive',
-                    'tone' => 'emerald',
-                ])
-                @include('partials.stat-tile', [
-                    'label' => 'Open tasks',
-                    'value' => $stats['openTasks'],
-                    'sub' => $stats['overdue'] > 0 ? $stats['overdue'].' overdue' : 'nothing overdue',
-                    'icon' => 'list',
-                    'tone' => $stats['overdue'] > 0 ? 'rose' : 'slate',
-                ])
+            <div class="stat-strip">
+                <x-stat label="Releases" :value="$stats['releaseTotal']"
+                        :sub="$stats['upcoming'] > 0 ? $stats['upcoming'].' starting soon' : 'total'"
+                        icon="rocket" tone="brand" />
+                <x-stat label="Ongoing" :value="$stats['ongoing']" sub="in flight" icon="clock" tone="sky" />
+                <x-stat label="Completed" :value="$stats['completed']" :sub="$stats['completionPct'].'% of releases'"
+                        icon="check" tone="emerald" />
+                <x-stat label="Open tasks" :value="$stats['openTasks']"
+                        :sub="$stats['overdue'] > 0 ? $stats['overdue'].' overdue' : 'nothing overdue'"
+                        icon="clipboard-check" tone="slate" :alert="$stats['overdue'] > 0" />
             </div>
 
             {{-- ==================== TWO-COLUMN: MAIN + SIDEBAR ==================== --}}

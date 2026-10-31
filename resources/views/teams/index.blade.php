@@ -37,26 +37,18 @@
                         ->map(fn ($t) => ['label' => $t->name, 'value' => $t->members_count, 'color' => $t->color])
                         ->values()->all();
                     $summary = [
-                        ['label' => 'Teams', 'value' => $tTotal, 'sub' => 'total', 'icon' => 'team', 'tone' => 'bg-brand-50 text-brand-600'],
-                        ['label' => 'Active', 'value' => $tActive, 'sub' => 'delivering', 'icon' => 'team', 'tone' => 'bg-emerald-50 text-emerald-600'],
-                        ['label' => 'Members', 'value' => $tMembers, 'sub' => 'assignments across teams', 'icon' => 'users', 'tone' => 'bg-sky-50 text-sky-600'],
-                        ['label' => 'Releases', 'value' => $tReleases, 'sub' => 'across all teams', 'icon' => 'rocket', 'tone' => 'bg-amber-50 text-amber-600'],
+                        ['label' => 'Teams', 'value' => $tTotal, 'sub' => 'total', 'icon' => 'user-group', 'tone' => 'brand'],
+                        ['label' => 'Active', 'value' => $tActive, 'sub' => 'delivering', 'icon' => 'check', 'tone' => 'emerald'],
+                        ['label' => 'Members', 'value' => $tMembers, 'sub' => 'assignments across teams', 'icon' => 'identification', 'tone' => 'sky'],
+                        ['label' => 'Releases', 'value' => $tReleases, 'sub' => 'across all teams', 'icon' => 'rocket', 'tone' => 'violet'],
                     ];
                 @endphp
 
-                <dl class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                <div class="stat-strip">
                     @foreach ($summary as $s)
-                        <div class="card flex items-center gap-3 px-4 py-3">
-                            <span class="flex h-8 w-8 flex-none items-center justify-center rounded-lg {{ $s['tone'] }}">
-                                <x-icon :name="$s['icon']" class="h-4 w-4" />
-                            </span>
-                            <div class="min-w-0">
-                                <dt class="truncate text-xs font-medium text-slate-500" title="{{ $s['sub'] }}">{{ $s['label'] }}</dt>
-                                <dd class="tabular text-lg font-semibold leading-tight text-slate-900">{{ $s['value'] }}</dd>
-                            </div>
-                        </div>
+                        <x-stat :label="$s['label']" :value="$s['value']" :sub="$s['sub']" :icon="$s['icon']" :tone="$s['tone']" />
                     @endforeach
-                </dl>
+                </div>
             @endif
 
             <div class="card overflow-hidden">

@@ -163,4 +163,35 @@ Alpine.data('filterBar', () => ({
     },
 }));
 
+/*
+ * Settings section nav: highlights the section crossing the middle of the
+ * viewport (and whatever the URL hash or a click points at).
+ */
+Alpine.data('settingsNav', (ids = []) => ({
+    active: ids[0] ?? null,
+
+    init() {
+        const fromHash = location.hash.slice(1);
+        if (ids.includes(fromHash)) this.active = fromHash;
+        if (!('IntersectionObserver' in window)) return;
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+                if (entry.isIntersecting) this.active = entry.target.id;
+            });
+        }, { rootMargin: '-40% 0px -55% 0px' });
+
+        ids.forEach((id) => {
+            const el = document.getElementById(id);
+            if (el) observer.observe(el);
+        });
+
+        // The last section may never reach the middle band on tall screens.
+        window.addEventListener('scroll', () => {
+            const atBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
+            if (atBottom && ids.length) this.active = ids[ids.length - 1];
+        }, { passive: true });
+    },
+}));
+
 Alpine.start();

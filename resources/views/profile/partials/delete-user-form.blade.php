@@ -1,4 +1,4 @@
-<section class="card border-danger-200">
+<section id="danger-zone" class="card scroll-mt-24 border-danger-200">
     <div class="card-pad">
         <div class="form-section">
             <div>

@@ -24,12 +24,15 @@ class NavigationTest extends TestCase
     public function test_leads_get_every_group_in_order(): void
     {
         foreach (User::LEAD_ROLES as $role) {
+            // KPI reports are admin-only (Claude-drafted HR reviews).
+            $administration = $role === User::ROLE_ADMIN ? ['performance', 'kpi-reports', 'users'] : ['performance', 'users'];
+
             $this->assertSame([
                 'overview' => ['dashboard'],
                 'planning' => ['releases', 'projects', 'teams'],
                 'work' => ['board', 'tasksheet', 'calendar'],
                 'collaboration' => ['notes', 'meetings', 'activity'],
-                'administration' => ['performance', 'users'],
+                'administration' => $administration,
             ], $this->shape($this->user($role)), "role: {$role}");
         }
     }
@@ -57,7 +60,7 @@ class NavigationTest extends TestCase
     {
         $items = collect(Navigation::groups($this->user(User::ROLE_ADMIN)))->flatMap(fn ($g) => $g['items']);
 
-        $this->assertCount(12, $items);
+        $this->assertCount(13, $items);
         $this->assertSame($items->count(), $items->pluck('icon')->unique()->count());
     }
 

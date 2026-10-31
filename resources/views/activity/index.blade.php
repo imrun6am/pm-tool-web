@@ -22,28 +22,23 @@
         <div class="app-container flex h-full flex-col gap-4">
 
             {{-- ============================ KPI CARDS ============================ --}}
-            <div class="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4">
-                @foreach ([
-                    ['label' => 'Total events', 'value' => $stats['total'], 'sub' => $filters['causer_id'] ? 'For selected user' : 'All recorded activity', 'icon' => 'chart-bar', 'tone' => 'bg-slate-100 text-slate-500'],
-                    ['label' => 'Today', 'value' => $stats['today'], 'sub' => number_format($stats['week']).' in the last 7 days', 'icon' => 'clock', 'tone' => 'bg-brand-50 text-brand-600'],
-                    ['label' => 'Contributors', 'value' => $stats['contributors'], 'sub' => 'People with logged activity', 'icon' => 'user-group', 'tone' => 'bg-slate-100 text-slate-500'],
-                ] as $kpi)
-                    <div class="card flex items-center gap-3 px-4 py-3">
-                        <span class="flex h-9 w-9 flex-none items-center justify-center rounded-lg {{ $kpi['tone'] }}">
-                            <x-icon :name="$kpi['icon']" variant="outline" class="h-[18px] w-[18px]" />
-                        </span>
-                        <div class="min-w-0">
-                            <p class="text-xs font-medium text-slate-500">{{ $kpi['label'] }}</p>
-                            <p class="tabular text-xl font-semibold leading-tight tracking-tight text-slate-900">{{ number_format($kpi['value']) }}</p>
-                            <p class="truncate text-xs text-slate-400">{{ $kpi['sub'] }}</p>
-                        </div>
-                    </div>
-                @endforeach
+            <div class="stat-strip shrink-0">
+                <x-stat label="Total events" :value="number_format($stats['total'])"
+                        :sub="$filters['causer_id'] ? 'For selected user' : 'All recorded activity'"
+                        icon="chart-bar" tone="slate" />
+                <x-stat label="Today" :value="number_format($stats['today'])"
+                        :sub="number_format($stats['week']).' in the last 7 days'"
+                        icon="clock" tone="brand" />
+                <x-stat label="Contributors" :value="number_format($stats['contributors'])"
+                        sub="People with logged activity" icon="user-group" tone="sky" />
 
                 {{-- Event split --}}
-                <div class="card col-span-2 px-4 py-3 lg:col-span-1">
-                    <p class="text-xs font-medium text-slate-500">Event breakdown</p>
-                    <div class="mt-1.5 space-y-1">
+                <div class="stat-cell">
+                    <p class="stat-label">
+                        <x-icon name="squares" variant="outline" class="h-4 w-4 flex-none text-violet-600" />
+                        <span class="truncate">Event breakdown</span>
+                    </p>
+                    <div class="mt-1.5 space-y-0.5">
                         @foreach ($eventMeta as $key => $meta)
                             @php $val = $stats[$key]; $pct = $stats['total'] ? round($val / $stats['total'] * 100) : 0; @endphp
                             <div class="flex items-center gap-2 text-xs">

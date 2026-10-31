@@ -137,6 +137,7 @@ class Navigation
                 'items' => [
                     // Lead-only (sensitive HR data); routes enforce this too.
                     ['key' => 'performance', 'label' => 'Performance', 'route' => 'performance.index', 'patterns' => ['performance.*'], 'icon' => 'chart-bar', 'color' => 'text-fuchsia-600', 'visible' => fn (User $u) => $u->isLead()],
+                    ['key' => 'kpi-reports', 'label' => 'KPI reports', 'route' => 'kpi-reports.index', 'patterns' => ['kpi-reports.*'], 'icon' => 'document-text', 'color' => 'text-indigo-600', 'visible' => fn (User $u) => $u->isAdmin()],
                     ['key' => 'users', 'label' => 'Users', 'route' => 'users.index', 'patterns' => ['users.*'], 'icon' => 'identification', 'color' => 'text-slate-600', 'visible' => fn (User $u) => $u->canManageUsers()],
                 ],
             ],

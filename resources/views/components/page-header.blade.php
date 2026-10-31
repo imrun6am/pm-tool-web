@@ -30,6 +30,6 @@
         @endif
     </div>
     @isset($actions)
-        <div class="flex flex-none flex-wrap items-center gap-2">{{ $actions }}</div>
+        <div class="flex min-w-0 flex-wrap items-center gap-2 sm:flex-none">{{ $actions }}</div>
     @endisset
 </div>

@@ -86,11 +86,15 @@
                     $tMax = collect($trend)->max('wp') ?: 0;
                 @endphp
 
-                <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
-                    @include('partials.stat-tile', ['label' => 'Submitted', 'value' => $tsSubmitted, 'sub' => 'of '.$allRowUsers->count().' '.\Illuminate\Support\Str::plural('member', $allRowUsers->count()), 'icon' => 'list', 'tone' => 'emerald'])
-                    @include('partials.stat-tile', ['label' => 'On leave', 'value' => $tsOnLeave, 'sub' => 'casual or sick', 'icon' => 'pause', 'tone' => 'amber'])
-                    @include('partials.stat-tile', ['label' => 'Pending', 'value' => $tsPending, 'sub' => 'not filled yet', 'icon' => 'user', 'tone' => 'slate'])
-                    @include('partials.stat-tile', ['label' => 'Work points', 'value' => $tsWorkPoints, 'sub' => $tsTickets.' '.\Illuminate\Support\Str::plural('ticket', $tsTickets).' logged', 'icon' => 'activity', 'tone' => 'brand'])
+                <div class="stat-strip">
+                    <x-stat label="Submitted" :value="$tsSubmitted"
+                            :sub="'of '.$allRowUsers->count().' '.\Illuminate\Support\Str::plural('member', $allRowUsers->count())"
+                            icon="clipboard-check" tone="emerald" />
+                    <x-stat label="On leave" :value="$tsOnLeave" sub="casual or sick" icon="calendar" tone="amber" />
+                    <x-stat label="Pending" :value="$tsPending" sub="not filled yet" icon="clock" tone="slate" />
+                    <x-stat label="Work points" :value="$tsWorkPoints"
+                            :sub="$tsTickets.' '.\Illuminate\Support\Str::plural('ticket', $tsTickets).' logged'"
+                            icon="chart-bar" tone="brand" />
                 </div>
 
                 {{-- Team output — trailing 14 days --}}

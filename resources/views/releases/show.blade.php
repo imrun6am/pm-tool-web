@@ -1,36 +1,49 @@
 <x-app-layout sticky-header>
     <x-slot name="header">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-            <div>
-                <div class="flex flex-wrap items-center gap-2.5">
-                    <h2 class="page-title">{{ $release->name }}</h2>
-                    @if ($release->isComplete())
-                        <span class="badge bg-emerald-50 text-emerald-700">
-                            <svg class="h-3 w-3" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.7 5.3a1 1 0 010 1.4l-7.5 7.5a1 1 0 01-1.4 0l-3.5-3.5a1 1 0 111.4-1.4l2.8 2.79 6.8-6.79a1 1 0 011.4 0z" clip-rule="evenodd"/></svg>
-                            Completed
-                        </span>
-                    @endif
-                </div>
-                <p class="mt-1 text-sm text-slate-500">
-                    <a href="{{ route('projects.show', $release->project) }}" class="hover:text-brand-600">
-                        <span class="inline-block h-2.5 w-2.5 rounded-full align-middle" style="background-color: {{ $release->project->color }}"></span>
-                        {{ $release->project->name }}
-                    </a>
-                    <span class="mx-1 text-slate-300">·</span>
-                    <a href="{{ route('teams.show', $release->team) }}" class="hover:text-brand-600">
-                        <span class="inline-block h-2.5 w-2.5 rounded-full align-middle" style="background-color: {{ $release->team->color }}"></span>
-                        {{ $release->team->name }}
-                    </a>
-                    <span class="mx-1 text-slate-300">·</span>
-                    {{ $release->year }} {{ $release->quarterLabel() }}
-                </p>
-            </div>
-            <div class="flex items-center gap-2">
-                <a href="{{ route('board.index', ['release_id' => $release->id]) }}" class="btn-secondary btn-sm">Board view</a>
+        @php
+            // The releases list is a planning view hidden from developers/QA, so
+            // their trail starts at the dashboard instead.
+            $limited = auth()->user()->hasLimitedAccess();
+            $crumbs = $limited
+                ? ['Dashboard' => route('dashboard'), $release->name => null]
+                : ['Releases' => route('releases.index'), $release->name => null];
+        @endphp
+        <x-page-header :title="$release->name" :breadcrumbs="$crumbs">
+            <x-slot name="actions">
+                <a href="{{ route('board.index', ['release_id' => $release->id]) }}" class="btn-secondary btn-sm">
+                    <x-icon name="view-columns" variant="outline" class="h-4 w-4" />Board view
+                </a>
                 @if (auth()->user()->canManageReleases())
-                    <a href="{{ route('releases.edit', $release) }}" class="btn-secondary btn-sm">Edit release</a>
+                    <a href="{{ route('releases.edit', $release) }}" class="btn-secondary btn-sm">
+                        <x-icon name="pencil-square" variant="outline" class="h-4 w-4" />Edit release
+                    </a>
                 @endif
-            </div>
+            </x-slot>
+        </x-page-header>
+        <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-slate-500">
+            @if ($release->isComplete())
+                <span class="badge badge-success">
+                    <x-icon name="check" variant="outline" class="h-3 w-3" />Completed
+                </span>
+            @else
+                <span class="badge badge-brand">
+                    <span class="h-1.5 w-1.5 rounded-full bg-current opacity-70"></span>Ongoing
+                </span>
+            @endif
+            @foreach ([[$release->project, 'projects.show'], [$release->team, 'teams.show']] as [$owner, $ownerRoute])
+                @if ($limited)
+                    <span class="inline-flex items-center gap-1.5">
+                        <span class="h-2.5 w-2.5 rounded-full" style="background-color: {{ $owner->color }}"></span>{{ $owner->name }}
+                    </span>
+                @else
+                    <a href="{{ route($ownerRoute, $owner) }}" class="inline-flex items-center gap-1.5 hover:text-brand-700">
+                        <span class="h-2.5 w-2.5 rounded-full" style="background-color: {{ $owner->color }}"></span>{{ $owner->name }}
+                    </a>
+                @endif
+            @endforeach
+            <span class="inline-flex items-center gap-1.5">
+                <x-icon name="calendar" variant="outline" class="h-4 w-4 text-slate-400" />{{ $release->year }} {{ $release->quarterLabel() }}
+            </span>
         </div>
     </x-slot>
 
@@ -370,8 +383,9 @@
                             <button type="button" @click="open = !open" x-show="!open" class="btn-primary btn-sm mt-3 w-full">Mark complete</button>
                             <form x-show="open" x-cloak method="POST" action="{{ route('releases.complete', $release) }}" class="mt-3">
                                 @csrf
-                                <label for="completion_notes" class="field-label">Notes <span class="text-slate-400">(optional · Markdown)</span></label>
-                                <textarea id="completion_notes" name="completion_notes" rows="4" class="field-textarea" placeholder="What shipped, known issues, follow-ups…"></textarea>
+                                <label for="completion_notes" class="field-label">Notes<span class="field-optional">Optional</span></label>
+                                <textarea id="completion_notes" name="completion_notes" rows="4" class="field-textarea" aria-describedby="completion_notes-hint" placeholder="What shipped, known issues, follow-ups…"></textarea>
+                                <p id="completion_notes-hint" class="field-hint">Markdown is supported.</p>
                                 <div class="mt-3 flex items-center gap-2">
                                     <button class="btn-primary btn-sm">Confirm</button>
                                     <button type="button" @click="open = false" class="btn-ghost btn-sm">Cancel</button>
@@ -397,12 +411,12 @@
                             <form method="POST" action="{{ route('releases.offdays.store', $release) }}" class="space-y-3 border-b border-slate-100 px-5 py-4">
                                 @csrf
                                 <div>
-                                    <label class="eyebrow">Date</label>
-                                    <input type="date" name="date" required min="{{ $release->start_date->toDateString() }}" max="{{ $release->end_date->toDateString() }}" class="field-input">
+                                    <label for="offday-date" class="field-label">Date</label>
+                                    <input id="offday-date" type="date" name="date" required min="{{ $release->start_date->toDateString() }}" max="{{ $release->end_date->toDateString() }}" class="field-input">
                                 </div>
                                 <div>
-                                    <label class="eyebrow">Reason (optional)</label>
-                                    <input type="text" name="reason" placeholder="Holiday, off-site…" class="field-input">
+                                    <label for="offday-reason" class="field-label">Reason<span class="field-optional">Optional</span></label>
+                                    <input id="offday-reason" type="text" name="reason" placeholder="Holiday, off-site…" class="field-input">
                                 </div>
                                 <button class="btn-primary btn-sm w-full">Mark off-day</button>
                             </form>

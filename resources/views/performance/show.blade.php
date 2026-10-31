@@ -1,27 +1,27 @@
 @use('App\Support\ScoreColor')
 <x-app-layout>
     <x-slot name="header">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-            <div class="flex items-center gap-3">
-                <a href="{{ route('performance.index', ['team' => $team->id, 'week' => $weekDate->toDateString()]) }}" class="btn-secondary btn-sm !px-2" aria-label="Back to overview">‹</a>
-                <div>
-                    <div class="flex items-center gap-2">
-                        <h2 class="page-title">{{ $member->name }}</h2>
-                        @include('partials.role-badge', ['role' => $member->role, 'variant' => 'pill'])
-                        @if ($member->statusTag())
-                            <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium text-slate-500">{{ $member->statusTag() }}</span>
-                        @endif
-                    </div>
-                    <p class="text-xs text-slate-400">{{ $team->name }} · {{ $card['weekLabel'] }}</p>
+        @php
+            $memberDescription = new \Illuminate\Support\HtmlString(
+                view('partials.role-badge', ['role' => $member->role, 'variant' => 'pill'])->render()
+                .($member->statusTag() ? '<span class="badge badge-slate">'.e($member->statusTag()).'</span>' : '')
+                .'<span>'.e($team->name.' · '.$card['weekLabel']).'</span>'
+            );
+        @endphp
+        <x-page-header :title="$member->name" :description="$memberDescription"
+                       class="[&_h1+p]:flex [&_h1+p]:flex-wrap [&_h1+p]:items-center [&_h1+p]:gap-2"
+                       :breadcrumbs="[
+                           'Performance' => route('performance.index', ['team' => $team->id, 'week' => $weekDate->toDateString()]),
+                           $member->name => null,
+                       ]">
+            <x-slot name="actions">
+                <div class="flex items-center gap-1">
+                    <a href="{{ route('performance.members.show', ['user' => $member->id, 'team' => $team->id, 'week' => $prevWeek->toDateString()]) }}" class="btn-secondary btn-sm btn-icon" aria-label="Previous week">‹</a>
+                    <a href="{{ route('performance.members.show', ['user' => $member->id, 'team' => $team->id, 'week' => $nextWeek->toDateString()]) }}" class="btn-secondary btn-sm btn-icon" aria-label="Next week">›</a>
+                    <a href="{{ route('performance.members.show', ['user' => $member->id, 'team' => $team->id]) }}" class="btn-ghost btn-sm">This week</a>
                 </div>
-            </div>
-
-            <div class="flex items-center gap-1">
-                <a href="{{ route('performance.members.show', ['user' => $member->id, 'team' => $team->id, 'week' => $prevWeek->toDateString()]) }}" class="btn-secondary btn-sm !px-2" aria-label="Previous week">‹</a>
-                <a href="{{ route('performance.members.show', ['user' => $member->id, 'team' => $team->id, 'week' => $nextWeek->toDateString()]) }}" class="btn-secondary btn-sm !px-2" aria-label="Next week">›</a>
-                <a href="{{ route('performance.members.show', ['user' => $member->id, 'team' => $team->id]) }}" class="btn-ghost btn-sm ml-1">This week</a>
-            </div>
-        </div>
+            </x-slot>
+        </x-page-header>
     </x-slot>
 
     <div class="py-6 sm:py-8">
@@ -83,9 +83,9 @@
             <div class="card card-pad">
                 <h3 class="text-sm font-semibold text-slate-900">Competencies</h3>
                 <p class="mt-0.5 text-xs text-slate-400">This week’s rating, latest trend, and private notes</p>
-                <div class="mt-4 divide-y divide-slate-100">
+                <div class="mt-3 divide-y divide-slate-100">
                     @foreach ($c['competencies'] as $row)
-                        <div class="grid grid-cols-1 gap-3 py-3 sm:grid-cols-12 sm:items-center">
+                        <div class="grid grid-cols-1 gap-x-3 gap-y-1.5 py-2 sm:grid-cols-12 sm:items-center">
                             <div class="sm:col-span-5">
                                 <div class="flex items-center gap-2">
                                     <span class="text-sm font-medium text-slate-800">{{ $row['competency']->name }}</span>
@@ -99,7 +99,7 @@
                                     </p>
                                 @endif
                             </div>
-                            <div class="sm:col-span-4">@include('partials.spark-line', ['points' => collect($row['trend'])->map(fn ($v) => ['value' => $v])->all(), 'max' => 5, 'h' => 40])</div>
+                            <div class="sm:col-span-4 [&>*]:!h-8">@include('partials.spark-line', ['points' => collect($row['trend'])->map(fn ($v) => ['value' => $v])->all(), 'max' => 5, 'h' => 40])</div>
                             <div class="flex items-center justify-between sm:col-span-3 sm:justify-end sm:gap-3">
                                 <span class="text-xs text-slate-400 sm:hidden">This week</span>
                                 @include('partials.perf-score', ['value' => $row['score'], 'showLabel' => true])
@@ -115,11 +115,19 @@
                     <h3 class="text-sm font-semibold text-slate-900">Objective signals</h3>
                     <span class="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-slate-400">Context — not part of the score</span>
                 </div>
-                <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                    @include('partials.stat-tile', ['label' => 'Work points', 'value' => $c['tasksheet']['workPoints'], 'sub' => $c['tasksheet']['ticketCount'].' tickets · '.$c['tasksheet']['ticketPoints'].' pts', 'icon' => 'activity', 'tone' => 'brand'])
-                    @include('partials.stat-tile', ['label' => 'On-time fill', 'value' => $c['tasksheet']['onTimePct'] !== null ? $c['tasksheet']['onTimePct'].'%' : '—', 'sub' => $c['tasksheet']['present'].' days present · '.$c['tasksheet']['leaveDays'].' on leave', 'icon' => 'calendar', 'tone' => 'sky'])
-                    @include('partials.stat-tile', ['label' => 'Tasks done', 'value' => $c['board']['done'].'/'.$c['board']['assigned'], 'sub' => ($c['board']['donePct'] !== null ? $c['board']['donePct'].'% complete' : 'none assigned').' · '.$c['board']['open'].' open', 'icon' => 'board', 'tone' => 'emerald'])
-                    @include('partials.stat-tile', ['label' => 'Rework rate', 'value' => $c['board']['reworkPct'] !== null ? $c['board']['reworkPct'].'%' : '—', 'sub' => $c['board']['rework'].' in recheck', 'icon' => 'restore', 'tone' => ($c['board']['reworkPct'] ?? 0) > 20 ? 'rose' : 'slate'])
+                <div class="stat-strip">
+                    <x-stat label="Work points" :value="$c['tasksheet']['workPoints']"
+                            :sub="$c['tasksheet']['ticketCount'].' tickets · '.$c['tasksheet']['ticketPoints'].' pts'"
+                            icon="chart-bar" tone="brand" />
+                    <x-stat label="On-time fill" :value="$c['tasksheet']['onTimePct'] !== null ? $c['tasksheet']['onTimePct'].'%' : '—'"
+                            :sub="$c['tasksheet']['present'].' days present · '.$c['tasksheet']['leaveDays'].' on leave'"
+                            icon="calendar" tone="sky" />
+                    <x-stat label="Tasks done" :value="$c['board']['done'].'/'.$c['board']['assigned']"
+                            :sub="($c['board']['donePct'] !== null ? $c['board']['donePct'].'% complete' : 'none assigned').' · '.$c['board']['open'].' open'"
+                            icon="view-columns" tone="emerald" />
+                    <x-stat label="Rework rate" :value="$c['board']['reworkPct'] !== null ? $c['board']['reworkPct'].'%' : '—'"
+                            :sub="$c['board']['rework'].' in recheck'"
+                            icon="clock" :tone="($c['board']['reworkPct'] ?? 0) > 20 ? 'rose' : 'slate'" />
                 </div>
 
                 <div class="card card-pad mt-4">

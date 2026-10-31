@@ -28,6 +28,13 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    // KPI review reports: Claude reads tasksheet plans/results (KpiReportController).
+    'anthropic' => [
+        'key' => env('ANTHROPIC_API_KEY'),
+        'model' => env('KPI_REVIEW_MODEL', 'claude-sonnet-5-5'),
+        'effort' => env('KPI_REVIEW_EFFORT', 'high'),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),

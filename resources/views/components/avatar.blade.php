@@ -21,6 +21,7 @@
         'sm' => 'h-6 w-6 text-[10px]',
         'md' => 'h-8 w-8 text-xs',
         'lg' => 'h-10 w-10 text-sm',
+        'xl' => 'h-16 w-16 text-xl',
     ];
 @endphp
 <span {{ $attributes->merge(['class' => 'inline-flex flex-none select-none items-center justify-center rounded-full font-semibold '.$tone.' '.($sizes[$size] ?? $sizes['md'])]) }} aria-hidden="true">{{ $initials }}</span>
