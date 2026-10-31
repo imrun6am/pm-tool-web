@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use App\Models\User;
+use App\Services\Board\ClaudePlanTaskExtractor;
+use App\Services\Board\PlanTaskExtractor;
 use App\Services\Kpi\ClaudeKpiAnalyzer;
 use App\Services\Kpi\KpiAnalyzer;
 use App\Services\QuickLinkService;
@@ -27,6 +29,12 @@ class AppServiceProvider extends ServiceProvider
             config('services.anthropic.key'),
             config('services.anthropic.model'),
             config('services.anthropic.effort'),
+        ));
+
+        $this->app->bind(PlanTaskExtractor::class, fn () => new ClaudePlanTaskExtractor(
+            config('services.anthropic.key'),
+            config('services.anthropic.board_tasks_model'),
+            config('services.anthropic.board_tasks_effort'),
         ));
     }
 

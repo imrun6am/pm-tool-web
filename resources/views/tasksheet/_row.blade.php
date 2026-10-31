@@ -17,6 +17,15 @@
     $fieldCount = count(TasksheetEntry::TASK_FIELDS);
     $idp = 'ts-'.$rowUser->id; // unique per row on the page
 
+    // "Add to board": the team's open releases (ordered by start). Default to the
+    // one running on this day, else the next upcoming one, else the most recent.
+    $boardReleases = $boardReleases ?? collect();
+    $defaultRelease = $isOldRow && old('board_release_id')
+        ? (int) old('board_release_id')
+        : ($boardReleases->first(fn ($r) => $day->between($r->start_date, $r->end_date))
+            ?? $boardReleases->first(fn ($r) => $r->start_date->gt($day))
+            ?? $boardReleases->last())?->id;
+
     $attendance = ['' => ['label' => 'Working', 'hint' => 'Log the day as usual', 'icon' => 'clipboard-check']]
         + collect(TasksheetEntry::LEAVE_TYPES)->mapWithKeys(fn ($label, $val) => [$val => [
             'label' => $label,
@@ -24,7 +33,16 @@
             'icon' => in_array($val, TasksheetEntry::FULL_DAY_LEAVE_TYPES, true) ? 'calendar' : 'clock',
         ]])->all();
 @endphp
-<tbody x-data="{ editing: @js($isOldRow), leave: @js($leave) }"
+<tbody x-data="{
+           editing: @js($isOldRow),
+           leave: @js($leave),
+           busy: null,
+           submitted(e) {
+               // Read the submitter now; flip the busy state after the browser has captured it.
+               const action = e.submitter?.dataset.action || 'save';
+               setTimeout(() => this.busy = action);
+           },
+       }"
        x-effect="document.documentElement.classList.toggle('overflow-hidden', editing)"
        class="divide-y divide-slate-100 border-t border-slate-100">
     <tr class="align-top transition-colors hover:bg-slate-50/60">
@@ -133,7 +151,7 @@
                                x-transition:enter="transition duration-200 ease-out motion-reduce:transition-none" x-transition:enter-start="translate-x-full" x-transition:enter-end="translate-x-0"
                                x-transition:leave="transition duration-150 ease-in motion-reduce:transition-none" x-transition:leave-start="translate-x-0" x-transition:leave-end="translate-x-full"
                                class="absolute inset-y-0 right-0 flex w-full max-w-2xl flex-col bg-white shadow-2xl">
-                            <form method="POST" action="{{ route('tasksheet.entries.upsert') }}" class="flex h-full flex-col">
+                            <form method="POST" action="{{ route('tasksheet.entries.upsert') }}" class="flex h-full flex-col" @submit="submitted($event)">
                                 @csrf @method('PUT')
                                 <input type="hidden" name="team_id" value="{{ $team->id }}">
                                 <input type="hidden" name="user_id" value="{{ $rowUser->id }}">
@@ -252,11 +270,44 @@
                                 </div>
 
                                 {{-- Footer --}}
-                                <footer class="flex items-center justify-between gap-3 border-t border-slate-200 bg-slate-50/80 px-6 py-4">
-                                    <p class="hidden text-xs text-slate-500 sm:block">Saved to {{ $rowUser->name }}’s row for {{ $day->format('M j') }}.</p>
-                                    <div class="ml-auto flex items-center gap-2">
-                                        <button type="button" @click="editing = false" class="btn-ghost">Cancel</button>
-                                        <button class="btn-primary">
+                                <footer class="space-y-3 border-t border-slate-200 bg-slate-50/80 px-6 py-4">
+                                    {{-- Add to board: Claude splits the plan into To Do cards for this member --}}
+                                    @if ($boardReleases->isNotEmpty())
+                                        <div class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-white px-3 py-2 ring-1 ring-inset ring-violet-200">
+                                            <x-icon name="sparkles" variant="outline" class="h-4 w-4 flex-none text-violet-600" />
+                                            <label for="{{ $idp }}-board-release" class="text-xs font-medium text-slate-700">Board release</label>
+                                            <select id="{{ $idp }}-board-release" name="board_release_id"
+                                                    class="field-control field-sm w-auto min-w-0 flex-1 pr-8 sm:max-w-[15rem]" @invalid('board_release_id')>
+                                                @foreach ($boardReleases as $r)
+                                                    <option value="{{ $r->id }}" @selected($defaultRelease === $r->id)>{{ $r->name }}</option>
+                                                @endforeach
+                                            </select>
+                                            <span class="w-full text-[11px] leading-snug text-slate-500 sm:w-auto sm:flex-1">
+                                                Claude splits the plan into tasks assigned to {{ Str::before($rowUser->name, ' ') ?: $rowUser->name }}.
+                                            </span>
+                                        </div>
+                                    @else
+                                        <p class="flex items-center gap-2 text-xs text-slate-500">
+                                            <x-icon name="sparkles" variant="outline" class="h-4 w-4 flex-none text-slate-400" />
+                                            Add to board needs an open release for {{ $team->name }}.
+                                        </p>
+                                    @endif
+
+                                    <div class="flex flex-wrap items-center justify-end gap-2">
+                                        <button type="button" @click="editing = false" class="btn-ghost mr-auto sm:mr-0">Cancel</button>
+                                        <button type="submit" formaction="{{ route('tasksheet.entries.board') }}" data-action="board"
+                                                class="btn border border-violet-700/30 bg-gradient-to-b from-violet-500 to-fuchsia-600 text-white shadow-btn hover:from-violet-600 hover:to-fuchsia-700 focus-visible:ring-violet-500/60"
+                                                @disabled($boardReleases->isEmpty())
+                                                :disabled="@js($boardReleases->isEmpty()) || busy !== null || @js(TasksheetEntry::FULL_DAY_LEAVE_TYPES).includes(leave)"
+                                                :title="@js(TasksheetEntry::FULL_DAY_LEAVE_TYPES).includes(leave) ? 'A full-day leave has no tasks to add' : 'Save the row and add its plan to the board'">
+                                            <svg x-show="busy === 'board'" x-cloak class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                                                <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-opacity=".3" stroke-width="3" />
+                                                <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
+                                            </svg>
+                                            <x-icon name="sparkles" variant="outline" class="h-4 w-4" x-show="busy !== 'board'" />
+                                            <span x-text="busy === 'board' ? 'Creating tasks…' : 'Add to board'">Add to board</span>
+                                        </button>
+                                        <button type="submit" data-action="save" class="btn-primary" :disabled="busy !== null">
                                             <x-icon name="check" variant="outline" class="h-4 w-4" />Save row
                                         </button>
                                     </div>

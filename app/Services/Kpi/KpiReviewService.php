@@ -6,6 +6,7 @@ use App\Jobs\AnalyseKpiMember;
 use App\Jobs\BuildKpiReport;
 use App\Models\KpiReport;
 use App\Models\KpiReportMember;
+use App\Models\PerformanceScore;
 use App\Models\TasksheetEntry;
 use App\Models\Team;
 use App\Models\User;
@@ -24,6 +25,20 @@ use Illuminate\Support\Facades\DB;
  */
 class KpiReviewService
 {
+    /** Work categories Claude sorts each day's tasks into (fixed, so members compare). */
+    public const CATEGORIES = [
+        'feature' => 'Feature work',
+        'bug_fix' => 'Bug fixing',
+        'support' => 'Support tickets',
+        'meeting' => 'Meetings & coordination',
+        'testing' => 'Testing / QA',
+        'code_review' => 'Code review',
+        'release' => 'Release & deployment',
+        'research' => 'Research & learning',
+        'documentation' => 'Documentation',
+        'other' => 'Other',
+    ];
+
     /**
      * Who a report scores. A team report covers that team's developers/QA and
      * only their rows on that team; an individual report covers one member.
@@ -164,9 +179,12 @@ class KpiReviewService
             'facts' => [
                 'teams' => array_keys($teams),
                 'leave_dates' => $leaveDates,
+                // Work-habit fields too, so the report can show them for any month.
                 'days' => array_map(fn ($d) => [
                     'date' => $d['date'], 'team' => $d['team'], 'tickets' => $d['tickets'],
                     'plan' => $d['plan'], 'result' => $d['result'],
+                    'half_day' => $d['half_day'], 'work_points' => $d['work_points'],
+                    'standup' => $d['standup'], 'filled' => $d['filled'], 'late' => $d['late'],
                 ], $days),
             ],
         ];
@@ -176,7 +194,7 @@ class KpiReviewService
      * Report rows for one member: the whole period plus each month.
      *
      * @param  list<string>  $months  YYYY-MM
-     * @return array{period: array<string, mixed>, months: array<string, array<string, mixed>>, days: list<array<string, mixed>>}
+     * @return array{period: array<string, mixed>, months: array<string, array<string, mixed>>, days: list<array<string, mixed>>, insights: array<string, mixed>}
      */
     public function memberRows(KpiReportMember $row, KpiReport $report, array $months): array
     {
@@ -197,6 +215,7 @@ class KpiReviewService
             $days = array_values(array_filter($counts, $inRange));
             $rawDays = array_filter($facts['days'], $inRange);
             $t = self::totals($days);
+            $categories = self::categoryTotals($days);
 
             $evidence = array_filter([
                 'Tasksheet: '.route('tasksheet.user', ['member' => $member->id, 'from' => $from, 'to' => $to] + $teamParam),
@@ -224,6 +243,11 @@ class KpiReviewService
                 'improvement_action' => $notes['improvement_action'] ?? '',
                 'success' => self::success($t['percent']),
                 'progress' => self::progress($days),
+                'work_mix' => self::workMix($categories),
+                'focus' => $notes['focus'] ?? '',
+                'categories' => $categories,
+                // Older facts (before habit fields were kept) have no habit data.
+                'habits' => isset(current($rawDays)['filled']) ? $this->signals($rawDays) : null,
                 'note' => match (true) {
                     $row->status === KpiReportMember::STATUS_FAILED => 'Analysis failed: '.$row->error,
                     $days === [] => 'No tasksheet data in this period',
@@ -232,12 +256,26 @@ class KpiReviewService
             ];
         };
 
+        $overall = $analysis['overall'] ?? [];
         $monthNotes = collect($analysis['months'] ?? [])->keyBy('month');
         $out = [
-            'period' => $build($report->period_start->toDateString(), $report->period_end->toDateString(), $analysis['overall'] ?? null),
+            'period' => $build($report->period_start->toDateString(), $report->period_end->toDateString(), $overall ?: null),
             'months' => [],
             'days' => $counts,
+            'insights' => [
+                'key_contributions' => $overall['key_contributions'] ?? [],
+                'recurring_tasks' => $overall['recurring_tasks'] ?? [],
+                'carried_over' => $overall['carried_over'] ?? [],
+                'observations' => $overall['observations'] ?? [],
+                'rating' => isset($overall['suggested_rating']['score']) ? [
+                    'score' => $score = max(PerformanceScore::MIN_SCORE, min(PerformanceScore::MAX_SCORE, (int) $overall['suggested_rating']['score'])),
+                    'label' => PerformanceScore::label($score),
+                    'rationale' => $overall['suggested_rating']['rationale'] ?? '',
+                ] : null,
+            ],
         ];
+        // The whole-period row's "focus" is what was delivered.
+        $out['period']['focus'] = implode("\n", $out['insights']['key_contributions']);
         foreach ($months as $ym) {
             [$from, $to] = $this->monthRange($ym, $report);
             $out['months'][$ym] = $build($from, $to, $monthNotes[$ym] ?? null);
@@ -275,6 +313,36 @@ class KpiReviewService
         $done = array_sum(array_column($days, 'completed'));
 
         return ['kpi' => $kpi, 'done' => $done, 'percent' => $kpi ? round($done / $kpi * 100, 1) : null];
+    }
+
+    /** @return array<string, int> tasks per category (all categories, zero-filled) */
+    public static function categoryTotals(array $days): array
+    {
+        $totals = array_fill_keys(array_keys(self::CATEGORIES), 0);
+        foreach ($days as $day) {
+            foreach ($day['categories'] ?? [] as $c) {
+                if (isset($totals[$c['category']])) {
+                    $totals[$c['category']] += max(0, (int) $c['tasks']);
+                }
+            }
+        }
+
+        return $totals;
+    }
+
+    /** "Feature work 45% · Bug fixing 30% · …" — the four biggest shares. */
+    public static function workMix(array $totals): string
+    {
+        $sum = array_sum($totals);
+        if ($sum === 0) {
+            return '';
+        }
+
+        arsort($totals);
+
+        return collect(array_slice(array_filter($totals), 0, 4, true))
+            ->map(fn (int $n, string $key) => self::CATEGORIES[$key].' '.round($n / $sum * 100).'%')
+            ->implode(' · ');
     }
 
     /** Field guide: Excellent ≥ 90 · Good 85–89 · Satisfactory 80–84 · Needs Improvement < 80. */
@@ -320,8 +388,8 @@ class KpiReviewService
         };
     }
 
-    /** @return array<string, int|float> behaviour signals the drafts are grounded in */
-    private function signals(array $days): array
+    /** @return array<string, int|float> work-habit signals (prompt input and the report's habits table) */
+    public function signals(array $days): array
     {
         $n = count($days);
         $count = fn (callable $f) => count(array_filter($days, $f));

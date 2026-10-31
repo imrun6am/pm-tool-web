@@ -177,6 +177,7 @@ Route::middleware('auth')->group(function () {
     // Team tasksheet (daily grid; feedback column is lead-only)
     Route::get('tasksheet', [TasksheetController::class, 'index'])->name('tasksheet.index');
     Route::put('tasksheet/entries', [TasksheetController::class, 'upsert'])->name('tasksheet.entries.upsert');
+    Route::put('tasksheet/entries/board', [TasksheetController::class, 'addToBoard'])->name('tasksheet.entries.board');
     Route::post('tasksheet/standup', [TasksheetController::class, 'verifyStandup'])->name('tasksheet.standup');
     Route::get('tasksheet/report.pdf', [TasksheetController::class, 'report'])->name('tasksheet.report');
     Route::get('tasksheet/users/{member}', [TasksheetController::class, 'user'])

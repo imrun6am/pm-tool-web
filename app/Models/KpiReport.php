@@ -114,7 +114,7 @@ class KpiReport extends Model
         return $this->scope === self::SCOPE_TEAM ? $this->team_id : null;
     }
 
-    public function scopeLabel(): string
+    public function coverageLabel(): string
     {
         return match ($this->scope) {
             self::SCOPE_TEAM => 'Team: '.($this->team?->name ?? 'deleted team'),

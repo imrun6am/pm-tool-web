@@ -12,6 +12,6 @@
 
 ## 3. Tests & Verification
 
-- [ ] 3.1 Feature tests: drawer markup and buttons, reopening after an error with old input, no feedback for members
+- [x] 3.1 Feature tests: drawer markup and buttons, reopening after an error with old input, no feedback for members
 - [x] 3.2 Browser check: open/fill/save, leave inerts the fields, Cancel/Escape release the scroll lock, no Alpine errors
-- [ ] 3.3 Run `php artisan test`: the full suite passes
+- [x] 3.3 Run `php artisan test`: the full suite passes

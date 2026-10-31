@@ -53,11 +53,19 @@ class KpiReportTest extends TestCase
                     'days' => array_map(fn ($e) => [
                         'date' => $e['date'], 'team' => $e['team'], 'planned' => 2, 'added' => 1,
                         'completed' => str_contains($e['result'] ?? '', 'done') ? 3 : 2,
+                        'categories' => [['category' => 'feature', 'tasks' => 2], ['category' => 'support', 'tasks' => 1]],
                     ], $input['entries']),
                     'months' => array_map(fn ($ym) => [
-                        'month' => $ym, 'feedback' => "Feedback $ym", 'strengths' => 'Strong', 'improvement_areas' => 'Tests', 'improvement_action' => 'Pairing',
+                        'month' => $ym, 'focus' => "Login work $ym", 'feedback' => "Feedback $ym", 'strengths' => 'Strong', 'improvement_areas' => 'Tests', 'improvement_action' => 'Pairing',
                     ], $input['months']),
-                    'overall' => ['feedback' => 'Overall feedback', 'strengths' => 'S', 'improvement_areas' => 'I', 'improvement_action' => 'A'],
+                    'overall' => [
+                        'feedback' => 'Overall feedback', 'strengths' => 'S', 'improvement_areas' => 'I', 'improvement_action' => 'A',
+                        'key_contributions' => ['Shipped login'],
+                        'recurring_tasks' => [['task' => 'Support tickets', 'days' => 2, 'comment' => 'Routine']],
+                        'carried_over' => [['task' => 'Login', 'first_date' => '2026-08-03', 'last_date' => '2026-08-04', 'days' => 2]],
+                        'observations' => [['type' => 'positive', 'text' => 'Ships daily'], ['type' => 'concern', 'text' => 'Vague results']],
+                        'suggested_rating' => ['score' => 9, 'rationale' => 'Solid delivery'],
+                    ],
                     'usage' => ['input_tokens' => 100, 'output_tokens' => 50],
                 ];
             }
@@ -109,14 +117,27 @@ class KpiReportTest extends TestCase
 
     public function test_only_admins_can_reach_kpi_reports(): void
     {
+        [$team, , $dev] = $this->team();
+        $this->entry($team, $dev, '2026-08-03');
+        $admin = $this->admin();
+        $this->actingAs($admin)->post(route('kpi-reports.store'), ['from' => self::FROM, 'to' => self::TO, 'format' => 'xlsx', 'scope' => 'all']);
+        $report = KpiReport::sole();
+
         foreach ([User::ROLE_CTO, User::ROLE_TECH_LEAD, User::ROLE_TEAM_LEAD, User::ROLE_DEVELOPER, User::ROLE_QA, User::ROLE_VIEWER] as $role) {
             $user = User::factory()->create(['role' => $role]);
             $this->actingAs($user)->get(route('kpi-reports.index'))->assertForbidden();
             $this->actingAs($user)->post(route('kpi-reports.store'), ['from' => self::FROM, 'to' => self::TO, 'format' => 'xlsx', 'scope' => 'all'])->assertForbidden();
+            $this->actingAs($user)->get(route('kpi-reports.download', $report))->assertForbidden();
+            $this->actingAs($user)->delete(route('kpi-reports.destroy', $report))->assertForbidden();
         }
 
-        $this->actingAs($this->admin())->get(route('kpi-reports.index'))->assertOk()->assertSee('KPI reports');
-        $this->assertSame(0, KpiReport::count());
+        auth()->logout();
+        $this->get(route('kpi-reports.index'))->assertRedirect(route('login'));
+        $this->get(route('kpi-reports.download', $report))->assertRedirect(route('login'));
+
+        $this->actingAs($admin)->get(route('kpi-reports.index'))->assertOk()->assertSee('KPI reports');
+        $this->actingAs($admin)->get(route('kpi-reports.download', $report))->assertOk();
+        $this->assertSame(1, KpiReport::count());
     }
 
     public function test_menu_item_is_shown_to_admins_only(): void
@@ -177,6 +198,23 @@ class KpiReportTest extends TestCase
         $this->assertSame('Mostly achieved', $dana[15]);
         $this->assertNotContains('Lead Dev', array_column($rows, 0));
 
+        $this->assertSame('Feature work 67% · Support tickets 33%', $dana[17]);
+        $this->assertSame('Shipped login', $dana[18]);
+
+        $file = Storage::disk('local')->path($report->file_path);
+        $insight = collect($this->sheet($file, 'Insights'))->first(fn ($r) => $r[0] === 'Dana Dev');
+        $this->assertSame('5 – Outstanding', $insight[1]); // out-of-range score is clamped to the 1–5 scale
+        $this->assertSame('• Support tickets — 2 days. Routine', $insight[4]);
+        $this->assertSame('• Login (2026-08-03 → 2026-08-04, seen on 2 days)', $insight[5]);
+        $this->assertSame(['• Ships daily', '• Vague results'], [$insight[6], $insight[7]]);
+
+        $breakdown = collect($this->sheet($file, 'Work breakdown'))->first(fn ($r) => $r[0] === 'Dana Dev' && $r[1] === 'Whole period');
+        $this->assertSame([6, 4, 0, 2], array_slice($breakdown, 2, 4)); // total, feature, bug fix, support
+
+        $habits = collect($this->sheet($file, 'Work habits'))->first(fn ($r) => $r[0] === 'Dana Dev' && $r[1] === 'Whole period');
+        $this->assertSame(2, $habits[2]);  // working days
+        $this->assertSame(2, $habits[5]);  // standup not marked
+
         $august = $this->sheet(Storage::disk('local')->path($report->file_path), 'Aug 2026');
         $this->assertSame('Feedback 2026-08', collect($august)->first(fn ($r) => $r[0] === 'Dana Dev')[9]);
         $this->assertCount(4, $this->sheet(Storage::disk('local')->path($report->file_path), 'Daily counts'));
@@ -219,7 +257,7 @@ class KpiReportTest extends TestCase
         ])->assertRedirect(route('kpi-reports.index'));
 
         $report = KpiReport::sole();
-        $this->assertSame('Team: Core', $report->scopeLabel());
+        $this->assertSame('Team: Core', $report->coverageLabel());
         $this->assertEqualsCanonicalizing([$dev->id, $qa->id], $report->members()->pluck('user_id')->all());
 
         $dana = collect($this->sheet(Storage::disk('local')->path($report->file_path), 'Period'))->first(fn ($r) => $r[0] === 'Dana Dev');
@@ -243,7 +281,7 @@ class KpiReportTest extends TestCase
         ])->assertRedirect(route('kpi-reports.index'));
 
         $report = KpiReport::sole();
-        $this->assertSame('Member: Dana Dev', $report->scopeLabel());
+        $this->assertSame('Member: Dana Dev', $report->coverageLabel());
         $this->assertSame([$dev->id], $report->members()->pluck('user_id')->all());
         $this->assertCount(2, $this->analysed[0]['entries']);
         $this->assertStringStartsWith('%PDF', Storage::disk('local')->get($report->file_path));
@@ -292,7 +330,7 @@ class KpiReportTest extends TestCase
         $this->assertSame(KpiReportMember::STATUS_FAILED, $report->members()->where('user_id', $dev->id)->value('status'));
 
         $rows = $this->sheet(Storage::disk('local')->path($report->file_path), 'Period');
-        $this->assertStringStartsWith('Analysis failed', collect($rows)->first(fn ($r) => $r[0] === 'Dana Dev')[17]);
+        $this->assertStringStartsWith('Analysis failed', collect($rows)->first(fn ($r) => $r[0] === 'Dana Dev')[19]);
     }
 
     public function test_only_one_report_runs_at_a_time(): void

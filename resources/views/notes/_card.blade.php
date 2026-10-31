@@ -34,7 +34,7 @@
                 @endcan
             </div>
 
-            <div x-show="!editing" class="prose-notes mt-1.5 text-sm leading-relaxed text-slate-700 [&>*:first-child]:mt-0">{!! $note->bodyHtml() !!}</div>
+            <div x-show="!editing" class="prose-notes mt-1.5 max-w-4xl text-sm leading-relaxed text-slate-700 [&>*:first-child]:mt-0">{!! $note->bodyHtml() !!}</div>
 
             @if ($note->isSpecific() && $note->recipients->isNotEmpty())
                 <div x-show="!editing" class="mt-2.5 flex flex-wrap items-center gap-1.5 text-xs text-slate-500">

@@ -24,6 +24,12 @@
         .muted { color: #94a3b8; }
         .notes { font-size: 7.5px; color: #64748b; }
         .notes p { margin: 0 0 2px; }
+        h3 { font-size: 9.5px; margin: 8px 0 3px; color: #334155; }
+        .pos { color: #15803d; font-weight: bold; }
+        .con { color: #b45309; font-weight: bold; }
+        .bar { background: #c7d2fe; height: 7px; }
+        .cols { width: 100%; }
+        .cols > tbody > tr > td { border: none; padding: 0 6px 0 0; width: 50%; }
     </style>
 </head>
 <body>
@@ -34,7 +40,7 @@
 
     <h1>KPI review</h1>
     <div class="meta">
-        {{ $report->scopeLabel() }} ·
+        {{ $report->coverageLabel() }} ·
         {{ $report->period_start->format('j M Y') }} – {{ $report->period_end->format('j M Y') }}
         · {{ count($members) }} {{ \Illuminate\Support\Str::plural('member', count($members)) }}
         · generated {{ now()->format('j M Y, H:i') }}
@@ -46,7 +52,7 @@
                 <th>Team member</th><th>Role</th><th>Team(s)</th>
                 <th class="num">Working days</th><th class="num">Leave days</th>
                 <th class="num">KPI / Task</th><th class="num">Actual</th><th class="num">Completion %</th>
-                <th>Overall status</th><th>Success measure</th><th>Progress</th>
+                <th>Overall status</th><th>Success measure</th><th>Progress</th><th>Suggested rating</th>
             </tr>
         </thead>
         <tbody>
@@ -64,6 +70,7 @@
                     <td style="{{ $fill($p['status']) }}">{{ $p['status'] }}</td>
                     <td>{{ $p['success'] }}</td>
                     <td>{{ $p['progress'] }}</td>
+                    <td>{{ $m['insightText']['rating'] ?: '—' }}</td>
                 </tr>
             @endforeach
         </tbody>
@@ -117,8 +124,10 @@
                 </tbody>
             </table>
 
+            @php $it = $m['insightText']; $ins = $m['insights']; $total = array_sum($p['categories']); @endphp
             <table>
                 <tbody>
+                    <tr><td class="label">Suggested rating (draft)</td><td><strong>{{ $it['rating'] ?: '—' }}</strong>@if ($it['rationale'])<br>{{ $it['rationale'] }}@endif</td></tr>
                     <tr><td class="label">Team Lead feedback (draft)</td><td>{{ $p['feedback'] ?: '—' }}</td></tr>
                     <tr><td class="label">Strengths (draft)</td><td>{{ $p['strengths'] ?: '—' }}</td></tr>
                     <tr><td class="label">Improvement areas (draft)</td><td>{{ $p['improvement_areas'] ?: '—' }}</td></tr>
@@ -128,11 +137,98 @@
                 </tbody>
             </table>
 
+            <table class="cols"><tbody><tr>
+                <td>
+                    <h3>Work breakdown — {{ $total }} tasks</h3>
+                    <table>
+                        <thead><tr><th>Type of work</th><th class="num">Tasks</th><th class="num">Share</th><th style="width:35%"></th></tr></thead>
+                        <tbody>
+                            @forelse (collect($p['categories'])->filter()->sortDesc() as $key => $n)
+                                <tr>
+                                    <td>{{ $categories[$key] }}</td>
+                                    <td class="num">{{ $n }}</td>
+                                    <td class="num">{{ round($n / $total * 100) }}%</td>
+                                    <td><div class="bar" style="width: {{ round($n / $total * 100) }}%"></div></td>
+                                </tr>
+                            @empty
+                                <tr><td colspan="4" class="muted">No categorised tasks.</td></tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </td>
+                <td>
+                    <h3>Work habits (from the tasksheet)</h3>
+                    @if ($p['habits'])
+                        <table>
+                            <thead>
+                                <tr><th></th>@foreach ($m['months'] as $ym => $row)<th class="num">{{ $monthLabels[$ym] }}</th>@endforeach<th class="num">Period</th></tr>
+                            </thead>
+                            <tbody>
+                                @foreach ($habitColumns as $key => $label)
+                                    <tr>
+                                        <td>{{ $label }}</td>
+                                        @foreach ($m['months'] as $row)<td class="num">{{ $row['habits'][$key] ?? '—' }}</td>@endforeach
+                                        <td class="num"><strong>{{ $p['habits'][$key] }}</strong></td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    @else
+                        <p class="muted">Not recorded for this report.</p>
+                    @endif
+                </td>
+            </tr></tbody></table>
+
+            @if ($ins['key_contributions'])
+                <h3>Key contributions</h3>
+                <table><tbody>
+                    @foreach ($ins['key_contributions'] as $line)<tr><td>• {{ $line }}</td></tr>@endforeach
+                </tbody></table>
+            @endif
+
+            @if ($ins['observations'])
+                <h3>Observations</h3>
+                <table><tbody>
+                    @foreach (collect($ins['observations'])->sortBy(fn ($o) => $o['type'] === 'positive' ? 0 : 1) as $o)
+                        <tr>
+                            <td style="width:9%" class="{{ $o['type'] === 'positive' ? 'pos' : 'con' }}">{{ $o['type'] === 'positive' ? '✓ Positive' : '! Concern' }}</td>
+                            <td>{{ $o['text'] }}</td>
+                        </tr>
+                    @endforeach
+                </tbody></table>
+            @endif
+
+            @if ($ins['recurring_tasks'])
+                <h3>Recurring tasks</h3>
+                <table>
+                    <thead><tr><th>Task</th><th class="num">Days</th><th>Comment</th></tr></thead>
+                    <tbody>
+                        @foreach ($ins['recurring_tasks'] as $r)
+                            <tr><td style="width:30%">{{ $r['task'] }}</td><td class="num" style="width:6%">{{ $r['days'] }}</td><td>{{ $r['comment'] }}</td></tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            @endif
+
+            @if ($ins['carried_over'])
+                <h3>Carried-over / stuck tasks</h3>
+                <table>
+                    <thead><tr><th>Task</th><th>First seen</th><th>Last seen</th><th class="num">Days seen</th></tr></thead>
+                    <tbody>
+                        @foreach ($ins['carried_over'] as $c)
+                            <tr><td>{{ $c['task'] }}</td><td style="width:11%">{{ $c['first_date'] }}</td><td style="width:11%">{{ $c['last_date'] }}</td><td class="num" style="width:6%">{{ $c['days'] }}</td></tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            @endif
+
             @foreach ($m['months'] as $ym => $row)
                 @continue($row['feedback'] === '')
                 <table>
                     <thead><tr><th colspan="2">{{ $monthLabels[$ym] }} — drafts</th></tr></thead>
                     <tbody>
+                        @if ($row['focus'])<tr><td class="label">Main focus</td><td>{{ $row['focus'] }}</td></tr>@endif
+                        @if ($row['work_mix'])<tr><td class="label">Work mix</td><td>{{ $row['work_mix'] }}</td></tr>@endif
                         <tr><td class="label">Feedback</td><td>{{ $row['feedback'] }}</td></tr>
                         <tr><td class="label">Strengths</td><td>{{ $row['strengths'] }}</td></tr>
                         <tr><td class="label">Improvement areas</td><td>{{ $row['improvement_areas'] }}</td></tr>

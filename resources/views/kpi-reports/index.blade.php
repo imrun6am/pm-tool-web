@@ -95,7 +95,7 @@
                         <tbody class="divide-y divide-slate-100">
                             @foreach ($reports as $report)
                                 <tr>
-                                    <td class="px-4 py-3 font-medium text-slate-800">{{ $report->scopeLabel() }}</td>
+                                    <td class="px-4 py-3 font-medium text-slate-800">{{ $report->coverageLabel() }}</td>
                                     <td class="px-4 py-3 text-slate-600">
                                         {{ $report->period_start->format('j M Y') }} – {{ $report->period_end->format('j M Y') }}
                                     </td>

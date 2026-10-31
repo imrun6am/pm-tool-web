@@ -43,12 +43,32 @@ class KpiReportExporter
         'improvement_action' => ['Improvement Action / Support (draft)', 45],
         'success' => ['Success Measure', 16],
         'progress' => ['Progress / Outcome', 12],
+        'work_mix' => ['Work mix', 32],
+        'focus' => ['Main focus / key contributions', 50],
         'note' => ['Note', 30],
     ];
 
     private const DAILY_COLUMNS = [
         ['Team Member', 20], ['Date', 11], ['Team', 14], ['Planned', 8], ['Added', 8],
-        ['KPI / Task', 9], ['Completed', 10], ['Plan', 60], ['Result', 60],
+        ['KPI / Task', 9], ['Completed', 10], ['Work type', 28], ['Plan', 60], ['Result', 60],
+    ];
+
+    private const INSIGHT_COLUMNS = [
+        ['Team Member', 20], ['Suggested rating (draft)', 16], ['Rating rationale (draft)', 50],
+        ['Key contributions', 55], ['Recurring tasks', 55], ['Carried-over / stuck tasks', 45],
+        ['Positive observations', 55], ['Concerns', 55],
+    ];
+
+    /** Habit key => [header, width]; values come from KpiReviewService::signals(). */
+    private const HABIT_COLUMNS = [
+        'working_days' => ['Working days', 9],
+        'standup_attended' => ['Standup attended', 10],
+        'standup_missed' => ['Standup missed', 10],
+        'standup_not_marked' => ['Standup not marked', 10],
+        'filled_late' => ['Tasksheet filled late', 10],
+        'partially_filled' => ['Tasksheet partially filled', 11],
+        'result_missing' => ['Day-end result missing', 10],
+        'avg_work_points' => ['Avg work points', 9],
     ];
 
     /** Overall Status → cell fill. */
@@ -80,13 +100,15 @@ class KpiReportExporter
     {
         return [
             sprintf('%s · review period %s – %s. Full-day leave (casual/sick) is excluded; half-day leave counts as a working day. Team leads are not scored.',
-                $report->scopeLabel(), $report->period_start->format('j M Y'), $report->period_end->format('j M Y')),
+                $report->coverageLabel(), $report->period_start->format('j M Y'), $report->period_end->format('j M Y')),
             'KPI / Task = planned + added tasks; Actual Result = completed tasks; Completion % = Actual ÷ KPI. Claude counted the tasks from each day’s Plan and Result.',
             'Overall Status: Excellent ≥ 90% · Good 85–89% · Satisfactory 80–84% · Needs Improvement < 80%.',
             'Success Measure uses the same bands: Fully ≥ 90% · Largely 85–89% · Mostly 80–84% · Partially < 80%.',
             'Progress / Outcome compares completion % in the second half of the period with the first half (within ±2 points = Stable).',
             ...($report->teamFilter() ? ['Team report: only tasksheet rows logged on this team are counted.'] : []),
-            'Columns marked (draft) were written by Claude and must be reviewed by the Team Lead. Expected Target / Deadline is left for the Team Lead.',
+            'Work mix and Work breakdown: Claude sorted each day’s tasks into fixed categories; the totals are summed from those daily counts.',
+            'Work habits come straight from the tasksheet (standup marks, when rows were saved, filled fields, work points) – not from Claude.',
+            'Columns marked (draft), the Insights sheet and the suggested rating were written by Claude and must be reviewed by the Team Lead. Expected Target / Deadline is left for the Team Lead.',
         ];
     }
 
@@ -125,6 +147,14 @@ class KpiReportExporter
         foreach ($months as $ym) {
             $monthSheets[$ym] = $prepare($writer->addNewSheetAndMakeItCurrent(), $this->monthLabel($ym), self::COLUMNS);
         }
+        $insightSheet = $prepare($writer->addNewSheetAndMakeItCurrent(), 'Insights', self::INSIGHT_COLUMNS);
+        $breakdownSheet = $prepare($writer->addNewSheetAndMakeItCurrent(), 'Work breakdown', [
+            ['Team Member', 20], ['Period', 14], ['Total tasks', 9],
+            ...array_map(fn (string $label) => [$label, 11], array_values(KpiReviewService::CATEGORIES)),
+        ]);
+        $habitSheet = $prepare($writer->addNewSheetAndMakeItCurrent(), 'Work habits', [
+            ['Team Member', 20], ['Period', 14], ...array_values(self::HABIT_COLUMNS),
+        ]);
         $dailySheet = $prepare($writer->addNewSheetAndMakeItCurrent(), 'Daily counts', self::DAILY_COLUMNS);
 
         $addSummary = function (Sheet $sheet, array $row) use ($writer, $body, $percent, $statusStyles) {
@@ -143,17 +173,37 @@ class KpiReportExporter
 
         foreach ($report->members()->with('member')->lazyById(20) as $memberRow) {
             $rows = $this->kpi->memberRows($memberRow, $report, $months);
+            $name = $rows['period']['name'];
+            $sections = ['Whole period' => $rows['period']]
+                + collect($rows['months'])->mapWithKeys(fn ($row, $ym) => [$this->monthLabel($ym) => $row])->all();
 
             $addSummary($periodSheet, $rows['period']);
             foreach ($months as $ym) {
                 $addSummary($monthSheets[$ym], $rows['months'][$ym]);
             }
 
+            $text = $this->insightText($rows['insights']);
+            $writer->setCurrentSheet($insightSheet);
+            $writer->addRow(Row::fromValuesWithStyle([
+                $name, $text['rating'], $text['rationale'], $text['contributions'],
+                $text['recurring'], $text['carried'], $text['positive'], $text['concerns'],
+            ], $body));
+
+            foreach ($sections as $label => $section) {
+                $writer->setCurrentSheet($breakdownSheet);
+                $writer->addRow(Row::fromValuesWithStyle([$name, $label, array_sum($section['categories']), ...array_values($section['categories'])], $body));
+
+                if ($section['habits'] !== null) {
+                    $writer->setCurrentSheet($habitSheet);
+                    $writer->addRow(Row::fromValuesWithStyle([$name, $label, ...array_map(fn ($key) => $section['habits'][$key], array_keys(self::HABIT_COLUMNS))], $body));
+                }
+            }
+
             $writer->setCurrentSheet($dailySheet);
             foreach ($rows['days'] as $d) {
                 $writer->addRow(Row::fromValuesWithStyle([
-                    $rows['period']['name'], $d['date'], $d['team'], $d['planned'], $d['added'],
-                    $d['planned'] + $d['added'], $d['completed'], $d['plan'], $d['result'],
+                    $name, $d['date'], $d['team'], $d['planned'], $d['added'],
+                    $d['planned'] + $d['added'], $d['completed'], $this->dayCategories($d), $d['plan'], $d['result'],
                 ], $body));
             }
         }
@@ -177,15 +227,47 @@ class KpiReportExporter
         foreach ($report->members()->with('member')->lazyById(20) as $memberRow) {
             $rows = $this->kpi->memberRows($memberRow, $report, $months);
             unset($rows['days']);
-            $members[] = $rows;
+            $members[] = $rows + ['insightText' => $this->insightText($rows['insights'])];
         }
 
         Pdf::loadView('kpi-reports.pdf', [
             'report' => $report,
             'members' => $members,
+            'categories' => KpiReviewService::CATEGORIES,
+            'habitColumns' => array_map(fn ($c) => $c[0], self::HABIT_COLUMNS),
             'monthLabels' => collect($months)->mapWithKeys(fn ($ym) => [$ym => $this->monthLabel($ym)])->all(),
             'notes' => $this->notes($report),
             'statusColors' => self::STATUS_COLORS,
         ])->setPaper('a4', 'landscape')->save($path);
+    }
+
+    /**
+     * The Claude insights as plain text blocks, shared by the Excel cells and the PDF.
+     *
+     * @return array{rating: string, rationale: string, contributions: string, recurring: string, carried: string, positive: string, concerns: string}
+     */
+    public function insightText(array $insights): array
+    {
+        $bullets = fn (iterable $lines) => collect($lines)->map(fn ($line) => '• '.$line)->implode("\n");
+        $observations = collect($insights['observations']);
+
+        return [
+            'rating' => $insights['rating'] ? $insights['rating']['score'].' – '.$insights['rating']['label'] : '',
+            'rationale' => $insights['rating']['rationale'] ?? '',
+            'contributions' => $bullets($insights['key_contributions']),
+            'recurring' => $bullets(array_map(fn ($r) => "{$r['task']} — {$r['days']} days. {$r['comment']}", $insights['recurring_tasks'])),
+            'carried' => $bullets(array_map(fn ($c) => "{$c['task']} ({$c['first_date']} → {$c['last_date']}, seen on {$c['days']} days)", $insights['carried_over'])),
+            'positive' => $bullets($observations->where('type', 'positive')->pluck('text')),
+            'concerns' => $bullets($observations->where('type', 'concern')->pluck('text')),
+        ];
+    }
+
+    /** "Feature work ×2, Bug fixing ×1" for one day. */
+    private function dayCategories(array $day): string
+    {
+        return collect($day['categories'] ?? [])
+            ->filter(fn ($c) => $c['tasks'] > 0)
+            ->map(fn ($c) => (KpiReviewService::CATEGORIES[$c['category']] ?? $c['category']).' ×'.$c['tasks'])
+            ->implode(', ');
     }
 }

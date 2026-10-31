@@ -29,13 +29,26 @@ class ClaudeKpiAnalyzer implements KpiAnalyzer
         - completed: tasks (planned or added) that RESULT reports as done or delivered. Not completed: work described as in progress, ongoing, "continue", pending, blocked, waiting, or planned tasks missing from RESULT.
         If RESULT is empty, completed is 0. If PLAN is empty but RESULT lists work, those tasks are "added".
         When RESULT just repeats PLAN verbatim with no status words, treat the tasks as completed.
+        - categories: split the day's planned + added tasks into the fixed categories; the category task counts must add up to planned + added.
+          feature = new features or enhancements; bug_fix = fixing defects or issues; support = customer/support tickets and client requests;
+          meeting = meetings, calls, discussions, coordination; testing = QA, test cases, regression or manual testing; code_review = reviewing others' code or PRs;
+          release = builds, deployments, publishing, version upgrades; research = learning, R&D, investigation, estimation; documentation = docs, reports, specs; other = anything else.
 
         Write review drafts for the Team Lead, per month and for the whole period ("overall"), grounded only in the entries and signals (standup attendance, late or partial tasksheets, missing results, work points):
         - feedback: behaviour, performance and communication, 1-2 sentences.
         - strengths: where the member performs best, 1-2 concrete points.
         - improvement_areas: skills or habits to improve, 1-2 concrete points.
         - improvement_action: what the lead should do or provide to help, 1-2 concrete actions.
-        Plain sentences, no names, no headings, no markdown. Do not invent facts that are not in the entries.
+        Per month, also "focus": one sentence naming the main projects/modules and kind of work that month.
+
+        For the whole period ("overall"), also give the lead material to mark the member and plan their improvement:
+        - key_contributions: the 3-6 most significant deliverables (features shipped, releases, major fixes), one short line each with project/module names.
+        - recurring_tasks: work that repeats on many days (e.g. daily support tickets, the same meeting, the same module or client), with the number of days it appears and a comment on whether it is healthy routine or a sign of a problem (e.g. the same bug area fixed again and again, support load crowding out planned work).
+        - carried_over: tasks that stay unfinished across several days (planned again or reported in progress repeatedly), with first and last date (YYYY-MM-DD) and the number of days. Empty if none.
+        - observations: 4-8 specific, actionable observations, each tagged "positive" or "concern": work patterns, planning accuracy (planning more than delivered, vague plans), quality signals (rework, repeated fixes), tasksheet and standup discipline, workload balance, ownership and growth. Cite evidence (dates, modules, counts).
+        - suggested_rating: 1-5 (1 Needs Improvement, 2 Below Expectations, 3 Meets Expectations, 4 Exceeds Expectations, 5 Outstanding) with a 2-3 sentence rationale weighing delivery, quality and habits.
+
+        Plain sentences, no names of the member, no headings, no markdown. Do not invent facts that are not in the entries.
         TXT;
 
     private const NOTES = ['feedback', 'strengths', 'improvement_areas', 'improvement_action'];
@@ -64,7 +77,7 @@ class ClaudeKpiAnalyzer implements KpiAnalyzer
 
         $stream = (new Client(apiKey: $this->apiKey))->beta->messages->createStream(
             model: $this->model,
-            maxTokens: 64000,
+            maxTokens: 100000,
             system: self::SYSTEM,
             messages: [['role' => 'user', 'content' => $prompt]],
             thinking: ['type' => 'adaptive'],
@@ -116,44 +129,43 @@ class ClaudeKpiAnalyzer implements KpiAnalyzer
 
     private function schema(): array
     {
-        $notes = [
+        $string = ['type' => 'string'];
+        $object = fn (array $properties) => [
             'type' => 'object',
             'additionalProperties' => false,
-            'required' => self::NOTES,
-            'properties' => array_fill_keys(self::NOTES, ['type' => 'string']),
+            'required' => array_keys($properties),
+            'properties' => $properties,
         ];
+        $notes = array_fill_keys(self::NOTES, $string);
 
-        return [
-            'type' => 'object',
-            'additionalProperties' => false,
-            'required' => ['days', 'months', 'overall'],
-            'properties' => [
-                'days' => [
-                    'type' => 'array',
-                    'items' => [
-                        'type' => 'object',
-                        'additionalProperties' => false,
-                        'required' => ['date', 'team', 'planned', 'added', 'completed'],
-                        'properties' => [
-                            'date' => ['type' => 'string'],
-                            'team' => ['type' => 'string'],
-                            'planned' => ['type' => 'integer'],
-                            'added' => ['type' => 'integer'],
-                            'completed' => ['type' => 'integer'],
-                        ],
-                    ],
-                ],
-                'months' => [
-                    'type' => 'array',
-                    'items' => [
-                        'type' => 'object',
-                        'additionalProperties' => false,
-                        'required' => ['month', ...self::NOTES],
-                        'properties' => ['month' => ['type' => 'string', 'description' => 'YYYY-MM']] + $notes['properties'],
-                    ],
-                ],
-                'overall' => $notes,
-            ],
-        ];
+        return $object([
+            'days' => ['type' => 'array', 'items' => $object([
+                'date' => $string,
+                'team' => $string,
+                'planned' => ['type' => 'integer'],
+                'added' => ['type' => 'integer'],
+                'completed' => ['type' => 'integer'],
+                'categories' => ['type' => 'array', 'items' => $object([
+                    'category' => ['type' => 'string', 'enum' => array_keys(KpiReviewService::CATEGORIES)],
+                    'tasks' => ['type' => 'integer'],
+                ])],
+            ])],
+            'months' => ['type' => 'array', 'items' => $object(
+                ['month' => ['type' => 'string', 'description' => 'YYYY-MM'], 'focus' => $string] + $notes
+            )],
+            'overall' => $object($notes + [
+                'key_contributions' => ['type' => 'array', 'items' => $string],
+                'recurring_tasks' => ['type' => 'array', 'items' => $object([
+                    'task' => $string, 'days' => ['type' => 'integer'], 'comment' => $string,
+                ])],
+                'carried_over' => ['type' => 'array', 'items' => $object([
+                    'task' => $string, 'first_date' => $string, 'last_date' => $string, 'days' => ['type' => 'integer'],
+                ])],
+                'observations' => ['type' => 'array', 'items' => $object([
+                    'type' => ['type' => 'string', 'enum' => ['positive', 'concern']], 'text' => $string,
+                ])],
+                'suggested_rating' => $object(['score' => ['type' => 'integer'], 'rationale' => $string]),
+            ]),
+        ]);
     }
 }

@@ -312,14 +312,32 @@
 
     /* Kanban board — status-tinted columns with a colored top accent, lifted
        cards with a project-color stripe, and a clear drop target. */
+    /* Horizontal scroller: contain only sideways overscroll (no browser
+       back-swipe) so vertical wheel/trackpad scrolling still reaches the page. */
+    .board-scroller {
+        @apply overflow-x-auto;
+        overscroll-behavior-x: contain;
+        scrollbar-width: thin;
+        scrollbar-color: theme(colors.slate.300) transparent;
+    }
+    /* On lg the board fills the viewport and each column scrolls its own cards. */
+    .board-cards {
+        @apply lg:min-h-0 lg:overflow-y-auto lg:pr-1;
+        overscroll-behavior-y: contain;
+        scrollbar-width: thin;
+        scrollbar-color: theme(colors.slate.300) transparent;
+    }
     .board-column {
         @apply flex flex-none flex-col rounded-xl border-t-[3px] p-3 transition-[box-shadow,background-color,width] duration-150 motion-reduce:transition-none;
     }
     .board-column.is-drop-target {
         @apply bg-brand-50/80 ring-2 ring-inset ring-brand-400;
     }
+    /* flex-none: in a fixed-height column the cards must keep their content
+       height and let the column scroll; overflow-hidden would otherwise let
+       flexbox squash them to nothing. */
     .board-card {
-        @apply relative cursor-grab overflow-hidden rounded-xl border border-slate-200/80 bg-white py-3 pl-4 pr-3
+        @apply relative flex-none cursor-grab overflow-hidden rounded-xl border border-slate-200/80 bg-white py-3 pl-4 pr-3
         shadow-[0_1px_2px_0_rgb(15_23_42/0.06)] transition duration-150
         hover:-translate-y-px hover:border-slate-300 hover:shadow-md
         focus-within:ring-2 focus-within:ring-brand-500/40 active:cursor-grabbing

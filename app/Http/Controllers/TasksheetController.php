@@ -2,14 +2,20 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\TasksheetBoardRequest;
 use App\Http\Requests\TasksheetEntryRequest;
+use App\Models\Release;
 use App\Models\User;
+use App\Services\Board\PlanToBoardService;
+use App\Services\Kpi\MissingApiKeyException;
 use App\Services\TasksheetService;
 use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
+use Throwable;
 use Illuminate\View\View;
 
 class TasksheetController extends Controller
@@ -26,6 +32,7 @@ class TasksheetController extends Controller
         $day = ($d = request('date')) ? Carbon::parse($d)->startOfDay() : today();
 
         $entries = collect();
+        $boardReleases = collect();
         $rowUsers = collect();
         $allRowUsers = collect();
         $viewerIsMember = false;
@@ -37,6 +44,8 @@ class TasksheetController extends Controller
             $allRowUsers = $this->tasksheet->rowUsersFor($team, $day, $entries);
             $viewerIsMember = $team->members()->whereKey($viewer->id)->exists();
             $trend = $this->tasksheet->trend($team, $day);
+            // "Add to board" targets one of the team's open releases.
+            $boardReleases = Release::ongoing()->where('team_id', $team->id)->orderBy('start_date')->get();
 
             // Filter the assembled rows, not the query: a member with no row at
             // all still belongs on the sheet, and is exactly what the "empty"
@@ -63,6 +72,7 @@ class TasksheetController extends Controller
             'trend' => $trend,
             'filters' => $filters,
             'hasFilters' => $this->tasksheet->hasFilters($filters),
+            'boardReleases' => $boardReleases,
         ]);
     }
 
@@ -170,5 +180,49 @@ class TasksheetController extends Controller
             'team' => $entry->team_id,
             'date' => $entry->date->toDateString(),
         ])->with('success', 'Tasksheet saved.');
+    }
+
+    /**
+     * "Add to board": save the row exactly like upsert(), then let Claude split
+     * the plan into To Do cards assigned to the row's member. The row is saved
+     * even when Claude is unavailable — only the board step is skipped.
+     */
+    public function addToBoard(TasksheetBoardRequest $request, PlanToBoardService $board): RedirectResponse
+    {
+        $data = $request->validated();
+
+        $entry = $this->tasksheet->resolveEntry($data);
+        $this->authorize('update', $entry);
+
+        $this->tasksheet->save($entry, $data, $request->user(), $request->has('feedback'));
+        $entry->refresh()->load('member');
+
+        $back = redirect()->route('tasksheet.index', [
+            'team' => $entry->team_id,
+            'date' => $entry->date->toDateString(),
+        ]);
+
+        try {
+            $result = $board->addPlanTasks($entry, Release::findOrFail($data['board_release_id']), $request->user());
+        } catch (MissingApiKeyException) {
+            return $back->with('error', 'Tasksheet saved, but no tasks were added: Claude isn’t configured (ANTHROPIC_API_KEY).');
+        } catch (Throwable $e) {
+            report($e);
+
+            return $back->with('error', 'Tasksheet saved, but no tasks were added: Claude couldn’t split the plan right now. Please try again.');
+        }
+
+        $created = count($result['created']);
+        $name = $entry->member->name;
+        $message = match (true) {
+            $created > 0 => "Tasksheet saved. Added {$created} ".Str::plural('task', $created)." to the board for {$name}.",
+            $result['skipped'] > 0 => "Tasksheet saved. Those tasks are already on the board for {$name}.",
+            default => 'Tasksheet saved. Claude found no actionable tasks in the plan.',
+        };
+        if ($created > 0 && $result['skipped'] > 0) {
+            $message .= " Skipped {$result['skipped']} already on the board.";
+        }
+
+        return $back->with('success', $message);
     }
 }

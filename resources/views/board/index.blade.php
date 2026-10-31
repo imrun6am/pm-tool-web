@@ -26,17 +26,19 @@
     $total = $counts->sum();
     $donePct = $total > 0 ? (int) round(($counts['done'] ?? 0) / $total * 100) : 0;
 @endphp
-<x-app-layout>
+<x-app-layout full-height>
     <x-slot name="header">
         <x-page-header title="Board" description="Drag cards between columns, or use a card's Move menu, to change status."
                        :breadcrumbs="$release ? [$release->name => route('releases.show', $release), 'Board' => null] : []" />
     </x-slot>
 
-    <div class="py-6 sm:py-8">
-        <div class="app-container space-y-4">
+    {{-- full-height: on lg the board fills the viewport; columns scroll their own cards
+         and the horizontal scrollbar stays in view. Phones keep normal page scroll. --}}
+    <div class="py-6 sm:py-8 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:pb-4">
+        <div class="app-container space-y-4 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
 
             {{-- Filters --}}
-            <x-filter-bar :action="route('board.index')" :active="$hasFilters">
+            <x-filter-bar :action="route('board.index')" :active="$hasFilters" class="lg:flex-none">
                 <label for="release_id" class="filter-label">Release</label>
                 <select id="release_id" name="release_id" class="filter-select max-w-[14rem]">
                     <option value="">All releases</option>
@@ -65,7 +67,7 @@
             </x-filter-bar>
 
             {{-- Summary --}}
-            <div class="card flex flex-wrap items-center gap-x-6 gap-y-3 px-5 py-3.5">
+            <div class="card flex flex-none flex-wrap items-center gap-x-6 gap-y-3 px-5 py-3.5">
                 <p class="flex items-baseline gap-1.5">
                     <span class="board-total tabular text-xl font-semibold tracking-tight text-slate-900">{{ $total }}</span>
                     <span class="board-total-label text-sm text-slate-500">{{ Str::plural('task', $total) }}</span>
@@ -87,10 +89,10 @@
             </div>
 
             {{-- Columns --}}
-            <div class="scroll-area flex items-start gap-4 overflow-x-auto pb-4">
+            <div class="board-scroller flex items-start gap-4 pb-3 lg:min-h-0 lg:flex-1 lg:items-stretch">
                 @foreach ($statuses as $status => $label)
                     @php $cards = $columns[$status]; $t = $tone($status); $isArchive = $status === 'archive'; @endphp
-                    <section @class(['board-column', $t['col'], 'w-[19rem]' => ! $isArchive])
+                    <section @class(['board-column lg:min-h-0', $t['col'], 'w-[19rem]' => ! $isArchive])
                              data-status="{{ $status }}" aria-labelledby="col-{{ $status }}"
                              @if ($isArchive)
                                  x-data="{
@@ -110,8 +112,8 @@
                             </button>
                         @endif
 
-                        <div @if ($isArchive) x-show="! collapsed" x-cloak @endif class="flex flex-1 flex-col">
-                            <header class="mb-3 flex items-center gap-2 px-1">
+                        <div @if ($isArchive) x-show="! collapsed" x-cloak @endif class="flex min-h-0 flex-1 flex-col">
+                            <header class="mb-3 flex flex-none items-center gap-2 px-1">
                                 <span class="h-2 w-2 rounded-full {{ $t['dot'] }}"></span>
                                 <h2 id="col-{{ $status }}" class="text-sm font-semibold text-slate-800">{{ $label }}</h2>
                                 <span class="board-count tabular ml-auto rounded-full px-2 py-0.5 text-xs font-semibold {{ $t['pill'] }}">{{ $cards->count() }}</span>
@@ -122,11 +124,11 @@
                                 @endif
                             </header>
 
-                            <div id="col-list-{{ $status }}" class="board-list flex min-h-[72px] flex-1 flex-col gap-2.5">
+                            <div id="col-list-{{ $status }}" class="board-list board-cards flex min-h-[72px] flex-1 flex-col gap-2.5">
                                 @foreach ($cards as $task)
                                     @include('partials.board-card', ['task' => $task, 'statuses' => $statuses])
                                 @endforeach
-                                <p class="board-empty flex flex-col items-center gap-1 rounded-xl border-2 border-dashed border-slate-300/70 px-3 py-6 text-center text-xs font-medium text-slate-400"
+                                <p class="board-empty flex flex-none flex-col items-center gap-1 rounded-xl border-2 border-dashed border-slate-300/70 px-3 py-6 text-center text-xs font-medium text-slate-400"
                                    @if ($cards->count()) style="display:none" @endif>
                                     <x-icon name="squares" variant="outline" class="h-5 w-5" />
                                     Drop tasks here
@@ -134,7 +136,7 @@
                             </div>
 
                             {{-- Add a card --}}
-                            <div x-data="{ adding: false }" class="mt-2.5">
+                            <div x-data="{ adding: false }" class="mt-2.5 flex-none">
                                 <button type="button" x-show="!adding" @click="adding = true; $nextTick(() => $refs.title.focus())"
                                         class="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left text-xs font-medium text-slate-500 transition-colors hover:bg-white/80 hover:text-slate-800">
                                     <x-icon name="plus" variant="outline" class="h-4 w-4" />
@@ -210,7 +212,7 @@
                     if (!list) return;
                     list.insertBefore(card, list.querySelector('.board-empty'));
                     refresh();
-                    select.focus();
+                    select.focus({ preventScroll: true });
                     persist(card, select.value, snap);
                 });
             }

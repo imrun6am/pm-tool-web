@@ -14,7 +14,7 @@
 
     <div class="py-6 sm:py-8">
         <div class="app-container">
-            <div class="mx-auto max-w-3xl space-y-6">
+            <div class="space-y-6">
 
                 {{-- Filters: author + a date range (a legacy single `date` stays supported) --}}
                 <x-filter-bar :action="route('notes.index')" :active="$hasFilters" :count="$notes->total()" noun="note">
