@@ -12,7 +12,7 @@
             aria-controls="app-sidebar" aria-expanded="false" :aria-expanded="mobileOpen.toString()" aria-label="Open navigation">
         <x-icon name="bars-3" variant="outline" class="h-6 w-6" />
     </button>
-    <a href="{{ route('dashboard') }}" class="brand-mark lg:hidden" aria-label="Release Planner home">RP</a>
+    <a href="{{ route('dashboard') }}" class="brand-mark lg:hidden" aria-label="PM Tool home">PM</a>
 
     {{-- Command palette trigger --}}
     <button type="button" @click="$dispatch('open-command-palette')"

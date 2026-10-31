@@ -1,4 +1,4 @@
-# Release Planner
+# PM Tool
 
 A project-management tool for planning software releases across multiple projects and teams,
 built with **Laravel + Blade**. Each release is broken into **Development → QA → Retest → Release**

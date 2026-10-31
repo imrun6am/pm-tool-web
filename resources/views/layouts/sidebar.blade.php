@@ -8,8 +8,8 @@
     {{-- Workspace header --}}
     <div class="flex h-16 flex-none items-center gap-2 px-4 lg:sidebar-collapsed:justify-center lg:sidebar-collapsed:px-0">
         <a href="{{ route('dashboard') }}" class="flex min-w-0 items-center gap-2.5 rounded-lg">
-            <span class="brand-mark">RP</span>
-            <span class="nav-label text-[15px] font-semibold tracking-tight text-slate-900">Release Planner</span>
+            <span class="brand-mark">PM</span>
+            <span class="nav-label text-[15px] font-semibold tracking-tight text-slate-900">PM Tool</span>
         </a>
         <button type="button" x-ref="sidebarClose" @click="closeMobile()"
                 class="btn-ghost btn-sm btn-icon ml-auto lg:hidden" aria-label="Close navigation">
