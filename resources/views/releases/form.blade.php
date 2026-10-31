@@ -69,7 +69,7 @@
                 </div>
                 <div>
                     <label for="quarter" class="field-label">Quarter</label>
-                    <select id="quarter" name="quarter" required x-model.number="quarter" class="field-input">
+                    <select id="quarter" name="quarter" required x-model.number="quarter" class="field-select">
                         @foreach ([1,2,3,4] as $q)
                             <option value="{{ $q }}" @selected((int) old('quarter', $release->quarter) === $q)>Q{{ $q }}</option>
                         @endforeach
@@ -102,7 +102,7 @@
         <div class="grid gap-5 p-5 sm:grid-cols-2 sm:p-6">
             <div>
                 <label for="project_id" class="field-label">Project</label>
-                <select id="project_id" name="project_id" required x-model.number="projectId" class="field-input">
+                <select id="project_id" name="project_id" required x-model.number="projectId" class="field-select">
                     <option value="">— Select a project —</option>
                     @foreach ($projects as $project)
                         <option value="{{ $project->id }}" @selected((int) old('project_id', $release->project_id) === $project->id)>{{ $project->name }}</option>
@@ -112,7 +112,7 @@
             </div>
             <div>
                 <label for="team_id" class="field-label">Owning team</label>
-                <select id="team_id" name="team_id" required x-model.number="teamId" class="field-input">
+                <select id="team_id" name="team_id" required x-model.number="teamId" class="field-select">
                     <option value="">— Select a team —</option>
                     @foreach ($teams as $team)
                         <option value="{{ $team->id }}" @selected((int) old('team_id', $release->team_id) === $team->id)>{{ $team->name }}</option>
@@ -156,7 +156,7 @@
                 <template x-for="m in (teamMembers[teamId] || [])" :key="m.id">
                     <label class="flex items-center gap-2.5 rounded-lg border border-slate-200 px-3 py-2 text-sm transition hover:bg-slate-50 has-[:checked]:border-brand-300 has-[:checked]:bg-brand-50">
                         <input type="checkbox" name="members[]" :value="m.id" x-model.number="selected"
-                               class="rounded border-slate-300 text-brand-600 focus:ring-brand-500">
+                               class="field-check">
                         <span class="min-w-0">
                             <span class="block truncate font-medium text-slate-700" x-text="m.name"></span>
                             <span class="block truncate text-xs text-slate-400" x-text="m.role"></span>

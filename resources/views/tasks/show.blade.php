@@ -37,7 +37,7 @@
                     <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                         <div>
                             <label class="block text-sm font-medium text-slate-700">Status</label>
-                            <select name="status" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm">
+                            <select name="status" class="field-select">
                                 @foreach (Task::STATUSES as $val => $label)
                                     <option value="{{ $val }}" @selected(old('status', $task->status) === $val)>{{ $label }}</option>
                                 @endforeach
@@ -45,7 +45,7 @@
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-slate-700">Assignee</label>
-                            <select name="assignee_id" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm">
+                            <select name="assignee_id" class="field-select">
                                 <option value="">Unassigned</option>
                                 @foreach ($users as $u)
                                     <option value="{{ $u->id }}" @selected((int) old('assignee_id', $task->assignee_id) === $u->id)>{{ $u->name }}</option>
@@ -55,11 +55,11 @@
                         <div>
                             <label class="block text-sm font-medium text-slate-700">Due date</label>
                             <input type="date" name="due_date" value="{{ old('due_date', optional($task->due_date)->toDateString()) }}"
-                                   class="mt-1 block w-full rounded-md border-slate-300 shadow-sm">
+                                   class="field-input">
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-slate-700">Phase</label>
-                            <select name="phase" class="mt-1 block w-full rounded-md border-slate-300 shadow-sm">
+                            <select name="phase" class="field-select">
                                 <option value="">No phase</option>
                                 @foreach (Release::PHASES as $val => $label)
                                     <option value="{{ $val }}" @selected(old('phase', $task->phase) === $val)>{{ $label }}</option>
@@ -103,7 +103,7 @@
                     <form method="POST" action="{{ route('tasks.subtasks.store', $task) }}" class="mt-3 flex gap-2">
                         @csrf
                         <input name="title" required placeholder="Add a subtask…"
-                               class="flex-1 rounded-md border-slate-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                               class="field-control flex-1">
                         <button class="btn-primary btn-sm">Add subtask</button>
                     </form>
                 </div>

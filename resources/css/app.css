@@ -1,3 +1,6 @@
+/* Trix's stylesheet first, so the theme overrides further down win. */
+@import 'trix/dist/trix.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -51,6 +54,15 @@
     }
     .card-header {
         @apply flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6;
+    }
+    .card-title {
+        @apply text-sm font-semibold text-slate-900;
+    }
+    .card-subtitle {
+        @apply mt-0.5 text-xs text-slate-500;
+    }
+    .card-footer {
+        @apply flex items-center justify-end gap-2 rounded-b-xl border-t border-slate-100 bg-slate-50/60 px-5 py-3 sm:px-6;
     }
 
     /* Buttons — fixed 40px control height so they line up with inputs.
@@ -123,26 +135,70 @@
         background-color: theme(colors.slate.400);
     }
 
-    /* Form controls (layered on @tailwindcss/forms) */
+    /* Form controls (layered on @tailwindcss/forms). Soft border, darker on
+       hover, a brand halo on focus, and distinct read-only / disabled /
+       invalid (aria-invalid) states. */
     .field-label {
         @apply block text-sm font-medium text-slate-700;
     }
+    .field-optional {
+        @apply ml-1.5 rounded-full bg-slate-100 px-1.5 py-px align-middle text-[11px] font-medium text-slate-600;
+    }
     .field-hint {
-        @apply mt-1 text-xs text-slate-400;
+        @apply mt-1.5 text-xs leading-relaxed text-slate-500;
+    }
+    .field-control {
+        @apply block w-full rounded-lg border-slate-300 bg-white text-sm text-slate-800 shadow-[0_1px_2px_0_rgb(15_23_42/0.04)]
+        transition-[border-color,box-shadow] duration-150
+        placeholder:text-slate-400 hover:border-slate-400
+        focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/15
+        read-only:bg-slate-50 read-only:hover:border-slate-300
+        disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500 disabled:hover:border-slate-300
+        aria-[invalid=true]:border-danger-500 aria-[invalid=true]:hover:border-danger-500
+        aria-[invalid=true]:focus:border-danger-500 aria-[invalid=true]:focus:ring-danger-500/15;
     }
     .field-input,
     .field-select,
     .field-textarea {
-        @apply mt-1 block w-full rounded-lg border-slate-300 text-sm text-slate-800 shadow-sm
-        transition focus:border-brand-500 focus:ring-brand-500;
+        @apply field-control mt-1.5;
+    }
+    .field-textarea {
+        @apply min-h-[5.5rem] leading-relaxed;
     }
     /* Single-line controls share the 40px button height so forms and toolbars align. */
     .field-input,
     .field-select {
         @apply h-10;
     }
+    /* Compact 36px controls for filter bars and dense rows. */
+    .field-sm {
+        @apply h-9 py-1.5;
+    }
     .field-error {
-        @apply mt-1 text-sm text-rose-600;
+        @apply mt-1.5 flex items-center gap-1 text-sm text-danger-600;
+    }
+    /* Native pickers stay native (mobile + a11y); just quiet the indicator. */
+    input[type="date"],
+    input[type="datetime-local"],
+    input[type="time"],
+    input[type="month"] {
+        color-scheme: light;
+    }
+    input::-webkit-calendar-picker-indicator {
+        @apply cursor-pointer rounded opacity-50 transition-opacity hover:opacity-100;
+    }
+    input[type="file"].field-input {
+        @apply h-auto p-1.5 text-slate-600
+        file:mr-3 file:h-8 file:cursor-pointer file:rounded-md file:border-0 file:bg-slate-100 file:px-3
+        file:text-sm file:font-medium file:text-slate-700 hover:file:bg-slate-200;
+    }
+    /* Checkbox / radio */
+    .field-check {
+        @apply h-4 w-4 cursor-pointer rounded border-slate-300 text-brand-600 shadow-sm transition
+        focus:ring-4 focus:ring-brand-500/20 focus:ring-offset-0;
+    }
+    input[type="radio"].field-check {
+        @apply rounded-full;
     }
 
     /* Settings-style two-column form section (fills full width nicely) */
@@ -158,30 +214,69 @@
     .form-section-desc {
         @apply mt-1 text-xs leading-relaxed text-slate-500;
     }
-
-    /* Badges */
-    .badge {
-        @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium;
+    /* Floating sticky action bar under a form (x-form-actions). */
+    .form-actions {
+        @apply sticky bottom-3 z-20 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white/90 px-4 py-3
+        shadow-pop backdrop-blur-md sm:px-5;
     }
 
-    /* Data tables */
+    /* Badges — pill with a hairline inset ring. Tones meet AA text contrast. */
+    .badge {
+        @apply inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium;
+    }
+    .badge-slate { @apply bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-500/10; }
+    .badge-brand { @apply bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-600/15; }
+    .badge-success { @apply bg-success-50 text-success-700 ring-1 ring-inset ring-success-600/20; }
+    .badge-warning { @apply bg-warning-50 text-warning-800 ring-1 ring-inset ring-warning-600/20; }
+    .badge-danger { @apply bg-danger-50 text-danger-700 ring-1 ring-inset ring-danger-600/15; }
+    .badge-info { @apply bg-info-50 text-info-700 ring-1 ring-inset ring-info-600/20; }
+    .badge-violet { @apply bg-violet-50 text-violet-700 ring-1 ring-inset ring-violet-600/15; }
+
+    /* Data tables — calm sentence-case headers, comfortable rows. Wrap in
+       .table-wrap so wide tables scroll inside their card on small screens. */
+    .table-wrap {
+        @apply relative overflow-x-auto;
+    }
     .table-base {
         @apply min-w-full divide-y divide-slate-200 text-sm;
     }
     .table-base thead {
-        @apply bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500;
+        @apply bg-slate-50/80 text-left text-xs font-medium text-slate-500;
     }
     .table-base thead th {
-        @apply px-6 py-3;
+        @apply whitespace-nowrap px-6 py-2.5 font-medium;
     }
     .table-base tbody {
         @apply divide-y divide-slate-100;
     }
     .table-base tbody td {
-        @apply px-6 py-4;
+        @apply px-6 py-3.5;
     }
     .table-base tbody tr {
         @apply transition-colors hover:bg-slate-50/70;
+    }
+
+    /* Filter bar — one compact row of auto-applying filters (x-filter-bar). */
+    .filter-bar {
+        @apply flex flex-wrap items-center gap-2;
+    }
+    .filter-select,
+    .filter-date {
+        @apply field-control field-sm w-auto min-w-0 pr-8;
+    }
+    .filter-date {
+        @apply pr-2;
+    }
+    .filter-search {
+        @apply field-control field-sm pl-9;
+    }
+    .filter-label {
+        @apply sr-only;
+    }
+
+    /* Feed list (notes / meeting rows) */
+    .list-card {
+        @apply card divide-y divide-slate-100 overflow-hidden;
     }
 
     /* Rendered Markdown (release completion notes) */
@@ -198,15 +293,64 @@
     .prose-notes blockquote { @apply border-l-2 border-slate-200 pl-3 text-slate-500; }
     .prose-notes strong { @apply font-semibold text-slate-900; }
 
-    /* Trix rich-text editor — align with the field styling */
+    /* Trix rich-text editor — one composer: a flat icon toolbar fused to the
+       editing area, sharing a single border that turns brand on focus. */
+    trix-toolbar {
+        @apply mt-1.5 rounded-t-lg border border-b-0 border-slate-300 bg-slate-50/80 px-1.5 py-1 transition-colors;
+    }
     trix-toolbar .trix-button-row {
-        @apply flex-wrap gap-1;
+        @apply flex flex-wrap items-center gap-0.5;
+    }
+    trix-toolbar .trix-button-group {
+        @apply m-0 flex items-center gap-0.5 rounded-none border-0;
+    }
+    trix-toolbar .trix-button-group + .trix-button-group,
+    trix-toolbar .trix-button-group-spacer + .trix-button-group {
+        @apply ml-1 border-l border-slate-200 pl-1;
+    }
+    trix-toolbar .trix-button-group-spacer {
+        @apply flex-1;
+    }
+    trix-toolbar .trix-button {
+        @apply h-8 rounded-md border-0 bg-transparent text-slate-600 transition-colors hover:bg-slate-200/70;
+    }
+    trix-toolbar .trix-button:not(:first-child) {
+        border-left: 0;
+    }
+    trix-toolbar .trix-button--icon {
+        @apply w-8 max-w-none;
+    }
+    trix-toolbar .trix-button--icon::before {
+        @apply opacity-60;
+        background-size: 1.1rem;
+    }
+    trix-toolbar .trix-button.trix-active {
+        @apply bg-brand-100;
+    }
+    trix-toolbar .trix-button.trix-active::before {
+        @apply opacity-100;
+    }
+    trix-toolbar .trix-button:disabled::before {
+        @apply opacity-20;
+    }
+    trix-toolbar .trix-dialog {
+        @apply rounded-lg border border-slate-200 p-3 shadow-pop;
+    }
+    trix-toolbar .trix-input--dialog {
+        @apply field-control field-sm;
     }
     trix-editor {
-        @apply mt-1 block min-h-[8rem] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm;
+        @apply block min-h-[8rem] w-full rounded-b-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm leading-relaxed text-slate-800 transition-colors;
     }
     trix-editor:focus {
-        @apply border-brand-500 outline-none ring-1 ring-brand-500;
+        @apply border-brand-500 outline-none;
+    }
+    trix-toolbar:has(+ trix-editor:focus) {
+        @apply border-brand-500;
+    }
+    trix-editor[aria-invalid="true"],
+    trix-toolbar:has(+ trix-editor[aria-invalid="true"]) {
+        @apply border-danger-500;
     }
     trix-editor:empty:not(:focus)::before {
         @apply text-slate-400;

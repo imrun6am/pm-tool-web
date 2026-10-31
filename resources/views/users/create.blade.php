@@ -1,17 +1,15 @@
 <x-app-layout>
     <x-slot name="header">
-        <h2 class="page-title">New user</h2>
+        <x-page-header title="New user" description="Create an account and choose what this person can manage."
+                       :breadcrumbs="['Users' => route('users.index'), 'New user' => null]" />
     </x-slot>
 
-    <div class="py-8">
+    <div class="py-6 sm:py-8">
         <div class="app-container">
-            <form method="POST" action="{{ route('users.store') }}" class="card card-pad">
+            <form method="POST" action="{{ route('users.store') }}" class="mx-auto max-w-5xl space-y-4">
                 @csrf
                 @include('users.form')
-                <div class="mt-8 flex items-center justify-end gap-3">
-                    <a href="{{ route('users.index') }}" class="btn-ghost btn-sm">Cancel</a>
-                    <button class="btn-primary">Create user</button>
-                </div>
+                <x-form-actions :cancel="route('users.index')" submit="Create user" />
             </form>
         </div>
     </div>

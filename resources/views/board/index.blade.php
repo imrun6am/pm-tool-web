@@ -1,49 +1,32 @@
 <x-app-layout>
+    @php $hasFilters = $filters['release_id'] || $filters['assignee_id']; @endphp
+
     <x-slot name="header">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-            <div>
-                <h2 class="page-title">Board</h2>
-                @if ($release)
-                    <p class="mt-1 text-sm text-slate-500">
-                        {{ $release->name }} ·
-                        <a href="{{ route('releases.show', $release) }}" class="text-indigo-600 hover:underline">back to release</a>
-                    </p>
-                @endif
-            </div>
-        </div>
+        <x-page-header title="Board" description="Drag cards between columns to change status."
+                       :breadcrumbs="$release ? [$release->name => route('releases.show', $release), 'Board' => null] : []" />
     </x-slot>
 
-    <div class="py-8">
-        <div class="app-container space-y-6">
+    <div class="py-6 sm:py-8">
+        <div class="app-container space-y-4">
 
             {{-- Filters --}}
-            <form method="GET" action="{{ route('board.index') }}" class="card p-4">
-                <div class="grid gap-4 sm:grid-cols-4">
-                    <div>
-                        <label class="block text-xs font-medium text-slate-500">Release</label>
-                        <select name="release_id" class="field-input">
-                            <option value="">All releases</option>
-                            @foreach ($releases as $r)
-                                <option value="{{ $r->id }}" @selected($filters['release_id'] === $r->id)>{{ $r->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-slate-500">Assignee</label>
-                        <select name="assignee_id" class="field-input">
-                            <option value="">Anyone</option>
-                            @foreach ($users as $u)
-                                <option value="{{ $u->id }}" @selected($filters['assignee_id'] === $u->id)>{{ $u->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="flex items-end gap-2 sm:col-span-2">
-                        <button class="btn-primary btn-sm">Apply</button>
-                        <a href="{{ route('board.index') }}" class="btn-secondary btn-sm">Reset</a>
-                        <span class="ml-auto self-center text-xs text-slate-400">Drag cards between columns to change status.</span>
-                    </div>
-                </div>
-            </form>
+            <x-filter-bar :action="route('board.index')" :active="$hasFilters">
+                <label for="release_id" class="filter-label">Release</label>
+                <select id="release_id" name="release_id" class="filter-select max-w-[14rem]">
+                    <option value="">All releases</option>
+                    @foreach ($releases as $r)
+                        <option value="{{ $r->id }}" @selected($filters['release_id'] === $r->id)>{{ $r->name }}</option>
+                    @endforeach
+                </select>
+
+                <label for="assignee_id" class="filter-label">Assignee</label>
+                <select id="assignee_id" name="assignee_id" class="filter-select max-w-[13rem]">
+                    <option value="">Anyone</option>
+                    @foreach ($users as $u)
+                        <option value="{{ $u->id }}" @selected($filters['assignee_id'] === $u->id)>{{ $u->name }}</option>
+                    @endforeach
+                </select>
+            </x-filter-bar>
 
             {{-- Columns --}}
             <div class="flex gap-4 overflow-x-auto pb-4">
@@ -85,11 +68,11 @@
                                 <input type="hidden" name="status" value="{{ $status }}">
                                 <textarea name="title" x-ref="title" rows="2" required maxlength="255" placeholder="What needs doing?"
                                           @keydown.escape="adding = false"
-                                          class="block w-full rounded-md border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500"></textarea>
+                                          class="field-control"></textarea>
                                 @if ($release)
                                     <input type="hidden" name="release_id" value="{{ $release->id }}">
                                 @else
-                                    <select name="release_id" required class="block w-full rounded-md border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
+                                    <select name="release_id" required class="field-control field-sm">
                                         <option value="">Select release…</option>
                                         @foreach ($releases as $r)
                                             <option value="{{ $r->id }}">{{ $r->name }}</option>

@@ -1,64 +1,14 @@
 @php $isLeadViewer = auth()->user()->isLead(); @endphp
 <x-app-layout>
+    @php
+        $memberTag = $member->statusTag();
+        $memberMeta = $member->roleLabel().($memberTag ? ' · '.$memberTag : '');
+    @endphp
+
     <x-slot name="header">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-            <div class="flex flex-wrap items-center gap-4">
-                <h2 class="page-title">Tasksheet — {{ $member->name }}</h2>
-                @include('partials.user-tag', ['tagUser' => $member])
-                <span class="text-sm text-slate-400">{{ $member->roleLabel() }}</span>
-            </div>
-
-            {{-- Filters: team + date range --}}
-            <form method="GET" action="{{ route('tasksheet.user', $member) }}" class="flex flex-wrap items-center gap-1">
-                <label for="team" class="field-label !mt-0 !font-normal text-slate-500">Team</label>
-                <select id="team" name="team" onchange="this.form.submit()"
-                        class="rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
-                    <option value="" @selected(! $teamFilter)>All teams</option>
-                    @foreach ($teams as $t)
-                        <option value="{{ $t->id }}" @selected($teamFilter === $t->id)>{{ $t->name }}</option>
-                    @endforeach
-                </select>
-
-                <label class="field-label !mt-0 ml-2 !font-normal text-slate-500">Dates</label>
-                <input type="date" name="from" value="{{ $from }}" aria-label="From date"
-                       class="rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
-                <span class="text-slate-400">–</span>
-                <input type="date" name="to" value="{{ $to }}" aria-label="To date"
-                       class="rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
-
-                <label for="f-attendance" class="field-label !mt-0 ml-2 !font-normal text-slate-500">Standup</label>
-                <select id="f-attendance" name="attendance"
-                        class="rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
-                    <option value="">Any</option>
-                    <option value="attended" @selected($filters['attendance'] === 'attended')>Attended</option>
-                    <option value="missed" @selected($filters['attendance'] === 'missed')>Did not attend</option>
-                    <option value="unmarked" @selected($filters['attendance'] === 'unmarked')>Not yet marked</option>
-                </select>
-
-                <label for="f-fill" class="field-label !mt-0 ml-2 !font-normal text-slate-500">Sheet</label>
-                <select id="f-fill" name="fill"
-                        class="rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
-                    <option value="">Any</option>
-                    <option value="complete" @selected($filters['fill'] === 'complete')>Complete</option>
-                    <option value="partial" @selected($filters['fill'] === 'partial')>Partially filled</option>
-                    <option value="empty" @selected($filters['fill'] === 'empty')>Empty</option>
-                </select>
-
-                <label for="f-leave" class="field-label !mt-0 ml-2 !font-normal text-slate-500">Leave</label>
-                <select id="f-leave" name="leave"
-                        class="rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
-                    <option value="">Any</option>
-                    <option value="working" @selected($filters['leave'] === 'working')>Working</option>
-                    <option value="any" @selected($filters['leave'] === 'any')>On leave</option>
-                    @foreach (\App\Models\TasksheetEntry::LEAVE_TYPES as $val => $label)
-                        <option value="{{ $val }}" @selected($filters['leave'] === $val)>{{ $label }}</option>
-                    @endforeach
-                </select>
-
-                <button class="btn-secondary btn-sm">Apply</button>
-                @if ($hasFilters)
-                    <a href="{{ route('tasksheet.user', $member) }}" class="btn-ghost btn-sm">Clear</a>
-                @endif
+        <x-page-header :title="'Tasksheet — '.$member->name" :description="$memberMeta"
+                       :breadcrumbs="['Tasksheet' => route('tasksheet.index'), $member->name => null]">
+            <x-slot name="actions">
                 <a href="{{ route('tasksheet.report', array_filter([
                         'member' => $member->id,
                         'team' => $teamFilter,
@@ -68,37 +18,93 @@
                         'fill' => $filters['fill'],
                         'leave' => $filters['leave'],
                     ])) }}" class="btn-secondary btn-sm">Export PDF</a>
-            </form>
-        </div>
+            </x-slot>
+        </x-page-header>
     </x-slot>
 
     <div class="py-6 sm:py-8">
-        <div class="app-container">
+        <div class="app-container space-y-4">
+            {{-- Filters: team + date range + row state --}}
+            <x-filter-bar :action="route('tasksheet.user', $member)" :active="$hasFilters" :count="$entries->count()" noun="entry">
+                <label for="team" class="filter-label">Team</label>
+                <select id="team" name="team" class="filter-select max-w-[13rem]">
+                    <option value="" @selected(! $teamFilter)>All teams</option>
+                    @foreach ($teams as $t)
+                        <option value="{{ $t->id }}" @selected($teamFilter === $t->id)>{{ $t->name }}</option>
+                    @endforeach
+                </select>
+
+                <div class="flex items-center gap-1.5">
+                    <label for="from" class="filter-label">From date</label>
+                    <input id="from" type="date" name="from" value="{{ $from }}" class="filter-date" title="From">
+                    <span class="text-xs text-slate-400" aria-hidden="true">to</span>
+                    <label for="to" class="filter-label">To date</label>
+                    <input id="to" type="date" name="to" value="{{ $to }}" class="filter-date" title="To">
+                </div>
+
+                <label for="f-attendance" class="filter-label">Standup</label>
+                <select id="f-attendance" name="attendance" class="filter-select">
+                    <option value="">Standup: any</option>
+                    <option value="attended" @selected($filters['attendance'] === 'attended')>Attended</option>
+                    <option value="missed" @selected($filters['attendance'] === 'missed')>Did not attend</option>
+                    <option value="unmarked" @selected($filters['attendance'] === 'unmarked')>Not yet marked</option>
+                </select>
+
+                <label for="f-fill" class="filter-label">Sheet</label>
+                <select id="f-fill" name="fill" class="filter-select">
+                    <option value="">Sheet: any</option>
+                    <option value="complete" @selected($filters['fill'] === 'complete')>Complete</option>
+                    <option value="partial" @selected($filters['fill'] === 'partial')>Partially filled</option>
+                    <option value="empty" @selected($filters['fill'] === 'empty')>Empty</option>
+                </select>
+
+                <label for="f-leave" class="filter-label">Leave</label>
+                <select id="f-leave" name="leave" class="filter-select">
+                    <option value="">Leave: any</option>
+                    <option value="working" @selected($filters['leave'] === 'working')>Working</option>
+                    <option value="any" @selected($filters['leave'] === 'any')>On leave</option>
+                    @foreach (\App\Models\TasksheetEntry::LEAVE_TYPES as $val => $label)
+                        <option value="{{ $val }}" @selected($filters['leave'] === $val)>{{ $label }}</option>
+                    @endforeach
+                </select>
+            </x-filter-bar>
+
             @if ($entries->isEmpty())
-                <div class="card p-12 text-center text-sm text-slate-500">No tasksheet entries match.</div>
+                <div class="card">
+                    @if ($hasFilters)
+                        <x-empty-state icon="funnel" title="No tasksheet entries match."
+                                       description="Try widening the date range or removing a filter.">
+                            <a href="{{ route('tasksheet.user', $member) }}" class="btn-secondary btn-sm">Clear all filters</a>
+                        </x-empty-state>
+                    @else
+                        <x-empty-state icon="clipboard-check" title="No tasksheet entries yet."
+                                       description="Days this member fills in on a team tasksheet will show up here." />
+                    @endif
+                </div>
             @else
-                <div class="card overflow-x-auto">
+                <div class="card overflow-hidden">
+                    <div class="table-wrap">
                     <table class="min-w-full divide-y divide-slate-200 text-sm">
-                        <thead class="bg-slate-50">
+                        <thead class="bg-slate-50/80 text-xs text-slate-500">
                             <tr>
-                                <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Date</th>
-                                <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Team</th>
-                                <th class="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-500" title="Attended the daily standup">Standup</th>
-                                <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Task Plan at Morning</th>
-                                <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Day End Result</th>
-                                <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Comment</th>
-                                <th class="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">Work Points</th>
-                                <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Tickets</th>
-                                <th class="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">Ticket Count</th>
-                                <th class="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">Ticket Points</th>
+                                <th class="whitespace-nowrap px-3 py-2.5 text-left font-medium">Date</th>
+                                <th class="whitespace-nowrap px-3 py-2.5 text-left font-medium">Team</th>
+                                <th class="whitespace-nowrap px-3 py-2.5 text-center font-medium" title="Attended the daily standup">Standup</th>
+                                <th class="whitespace-nowrap px-3 py-2.5 text-left font-medium">Task Plan at Morning</th>
+                                <th class="whitespace-nowrap px-3 py-2.5 text-left font-medium">Day End Result</th>
+                                <th class="whitespace-nowrap px-3 py-2.5 text-left font-medium">Comment</th>
+                                <th class="whitespace-nowrap px-3 py-2.5 text-center font-medium">Work Points</th>
+                                <th class="whitespace-nowrap px-3 py-2.5 text-left font-medium">Tickets</th>
+                                <th class="whitespace-nowrap px-3 py-2.5 text-center font-medium">Ticket Count</th>
+                                <th class="whitespace-nowrap px-3 py-2.5 text-center font-medium">Ticket Points</th>
                                 @if ($isLeadViewer)
-                                    <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Feedback</th>
+                                    <th class="whitespace-nowrap px-3 py-2.5 text-left font-medium">Feedback</th>
                                 @endif
                             </tr>
                         </thead>
                         <tbody class="divide-y divide-slate-100">
                             @foreach ($entries as $entry)
-                                <tr class="align-top">
+                                <tr class="align-top transition-colors hover:bg-slate-50/70">
                                     <td class="whitespace-nowrap px-3 py-3">
                                         <a href="{{ route('tasksheet.index', ['team' => $entry->team_id, 'date' => $entry->date->toDateString()]) }}"
                                            class="font-medium text-slate-800 hover:text-brand-700">{{ $entry->date->format('D, M j, Y') }}</a>
@@ -141,8 +147,8 @@
                             @endforeach
                         </tbody>
                     </table>
+                    </div>
                 </div>
-                <p class="mt-3 text-xs text-slate-400">{{ $entries->count() }} {{ Str::plural('entry', $entries->count()) }}</p>
             @endif
         </div>
     </div>

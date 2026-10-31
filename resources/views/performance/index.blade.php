@@ -1,48 +1,46 @@
 @use('App\Support\ScoreColor')
 <x-app-layout>
     <x-slot name="header">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-            <div class="flex flex-wrap items-center gap-4">
-                <h2 class="page-title">Performance</h2>
-
-                @if ($team)
-                    <form method="GET" action="{{ route('performance.index') }}">
-                        <input type="hidden" name="week" value="{{ $weekDate->toDateString() }}">
-                        <select name="team" onchange="this.form.submit()" aria-label="Team"
-                                class="rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
-                            @foreach ($teams as $t)
-                                <option value="{{ $t->id }}" @selected($team->id === $t->id)>{{ $t->name }}</option>
-                            @endforeach
-                        </select>
-                    </form>
-
-                    <div class="flex items-center gap-1">
-                        <a href="{{ route('performance.index', ['team' => $team->id, 'week' => $prevWeek->toDateString()]) }}"
-                           class="btn-secondary btn-sm !px-2" aria-label="Previous week">‹</a>
-                        <span class="px-2 text-sm font-medium text-slate-600">{{ $overview['weekLabel'] }}</span>
-                        <a href="{{ route('performance.index', ['team' => $team->id, 'week' => $nextWeek->toDateString()]) }}"
-                           class="btn-secondary btn-sm !px-2" aria-label="Next week">›</a>
-                        <a href="{{ route('performance.index', ['team' => $team->id]) }}" class="btn-ghost btn-sm ml-1">This week</a>
-                    </div>
-                @endif
-            </div>
-
-            <div class="flex items-center gap-2">
-                <a href="{{ route('performance.evaluate', ['team' => $team?->id]) }}" class="btn-primary btn-sm">
-                    <x-icon name="pencil" class="h-4 w-4" /> Evaluate
-                </a>
+        <x-page-header title="Performance" description="Weekly competency scores and tasksheet output for the teams you lead.">
+            <x-slot name="actions">
                 @can('manage-competencies')
-                    <a href="{{ route('performance.competencies.index') }}" class="btn-ghost btn-sm">Competencies</a>
+                    <a href="{{ route('performance.competencies.index') }}" class="btn-secondary btn-sm">Competencies</a>
                 @endcan
-            </div>
-        </div>
+                <a href="{{ route('performance.evaluate', ['team' => $team?->id]) }}" class="btn-primary btn-sm">
+                    <x-icon name="pencil-square" variant="outline" class="h-4 w-4" /> Evaluate
+                </a>
+            </x-slot>
+        </x-page-header>
     </x-slot>
 
     <div class="py-6 sm:py-8">
-        <div class="app-container space-y-6">
+        <div class="app-container space-y-4">
+            @if ($team)
+                <x-filter-bar :action="route('performance.index')">
+                    <input type="hidden" name="week" value="{{ $weekDate->toDateString() }}">
+                    <label for="team" class="filter-label">Team</label>
+                    <select id="team" name="team" class="filter-select max-w-[14rem]">
+                        @foreach ($teams as $t)
+                            <option value="{{ $t->id }}" @selected($team->id === $t->id)>{{ $t->name }}</option>
+                        @endforeach
+                    </select>
+
+                    {{-- Week navigation (plain links; the team select above auto-submits) --}}
+                    <div class="flex items-center gap-1">
+                        <a href="{{ route('performance.index', ['team' => $team->id, 'week' => $prevWeek->toDateString()]) }}"
+                           class="btn-secondary btn-sm btn-icon" aria-label="Previous week">‹</a>
+                        <span class="tabular whitespace-nowrap px-2 text-sm font-medium text-slate-700">{{ $overview['weekLabel'] }}</span>
+                        <a href="{{ route('performance.index', ['team' => $team->id, 'week' => $nextWeek->toDateString()]) }}"
+                           class="btn-secondary btn-sm btn-icon" aria-label="Next week">›</a>
+                        <a href="{{ route('performance.index', ['team' => $team->id]) }}" class="btn-ghost btn-sm">This week</a>
+                    </div>
+                </x-filter-bar>
+            @endif
+
             @if (! $team)
-                <div class="card p-12 text-center text-sm text-slate-500">
-                    No teams available. You can only see performance for teams you lead.
+                <div class="card">
+                    <x-empty-state icon="chart-bar" title="No teams available."
+                                   description="You can only see performance for teams you lead." />
                 </div>
             @else
                 @php $o = $overview; $avg = $o['teamAverage']; @endphp

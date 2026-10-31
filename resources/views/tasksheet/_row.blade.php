@@ -101,7 +101,7 @@
                     <div class="flex flex-wrap items-center gap-3">
                         <span class="text-sm font-semibold text-slate-800">{{ $rowUser->name }} — {{ $day->format('M j, Y') }}</span>
                         <select name="leave_type" aria-label="Attendance"
-                                class="rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
+                                class="field-select field-sm !mt-0 w-auto pr-8">
                             <option value="">Working</option>
                             @foreach (\App\Models\TasksheetEntry::LEAVE_TYPES as $val => $label)
                                 <option value="{{ $val }}" @selected($entry?->leave_type === $val)>{{ $label }}</option>

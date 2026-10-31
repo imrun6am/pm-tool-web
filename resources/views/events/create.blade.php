@@ -1,17 +1,15 @@
 <x-app-layout>
     <x-slot name="header">
-        <h2 class="page-title">New event</h2>
+        <x-page-header title="New event" description="Put a meeting, deadline or milestone on the team calendar."
+                       :breadcrumbs="['Calendar' => route('calendar.index'), 'New event' => null]" />
     </x-slot>
 
-    <div class="py-8">
+    <div class="py-6 sm:py-8">
         <div class="app-container">
-            <form method="POST" action="{{ route('events.store') }}" class="card card-pad">
+            <form method="POST" action="{{ route('events.store') }}" class="mx-auto max-w-5xl space-y-4">
                 @csrf
                 @include('events.form')
-                <div class="mt-8 flex items-center justify-end gap-3">
-                    <a href="{{ route('calendar.index') }}" class="btn-ghost btn-sm">Cancel</a>
-                    <button class="btn-primary">Create event</button>
-                </div>
+                <x-form-actions :cancel="route('calendar.index')" submit="Create event" />
             </form>
         </div>
     </div>

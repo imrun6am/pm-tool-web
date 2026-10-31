@@ -1,38 +1,28 @@
 <x-app-layout>
     <x-slot name="header">
-        <div class="space-y-3">
-            {{-- Breadcrumb --}}
-            <nav class="flex items-center gap-1.5 text-xs text-slate-400">
-                <a href="{{ route('projects.index') }}" class="hover:text-brand-600">Projects</a>
-                <span>/</span>
-                <span class="font-medium text-slate-600">{{ $project->name }}</span>
-            </nav>
-
-            <div class="flex flex-wrap items-center justify-between gap-3">
-                <div class="flex items-center gap-3">
-                    <span class="inline-block h-5 w-5 flex-none rounded-full ring-2 ring-white ring-offset-1 ring-offset-slate-200" style="background-color: {{ $project->color }}"></span>
-                    <h2 class="page-title">{{ $project->name }}</h2>
+        <x-page-header :title="$project->name"
+                       :breadcrumbs="['Projects' => route('projects.index'), $project->name => null]">
+            <x-slot name="actions">
+                <span class="mr-1 inline-flex items-center gap-2">
+                    <span class="inline-block h-3 w-3 flex-none rounded-full ring-2 ring-white ring-offset-1 ring-offset-slate-200" style="background-color: {{ $project->color }}" aria-hidden="true"></span>
                     @if ($project->isArchived())
-                        <span class="badge bg-slate-200 text-slate-700">Archived</span>
+                        <span class="badge badge-slate">Archived</span>
                     @else
-                        <span class="badge bg-emerald-100 text-emerald-700">Active</span>
+                        <span class="badge badge-success">Active</span>
                     @endif
-                </div>
-
-                <div class="flex items-center gap-2">
-                    <a href="{{ route('dashboard', ['project_id' => $project->id]) }}" class="btn-secondary btn-sm">
-                        <x-icon name="calendar" class="h-4 w-4" />
-                        Timeline
+                </span>
+                <a href="{{ route('dashboard', ['project_id' => $project->id]) }}" class="btn-secondary btn-sm">
+                    <x-icon name="calendar" variant="outline" class="h-4 w-4" />
+                    Timeline
+                </a>
+                @if (auth()->user()->canManageWorkspace())
+                    <a href="{{ route('projects.edit', $project) }}" class="btn-secondary btn-sm">
+                        <x-icon name="pencil-square" variant="outline" class="h-4 w-4" />
+                        Edit
                     </a>
-                    @if (auth()->user()->canManageWorkspace())
-                        <a href="{{ route('projects.edit', $project) }}" class="btn-secondary btn-sm">
-                            <x-icon name="pencil" class="h-4 w-4" />
-                            Edit
-                        </a>
-                    @endif
-                </div>
-            </div>
-        </div>
+                @endif
+            </x-slot>
+        </x-page-header>
     </x-slot>
 
     @php
@@ -47,7 +37,7 @@
         ];
     @endphp
 
-    <div class="py-8">
+    <div class="py-6 sm:py-8">
         <div class="app-container space-y-6">
 
             {{-- ============================ OVERVIEW (HERO) ============================ --}}
@@ -69,9 +59,9 @@
                             <dt class="text-xs font-medium text-slate-400">Status</dt>
                             <dd class="mt-1">
                                 @if ($project->isArchived())
-                                    <span class="badge bg-slate-200 text-slate-700">Archived</span>
+                                    <span class="badge badge-slate">Archived</span>
                                 @else
-                                    <span class="badge bg-emerald-100 text-emerald-700">Active</span>
+                                    <span class="badge badge-success">Active</span>
                                 @endif
                             </dd>
                         </div>
@@ -130,10 +120,10 @@
             </div>
 
             {{-- ==================== TWO-COLUMN: MAIN + SIDEBAR ==================== --}}
-            <div class="grid gap-6 lg:grid-cols-3 lg:items-start">
+            <div class="grid grid-cols-1 gap-6 lg:grid-cols-3 lg:items-start">
 
                 {{-- ============================ MAIN (LEFT) ============================ --}}
-                <div class="space-y-6 lg:col-span-2">
+                <div class="min-w-0 space-y-6 lg:col-span-2">
 
                     {{-- Delivery progress --}}
                     <div class="card card-pad">
@@ -240,7 +230,7 @@
                     {{-- Releases table --}}
                     <div class="card overflow-hidden">
                         <div class="card-header">
-                            <h3 class="text-sm font-semibold text-slate-700">Releases <span class="text-slate-400">({{ $releases->count() }})</span></h3>
+                            <h3 class="card-title">Releases <span class="font-normal text-slate-400">({{ $releases->count() }})</span></h3>
                             @if (auth()->user()->canManageReleases())
                                 <a href="{{ route('releases.create') }}" class="btn-secondary btn-sm">
                                     <x-icon name="plus" class="h-4 w-4" />
@@ -250,24 +240,28 @@
                         </div>
 
                         @if ($releases->isEmpty())
-                            <div class="p-12 text-center">
-                                <x-icon name="rocket" class="mx-auto h-10 w-10 text-slate-300" />
-                                <p class="mt-3 text-sm text-slate-500">No releases in this project yet.</p>
-                            </div>
+                            <x-empty-state icon="rocket" title="No releases in this project yet."
+                                           description="Plan a release window to start tracking work here.">
+                                @if (auth()->user()->canManageReleases())
+                                    <a href="{{ route('releases.create') }}" class="btn-primary btn-sm">
+                                        <x-icon name="plus" variant="outline" class="h-4 w-4" />New release
+                                    </a>
+                                @endif
+                            </x-empty-state>
                         @else
-                            <div class="overflow-x-auto">
+                            <div class="table-wrap">
                                 <table class="table-base">
-                                    <thead class="bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                                    <thead>
                                         <tr>
-                                            <th class="px-6 py-3">Release</th>
-                                            <th class="px-6 py-3">Team</th>
-                                            <th class="px-6 py-3">Quarter</th>
-                                            <th class="px-6 py-3">Window</th>
-                                            <th class="px-6 py-3 w-48">Progress</th>
-                                            <th class="px-6 py-3">Status</th>
+                                            <th>Release</th>
+                                            <th>Team</th>
+                                            <th>Quarter</th>
+                                            <th>Window</th>
+                                            <th class="w-48">Progress</th>
+                                            <th>Status</th>
                                         </tr>
                                     </thead>
-                                    <tbody class="divide-y divide-slate-100">
+                                    <tbody>
                                         @foreach ($releases as $release)
                                             @php
                                                 $total = $release->tasks_count;
@@ -275,18 +269,18 @@
                                                 $pct = $total > 0 ? (int) round($done / $total * 100) : 0;
                                             @endphp
                                             <tr class="{{ $release->isComplete() ? 'bg-emerald-50/40' : '' }}">
-                                                <td class="px-6 py-4">
-                                                    <a href="{{ route('releases.show', $release) }}" class="font-medium text-slate-900 hover:text-brand-600">{{ $release->name }}</a>
+                                                <td>
+                                                    <a href="{{ route('releases.show', $release) }}" class="whitespace-nowrap font-medium text-slate-900 hover:text-brand-700">{{ $release->name }}</a>
                                                 </td>
-                                                <td class="px-6 py-4">
-                                                    <span class="inline-flex items-center gap-2 text-slate-600">
+                                                <td>
+                                                    <span class="inline-flex items-center gap-2 whitespace-nowrap text-slate-600">
                                                         <span class="h-2.5 w-2.5 flex-none rounded-full" style="background-color: {{ $release->team->color }}"></span>
                                                         {{ $release->team->name }}
                                                     </span>
                                                 </td>
-                                                <td class="px-6 py-4 text-slate-600 tabular">{{ $release->year }} · {{ $release->quarterLabel() }}</td>
-                                                <td class="px-6 py-4 whitespace-nowrap text-slate-600 tabular">{{ $release->start_date->format('M j') }} – {{ $release->end_date->format('M j, Y') }}</td>
-                                                <td class="px-6 py-4">
+                                                <td class="whitespace-nowrap text-slate-600 tabular">{{ $release->year }} · {{ $release->quarterLabel() }}</td>
+                                                <td class="whitespace-nowrap text-slate-600 tabular">{{ $release->start_date->format('M j') }} – {{ $release->end_date->format('M j, Y') }}</td>
+                                                <td>
                                                     @if ($total > 0)
                                                         <div class="flex items-center gap-2">
                                                             <div class="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
@@ -298,11 +292,11 @@
                                                         <span class="text-xs text-slate-400">No tasks</span>
                                                     @endif
                                                 </td>
-                                                <td class="px-6 py-4">
+                                                <td>
                                                     @if ($release->isComplete())
-                                                        <span class="badge bg-emerald-100 text-emerald-700">Completed</span>
+                                                        <span class="badge badge-success">Completed</span>
                                                     @else
-                                                        <span class="badge bg-sky-100 text-sky-700">Ongoing</span>
+                                                        <span class="badge badge-brand">Ongoing</span>
                                                     @endif
                                                 </td>
                                             </tr>
@@ -315,7 +309,7 @@
                 </div>
 
                 {{-- ============================ SIDEBAR (RIGHT) ============================ --}}
-                <div class="space-y-6">
+                <div class="min-w-0 space-y-6">
 
                     {{-- Releases by team --}}
                     @include('partials.hbar-chart', [
@@ -328,7 +322,7 @@
                     {{-- Recent activity --}}
                     <div class="card overflow-hidden">
                         <div class="card-header">
-                            <h3 class="text-sm font-semibold text-slate-700">Recent activity</h3>
+                            <h3 class="card-title">Recent activity</h3>
                             <x-icon name="activity" class="h-4 w-4 text-slate-400" />
                         </div>
                         <div class="divide-y divide-slate-100 px-5 py-1 sm:px-6">

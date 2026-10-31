@@ -1,17 +1,15 @@
 <x-app-layout>
     <x-slot name="header">
-        <h2 class="page-title">Edit team</h2>
+        <x-page-header title="Edit team"
+                       :breadcrumbs="['Teams' => route('teams.index'), $team->name => route('teams.show', $team), 'Edit' => null]" />
     </x-slot>
 
-    <div class="py-8">
+    <div class="py-6 sm:py-8">
         <div class="app-container">
-            <form method="POST" action="{{ route('teams.update', $team) }}" class="card card-pad">
+            <form method="POST" action="{{ route('teams.update', $team) }}" class="mx-auto max-w-5xl space-y-4">
                 @csrf @method('PUT')
                 @include('teams.form')
-                <div class="mt-8 flex items-center justify-end gap-3">
-                    <a href="{{ route('teams.index') }}" class="btn-ghost btn-sm">Cancel</a>
-                    <button class="btn-primary">Save changes</button>
-                </div>
+                <x-form-actions :cancel="route('teams.show', $team)" submit="Save changes" />
             </form>
         </div>
     </div>

@@ -20,12 +20,12 @@
                 <table class="min-w-full divide-y divide-slate-200 text-sm">
                     <thead class="bg-slate-50">
                         <tr>
-                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Competency</th>
-                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Category</th>
-                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Applies to</th>
-                            <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Cadence</th>
-                            <th class="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">Weight</th>
-                            <th class="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">Status</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-slate-500">Competency</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-slate-500">Category</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-slate-500">Applies to</th>
+                            <th class="px-4 py-3 text-left text-xs font-medium text-slate-500">Cadence</th>
+                            <th class="px-4 py-3 text-center text-xs font-medium text-slate-500">Weight</th>
+                            <th class="px-4 py-3 text-center text-xs font-medium text-slate-500">Status</th>
                             <th class="px-4 py-3"></th>
                         </tr>
                     </thead>

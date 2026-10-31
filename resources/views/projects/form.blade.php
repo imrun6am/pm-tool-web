@@ -1,30 +1,17 @@
-<div class="form-section">
-    <div>
-        <h3 class="form-section-title">Project details</h3>
-        <p class="form-section-desc">The product this project delivers. The color distinguishes its releases on the dashboard timeline.</p>
-    </div>
-    <div class="form-section-body">
-        <div>
-            <label for="name" class="field-label">Name</label>
+<div class="card card-pad">
+    <x-form-section title="Project details" description="The product this project delivers. The color distinguishes its releases on the dashboard timeline.">
+        <x-field label="Name" for="name">
             <input id="name" name="name" type="text" value="{{ old('name', $project->name) }}" required
-                   placeholder="e.g. Checkout" class="field-input">
-            @error('name') <p class="field-error">{{ $message }}</p> @enderror
-        </div>
+                   placeholder="e.g. Checkout" class="field-input sm:max-w-md" @invalid('name')>
+        </x-field>
 
-        <div>
-            <label for="description" class="field-label">Description <span class="text-slate-400">(optional)</span></label>
-            <textarea id="description" name="description" rows="3" class="field-textarea">{{ old('description', $project->description) }}</textarea>
-            @error('description') <p class="field-error">{{ $message }}</p> @enderror
-        </div>
+        <x-field label="Description" for="description" optional>
+            <textarea id="description" name="description" rows="3" class="field-textarea"
+                      placeholder="What this project covers, in a sentence or two." @invalid('description')>{{ old('description', $project->description) }}</textarea>
+        </x-field>
 
-        <div>
-            <label for="color" class="field-label">Color</label>
-            <div class="mt-1 flex items-center gap-3">
-                <input id="color" name="color" type="color" value="{{ old('color', $project->color ?? '#4f46e5') }}"
-                       class="h-10 w-16 cursor-pointer rounded-lg border border-slate-300">
-                <span class="text-sm text-slate-500">Shown as a dot beside the project everywhere.</span>
-            </div>
-            @error('color') <p class="field-error">{{ $message }}</p> @enderror
-        </div>
-    </div>
+        <x-field label="Color" for="color" hint="Shown as a dot beside the project everywhere.">
+            <x-color-picker name="color" :value="old('color', $project->color ?? '#4f46e5')" />
+        </x-field>
+    </x-form-section>
 </div>

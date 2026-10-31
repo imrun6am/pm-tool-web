@@ -8,25 +8,25 @@
         @csrf
         <div class="flex flex-wrap items-center gap-2">
             <input name="title" required placeholder="Add a task…"
-                   class="min-w-[200px] flex-1 rounded-md border-slate-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-            <select name="status" class="rounded-md border-slate-300 text-sm shadow-sm">
+                   class="field-control field-sm w-auto min-w-[200px] flex-1">
+            <select name="status" class="field-control field-sm w-auto pr-8">
                 @foreach (Task::STATUSES as $val => $label)
                     <option value="{{ $val }}">{{ $label }}</option>
                 @endforeach
             </select>
-            <select name="assignee_id" class="rounded-md border-slate-300 text-sm shadow-sm">
+            <select name="assignee_id" class="field-control field-sm w-auto pr-8">
                 <option value="">Unassigned</option>
                 @foreach ($users as $u)
                     <option value="{{ $u->id }}">{{ $u->name }}</option>
                 @endforeach
             </select>
-            <select name="phase" class="rounded-md border-slate-300 text-sm shadow-sm">
+            <select name="phase" class="field-control field-sm w-auto pr-8">
                 <option value="">No phase</option>
                 @foreach (Release::PHASES as $val => $label)
                     <option value="{{ $val }}">{{ $label }}</option>
                 @endforeach
             </select>
-            <input type="date" name="due_date" class="rounded-md border-slate-300 text-sm shadow-sm">
+            <input type="date" name="due_date" class="field-control field-sm w-auto">
             <button class="btn-primary btn-sm">Add</button>
         </div>
     </form>
@@ -48,7 +48,7 @@
                 <div class="flex items-center gap-2">
                     <form method="POST" action="{{ route('tasks.status', $task) }}">
                         @csrf @method('PATCH')
-                        <select name="status" onchange="this.form.submit()" class="rounded-md border-slate-300 py-1 text-xs shadow-sm">
+                        <select name="status" onchange="this.form.submit()" class="field-control h-8 w-auto py-1 pr-8 text-xs">
                             @foreach (Task::STATUSES as $val => $label)
                                 <option value="{{ $val }}" @selected($task->status === $val)>{{ $label }}</option>
                             @endforeach
@@ -84,7 +84,7 @@
             <form x-show="addSub" x-cloak method="POST" action="{{ route('tasks.subtasks.store', $task) }}" class="mt-2 flex gap-2 pl-3">
                 @csrf
                 <input name="title" required placeholder="Subtask title…"
-                       class="flex-1 rounded-md border-slate-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                       class="field-control flex-1">
                 <button class="rounded-md bg-slate-800 px-3 py-1.5 text-sm font-medium text-white hover:bg-slate-900">Add subtask</button>
             </form>
         </div>

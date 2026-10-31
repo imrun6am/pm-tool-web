@@ -4,13 +4,13 @@
     $label = \App\Models\User::ROLES[$role] ?? ucfirst($role);
     // Literal classes so Tailwind keeps them.
     $pill = match ($role) {
-        'admin' => 'bg-indigo-100 text-indigo-700',
-        'cto' => 'bg-purple-100 text-purple-700',
-        'tech_lead' => 'bg-emerald-100 text-emerald-700',
-        'team_lead' => 'bg-cyan-100 text-cyan-700',
-        'developer' => 'bg-blue-100 text-blue-700',
-        'qa' => 'bg-amber-100 text-amber-800',
-        default => 'bg-slate-100 text-slate-600',
+        'admin' => 'bg-indigo-50 text-indigo-700 ring-indigo-600/15',
+        'cto' => 'bg-purple-50 text-purple-700 ring-purple-600/15',
+        'tech_lead' => 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
+        'team_lead' => 'bg-cyan-50 text-cyan-800 ring-cyan-600/20',
+        'developer' => 'bg-blue-50 text-blue-700 ring-blue-600/15',
+        'qa' => 'bg-amber-50 text-amber-800 ring-amber-600/20',
+        default => 'bg-slate-100 text-slate-700 ring-slate-500/10',
     };
     $text = match ($role) {
         'admin' => 'text-indigo-600',
@@ -38,5 +38,5 @@
         <span class="h-1.5 w-1.5 rounded-full {{ $dot }}"></span>{{ $label }}
     </span>
 @else
-    <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium {{ $pill }}">{{ $label }}</span>
+    <span class="badge ring-1 ring-inset {{ $pill }}">{{ $label }}</span>
 @endif

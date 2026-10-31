@@ -1,6 +1,5 @@
 import Alpine from 'alpinejs';
 import 'trix';
-import 'trix/dist/trix.css';
 
 window.Alpine = Alpine;
 
@@ -113,6 +112,54 @@ Alpine.data('commandPalette', (entries = []) => ({
     go(position = this.active) {
         const entry = this.entries[this.results[position]];
         if (entry) window.location.assign(entry.url);
+    },
+}));
+
+/*
+ * Filter bar (x-filter-bar): selects/dates apply on change; search applies on
+ * Enter or after a typing pause, and keeps focus across the reload so typing
+ * can continue.
+ */
+const FILTER_FOCUS_KEY = 'rp.filter-focus';
+
+Alpine.data('filterBar', () => ({
+    init() {
+        const search = this.$root.querySelector('input[type="search"]');
+        if (!search) return;
+
+        try {
+            if (sessionStorage.getItem(FILTER_FOCUS_KEY) === '1') {
+                sessionStorage.removeItem(FILTER_FOCUS_KEY);
+                search.focus();
+                search.setSelectionRange(search.value.length, search.value.length);
+            }
+        } catch (e) {
+            // Storage unavailable — focus just isn't restored.
+        }
+
+        const initial = search.value;
+        let timer;
+        search.addEventListener('input', () => {
+            clearTimeout(timer);
+            timer = setTimeout(() => {
+                if (search.value === initial) return;
+                try {
+                    sessionStorage.setItem(FILTER_FOCUS_KEY, '1');
+                } catch (e) {}
+                this.submit();
+            }, 450);
+        });
+    },
+
+    onChange(e) {
+        // Search applies via Enter / the typing pause, not on blur.
+        if (e.target.type === 'search') return;
+        this.submit();
+    },
+
+    submit() {
+        const form = this.$root;
+        form.requestSubmit ? form.requestSubmit() : form.submit();
     },
 }));
 

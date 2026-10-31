@@ -1,45 +1,78 @@
 <x-app-layout>
     <x-slot name="header">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-            <div class="flex flex-wrap items-center gap-4">
-                <h2 class="page-title">Tasksheet</h2>
+        <x-page-header title="Tasksheet" :description="$day->format('l, M j, Y').($isToday ? ' · Today' : '')">
+            @if ($team)
+                <x-slot name="actions">
+                    {{-- Export: defaults to the viewed day, but the range is editable
+                         here — the sheet itself is always one day, so this is the
+                         only place a team-wide span can be chosen. --}}
+                    <div class="relative" x-data="{ open: false }" @click.outside="open = false" @keydown.escape.window="open = false">
+                        <button type="button" @click="open = !open" class="btn-secondary btn-sm" :aria-expanded="open">
+                            Export PDF
+                            <x-icon name="chevron-down" class="ml-1 h-3 w-3" />
+                        </button>
 
-                @if ($team)
-                    {{-- Team switcher (viewer's teams listed first) --}}
-                    <form method="GET" action="{{ route('tasksheet.index') }}">
-                        <input type="hidden" name="date" value="{{ $day->toDateString() }}">
-                        <select name="team" onchange="this.form.submit()" aria-label="Team"
-                                class="rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
-                            @foreach ($teams as $t)
-                                <option value="{{ $t->id }}" @selected($team->id === $t->id)>{{ $t->name }}</option>
+                        <form method="GET" action="{{ route('tasksheet.report') }}" x-show="open" x-transition style="display: none;"
+                              class="absolute right-0 z-20 mt-2 w-64 space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-lg">
+                            <input type="hidden" name="team" value="{{ $team->id }}">
+                            {{-- The filters in effect travel with the download. --}}
+                            @foreach (['attendance', 'fill', 'leave', 'member'] as $key)
+                                @if ($filters[$key])
+                                    <input type="hidden" name="{{ $key }}" value="{{ $filters[$key] }}">
+                                @endif
                             @endforeach
-                        </select>
-                    </form>
+
+                            <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Date range</p>
+
+                            <div>
+                                <label for="report-from" class="field-label">From</label>
+                                <input id="report-from" type="date" name="from" value="{{ $day->toDateString() }}" class="field-input field-sm">
+                            </div>
+                            <div>
+                                <label for="report-to" class="field-label">To</label>
+                                <input id="report-to" type="date" name="to" value="{{ $day->toDateString() }}" class="field-input field-sm">
+                            </div>
+
+                            <p class="text-[11px] text-slate-400">Defaults to this day. A reversed range is swapped, not rejected.</p>
+                            <button class="btn-primary btn-sm w-full justify-center">Download</button>
+                        </form>
+                    </div>
+                </x-slot>
+            @endif
+        </x-page-header>
+    </x-slot>
+
+    <div class="py-6 sm:py-8">
+        <div class="app-container space-y-4">
+            @if ($team)
+                {{-- Scope: team + day. Switching either resets the row filters below. --}}
+                <x-filter-bar :action="route('tasksheet.index')">
+                    {{-- Team switcher (viewer's teams listed first) --}}
+                    <label for="team" class="filter-label">Team</label>
+                    <select id="team" name="team" class="filter-select max-w-[14rem]">
+                        @foreach ($teams as $t)
+                            <option value="{{ $t->id }}" @selected($team->id === $t->id)>{{ $t->name }}</option>
+                        @endforeach
+                    </select>
 
                     {{-- Day navigation --}}
                     <div class="flex items-center gap-1">
                         <a href="{{ route('tasksheet.index', ['team' => $team->id, 'date' => $prev->toDateString()]) }}"
-                           class="btn-secondary btn-sm !px-2" aria-label="Previous day">‹</a>
-                        <form method="GET" action="{{ route('tasksheet.index') }}">
-                            <input type="hidden" name="team" value="{{ $team->id }}">
-                            <input type="date" name="date" value="{{ $day->toDateString() }}" onchange="this.form.submit()"
-                                   class="rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
-                        </form>
+                           class="btn-secondary btn-sm btn-icon" aria-label="Previous day">‹</a>
+                        <label for="date" class="filter-label">Day</label>
+                        <input id="date" type="date" name="date" value="{{ $day->toDateString() }}" class="filter-date">
                         <a href="{{ route('tasksheet.index', ['team' => $team->id, 'date' => $next->toDateString()]) }}"
-                           class="btn-secondary btn-sm !px-2" aria-label="Next day">›</a>
-                        <a href="{{ route('tasksheet.index', ['team' => $team->id]) }}" class="btn-ghost btn-sm ml-1">Today</a>
+                           class="btn-secondary btn-sm btn-icon" aria-label="Next day">›</a>
+                        <a href="{{ route('tasksheet.index', ['team' => $team->id]) }}" class="btn-ghost btn-sm">Today</a>
                     </div>
-                @endif
-            </div>
+                </x-filter-bar>
+            @endif
 
-            <span class="text-sm font-medium text-slate-600">{{ $day->format('l, M j, Y') }}{{ $isToday ? ' · Today' : '' }}</span>
-        </div>
-    </x-slot>
-
-    <div class="py-6 sm:py-8">
-        <div class="app-container space-y-6">
             @if (! $team)
-                <div class="card p-12 text-center text-sm text-slate-500">No teams yet — create a team to start a tasksheet.</div>
+                <div class="card">
+                    <x-empty-state icon="clipboard-check" title="No teams yet."
+                                   description="Create a team to start a tasksheet." />
+                </div>
             @else
                 {{-- Productivity panel --}}
                 @php
@@ -95,131 +128,79 @@
                     @endif
                 </div>
 
-                {{-- Filters and export sit in one card but are two separate GET
-                     forms — the export needs its own date range, and forms
-                     cannot nest. --}}
-                <div class="card card-pad flex flex-wrap items-end gap-3">
-                <form method="GET" action="{{ route('tasksheet.index') }}" class="flex flex-wrap items-end gap-3">
+                {{-- Row filters: a lens on the day. The action keeps team + date so
+                     "Clear" returns to the unfiltered sheet for the same day. --}}
+                <x-filter-bar :action="route('tasksheet.index', ['team' => $team->id, 'date' => $day->toDateString()])" :active="$hasFilters" :count="$rowUsers->count()" noun="member">
                     <input type="hidden" name="team" value="{{ $team->id }}">
                     <input type="hidden" name="date" value="{{ $day->toDateString() }}">
 
-                    <div>
-                        <label for="f-attendance" class="field-label !mt-0 text-slate-500">Standup</label>
-                        <select id="f-attendance" name="attendance" class="rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
-                            <option value="">Any</option>
-                            <option value="attended" @selected($filters['attendance'] === 'attended')>Attended</option>
-                            <option value="missed" @selected($filters['attendance'] === 'missed')>Did not attend</option>
-                            <option value="unmarked" @selected($filters['attendance'] === 'unmarked')>Not yet marked</option>
-                        </select>
-                    </div>
+                    <label for="f-attendance" class="filter-label">Standup</label>
+                    <select id="f-attendance" name="attendance" class="filter-select">
+                        <option value="">Standup: any</option>
+                        <option value="attended" @selected($filters['attendance'] === 'attended')>Attended</option>
+                        <option value="missed" @selected($filters['attendance'] === 'missed')>Did not attend</option>
+                        <option value="unmarked" @selected($filters['attendance'] === 'unmarked')>Not yet marked</option>
+                    </select>
 
-                    <div>
-                        <label for="f-fill" class="field-label !mt-0 text-slate-500">Sheet</label>
-                        <select id="f-fill" name="fill" class="rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
-                            <option value="">Any</option>
-                            <option value="complete" @selected($filters['fill'] === 'complete')>Complete</option>
-                            <option value="partial" @selected($filters['fill'] === 'partial')>Partially filled</option>
-                            <option value="empty" @selected($filters['fill'] === 'empty')>Empty</option>
-                        </select>
-                    </div>
+                    <label for="f-fill" class="filter-label">Sheet</label>
+                    <select id="f-fill" name="fill" class="filter-select">
+                        <option value="">Sheet: any</option>
+                        <option value="complete" @selected($filters['fill'] === 'complete')>Complete</option>
+                        <option value="partial" @selected($filters['fill'] === 'partial')>Partially filled</option>
+                        <option value="empty" @selected($filters['fill'] === 'empty')>Empty</option>
+                    </select>
 
-                    <div>
-                        <label for="f-leave" class="field-label !mt-0 text-slate-500">Leave</label>
-                        <select id="f-leave" name="leave" class="rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
-                            <option value="">Any</option>
-                            <option value="working" @selected($filters['leave'] === 'working')>Working</option>
-                            <option value="any" @selected($filters['leave'] === 'any')>On leave</option>
-                            @foreach (\App\Models\TasksheetEntry::LEAVE_TYPES as $val => $label)
-                                <option value="{{ $val }}" @selected($filters['leave'] === $val)>{{ $label }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-
-                    <div>
-                        <label for="f-member" class="field-label !mt-0 text-slate-500">Member</label>
-                        <select id="f-member" name="member" class="rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
-                            <option value="">Everyone</option>
-                            @foreach ($allRowUsers as $u)
-                                <option value="{{ $u->id }}" @selected($filters['member'] === $u->id)>{{ $u->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-
-                    <div class="flex items-center gap-2">
-                        <button class="btn-secondary btn-sm">Apply</button>
-                        @if ($hasFilters)
-                            <a href="{{ route('tasksheet.index', ['team' => $team->id, 'date' => $day->toDateString()]) }}" class="btn-ghost btn-sm">Clear all</a>
-                        @endif
-                    </div>
-                </form>
-
-                {{-- Export: defaults to the viewed day, but the range is editable
-                     here — the sheet itself is always one day, so this is the
-                     only place a team-wide span can be chosen. --}}
-                <div class="relative ml-auto" x-data="{ open: false }" @click.outside="open = false" @keydown.escape.window="open = false">
-                    <button type="button" @click="open = !open" class="btn-secondary btn-sm">
-                        Export PDF
-                        <x-icon name="chevron-down" class="ml-1 h-3 w-3" />
-                    </button>
-
-                    <form method="GET" action="{{ route('tasksheet.report') }}" x-show="open" x-transition style="display: none;"
-                          class="absolute right-0 z-20 mt-2 w-64 space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-lg">
-                        <input type="hidden" name="team" value="{{ $team->id }}">
-                        {{-- The filters in effect travel with the download. --}}
-                        @foreach (['attendance', 'fill', 'leave', 'member'] as $key)
-                            @if ($filters[$key])
-                                <input type="hidden" name="{{ $key }}" value="{{ $filters[$key] }}">
-                            @endif
+                    <label for="f-leave" class="filter-label">Leave</label>
+                    <select id="f-leave" name="leave" class="filter-select">
+                        <option value="">Leave: any</option>
+                        <option value="working" @selected($filters['leave'] === 'working')>Working</option>
+                        <option value="any" @selected($filters['leave'] === 'any')>On leave</option>
+                        @foreach (\App\Models\TasksheetEntry::LEAVE_TYPES as $val => $label)
+                            <option value="{{ $val }}" @selected($filters['leave'] === $val)>{{ $label }}</option>
                         @endforeach
+                    </select>
 
-                        <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">Date range</p>
+                    <label for="f-member" class="filter-label">Member</label>
+                    <select id="f-member" name="member" class="filter-select max-w-[13rem]">
+                        <option value="">Everyone</option>
+                        @foreach ($allRowUsers as $u)
+                            <option value="{{ $u->id }}" @selected($filters['member'] === $u->id)>{{ $u->name }}</option>
+                        @endforeach
+                    </select>
+                </x-filter-bar>
 
-                        <div>
-                            <label for="report-from" class="mb-1 block text-[11px] font-medium text-slate-500">From</label>
-                            <input id="report-from" type="date" name="from" value="{{ $day->toDateString() }}"
-                                   class="w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
-                        </div>
-                        <div>
-                            <label for="report-to" class="mb-1 block text-[11px] font-medium text-slate-500">To</label>
-                            <input id="report-to" type="date" name="to" value="{{ $day->toDateString() }}"
-                                   class="w-full rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
-                        </div>
-
-                        <p class="text-[11px] text-slate-400">Defaults to this day. A reversed range is swapped, not rejected.</p>
-                        <button class="btn-primary btn-sm w-full justify-center">Download</button>
-                    </form>
-                </div>
-                </div>
-
-                <div class="card overflow-x-auto">
+                <div class="card overflow-hidden">
+                    <div class="table-wrap">
                     <table class="min-w-full divide-y divide-slate-200 text-sm">
-                        <thead class="bg-slate-50">
+                        <thead class="bg-slate-50/80 text-xs text-slate-500">
                             <tr>
-                                <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Member</th>
-                                <th class="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-500" title="Attended the daily standup">Standup</th>
-                                <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Task Plan at Morning</th>
-                                <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Day End Result</th>
-                                <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Comment</th>
-                                <th class="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">Work Points</th>
-                                <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Tickets</th>
-                                <th class="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">Ticket Count</th>
-                                <th class="px-3 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">Ticket Points</th>
+                                <th class="whitespace-nowrap px-3 py-2.5 text-left font-medium">Member</th>
+                                <th class="whitespace-nowrap px-3 py-2.5 text-center font-medium" title="Attended the daily standup">Standup</th>
+                                <th class="whitespace-nowrap px-3 py-2.5 text-left font-medium">Task Plan at Morning</th>
+                                <th class="whitespace-nowrap px-3 py-2.5 text-left font-medium">Day End Result</th>
+                                <th class="whitespace-nowrap px-3 py-2.5 text-left font-medium">Comment</th>
+                                <th class="whitespace-nowrap px-3 py-2.5 text-center font-medium">Work Points</th>
+                                <th class="whitespace-nowrap px-3 py-2.5 text-left font-medium">Tickets</th>
+                                <th class="whitespace-nowrap px-3 py-2.5 text-center font-medium">Ticket Count</th>
+                                <th class="whitespace-nowrap px-3 py-2.5 text-center font-medium">Ticket Points</th>
                                 @if (auth()->user()->isLead())
-                                    <th class="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Feedback</th>
+                                    <th class="whitespace-nowrap px-3 py-2.5 text-left font-medium">Feedback</th>
                                 @endif
-                                <th class="px-3 py-3"></th>
+                                <th class="px-3 py-2.5" aria-label="Actions"></th>
                             </tr>
                         </thead>
                         @if ($rowUsers->isEmpty())
                             <tbody>
                                 <tr>
-                                    <td colspan="{{ auth()->user()->isLead() ? 11 : 10 }}" class="px-3 py-12 text-center text-sm text-slate-500">
+                                    <td colspan="{{ auth()->user()->isLead() ? 11 : 10 }}" class="p-0">
                                         @if ($hasFilters)
-                                            No rows match these filters.
-                                            <a href="{{ route('tasksheet.index', ['team' => $team->id, 'date' => $day->toDateString()]) }}"
-                                               class="text-brand-600 hover:underline">Clear filters</a>.
+                                            <x-empty-state icon="funnel" title="No rows match these filters."
+                                                           description="Try another standup, sheet or leave filter.">
+                                                <a href="{{ route('tasksheet.index', ['team' => $team->id, 'date' => $day->toDateString()]) }}" class="btn-secondary btn-sm">Clear all filters</a>
+                                            </x-empty-state>
                                         @else
-                                            No developers or QA on this team{{ $isPast ? ' and no entries for this day' : '' }}.
+                                            <x-empty-state icon="clipboard-check"
+                                                           :title="'No developers or QA on this team'.($isPast ? ' and no entries for this day' : '').'.'" />
                                         @endif
                                     </td>
                                 </tr>
@@ -230,6 +211,7 @@
                             @endforeach
                         @endif
                     </table>
+                    </div>
                 </div>
             @endif
         </div>

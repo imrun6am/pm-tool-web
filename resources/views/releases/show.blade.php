@@ -253,7 +253,7 @@
                                 <input type="hidden" name="release_id" value="{{ $release->id }}">
                                 <input name="label" type="text" required maxlength="100" placeholder="Label" class="field-input !mt-0 w-36 flex-none">
                                 <input name="url" type="url" required placeholder="https://…" class="field-input !mt-0 min-w-0 flex-1">
-                                <select name="visibility" aria-label="Visibility" class="rounded-lg border-slate-300 text-sm shadow-sm focus:border-brand-500 focus:ring-brand-500">
+                                <select name="visibility" aria-label="Visibility" class="field-select !mt-0 w-auto flex-none pr-8">
                                     <option value="shared">Shared</option>
                                     <option value="private">Private</option>
                                 </select>

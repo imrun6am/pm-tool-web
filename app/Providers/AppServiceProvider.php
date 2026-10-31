@@ -8,6 +8,7 @@ use App\Support\Navigation;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\View;
@@ -48,6 +49,10 @@ class AppServiceProvider extends ServiceProvider
                 'drawerReleases' => $quickLinks->attachableReleases(),
             ]);
         });
+
+        // @invalid('field') — marks a form control invalid for assistive tech and
+        // links it to the inline error that x-field renders (id "field-error").
+        Blade::directive('invalid', fn (string $field) => "<?php if (\$errors->has({$field})): ?>aria-invalid=\"true\" aria-describedby=\"<?php echo e({$field}); ?>-error\"<?php endif; ?>");
 
         // App-shell navigation: the sidebar (desktop rail + mobile drawer) and
         // the command palette share one role-filtered menu.

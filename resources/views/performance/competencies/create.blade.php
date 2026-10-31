@@ -1,20 +1,15 @@
 <x-app-layout>
     <x-slot name="header">
-        <div class="flex items-center gap-3">
-            <a href="{{ route('performance.competencies.index') }}" class="btn-secondary btn-sm !px-2" aria-label="Back">‹</a>
-            <h2 class="page-title">New competency</h2>
-        </div>
+        <x-page-header title="New competency" description="Add a skill or behaviour to score during performance evaluations."
+                       :breadcrumbs="['Performance' => route('performance.index'), 'Competencies' => route('performance.competencies.index'), 'New competency' => null]" />
     </x-slot>
 
     <div class="py-6 sm:py-8">
-        <div class="app-container max-w-2xl">
-            <form method="POST" action="{{ route('performance.competencies.store') }}" class="card card-pad">
+        <div class="app-container">
+            <form method="POST" action="{{ route('performance.competencies.store') }}" class="mx-auto max-w-5xl space-y-4">
                 @csrf
                 @include('performance.competencies._form')
-                <div class="mt-6 flex items-center justify-end gap-2">
-                    <a href="{{ route('performance.competencies.index') }}" class="btn-ghost btn-sm">Cancel</a>
-                    <button class="btn-primary btn-sm">Add competency</button>
-                </div>
+                <x-form-actions :cancel="route('performance.competencies.index')" submit="Add competency" />
             </form>
         </div>
     </div>

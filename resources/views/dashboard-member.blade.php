@@ -1,9 +1,6 @@
 <x-app-layout>
     <x-slot name="header">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-            <h2 class="page-title">My day</h2>
-            <span class="text-sm font-medium text-slate-600">{{ today()->format('l, M j, Y') }}</span>
-        </div>
+        <x-page-header title="My day" :description="today()->format('l, M j, Y')" />
     </x-slot>
 
     <div class="py-6 sm:py-8">

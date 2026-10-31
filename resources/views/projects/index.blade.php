@@ -1,20 +1,23 @@
 <x-app-layout>
+    @php $canManage = auth()->user()->canManageWorkspace(); @endphp
+
     <x-slot name="header">
-        <div class="flex items-center justify-between">
-            <h2 class="page-title">Projects</h2>
-            @if (auth()->user()->canManageWorkspace())
-                <a href="{{ route('projects.create') }}" class="btn-primary btn-sm">
-                    <x-icon name="plus" class="h-4 w-4" />
-                    New project
-                </a>
+        <x-page-header title="Projects" description="Products and codebases that releases are planned against.">
+            @if ($canManage)
+                <x-slot name="actions">
+                    <a href="{{ route('projects.create') }}" class="btn-primary btn-sm">
+                        <x-icon name="plus" variant="outline" class="h-4 w-4" />
+                        New project
+                    </a>
+                </x-slot>
             @endif
-        </div>
+        </x-page-header>
     </x-slot>
 
-    <div class="py-8">
-        <div class="app-container space-y-6">
+    <div class="py-6 sm:py-8">
+        <div class="app-container space-y-4">
 
-            {{-- Overview --}}
+            {{-- Compact overview --}}
             @if ($projects->isNotEmpty())
                 @php
                     $activeProjects = $projects->whereNull('archived_at');
@@ -27,65 +30,76 @@
                         ->sortByDesc('releases_count')
                         ->map(fn ($p) => ['label' => $p->name, 'value' => $p->releases_count, 'color' => $p->color])
                         ->values()->all();
+                    $summary = [
+                        ['label' => 'Projects', 'value' => $pTotal, 'sub' => 'total', 'icon' => 'folder', 'tone' => 'bg-brand-50 text-brand-600'],
+                        ['label' => 'Active', 'value' => $pActive, 'sub' => 'in progress', 'icon' => 'folder', 'tone' => 'bg-emerald-50 text-emerald-600'],
+                        ['label' => 'Archived', 'value' => $pArchived, 'sub' => 'shelved', 'icon' => 'archive', 'tone' => 'bg-slate-100 text-slate-600'],
+                        ['label' => 'Releases', 'value' => $pReleases, 'sub' => 'across all projects', 'icon' => 'rocket', 'tone' => 'bg-sky-50 text-sky-600'],
+                    ];
                 @endphp
 
-                <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
-                    @include('partials.stat-tile', ['label' => 'Projects', 'value' => $pTotal, 'sub' => 'total', 'icon' => 'folder', 'tone' => 'brand'])
-                    @include('partials.stat-tile', ['label' => 'Active', 'value' => $pActive, 'sub' => 'in progress', 'icon' => 'folder', 'tone' => 'emerald'])
-                    @include('partials.stat-tile', ['label' => 'Archived', 'value' => $pArchived, 'sub' => 'shelved', 'icon' => 'archive', 'tone' => 'slate'])
-                    @include('partials.stat-tile', ['label' => 'Releases', 'value' => $pReleases, 'sub' => 'across all projects', 'icon' => 'rocket', 'tone' => 'sky'])
-                </div>
-
-                @include('partials.hbar-chart', [
-                    'title' => 'Releases by project',
-                    'subtitle' => 'Active projects, busiest first',
-                    'rows' => $pByReleases,
-                    'emptyText' => 'No releases assigned to active projects yet.',
-                ])
+                <dl class="grid grid-cols-2 gap-3 lg:grid-cols-4">
+                    @foreach ($summary as $s)
+                        <div class="card flex items-center gap-3 px-4 py-3">
+                            <span class="flex h-8 w-8 flex-none items-center justify-center rounded-lg {{ $s['tone'] }}">
+                                <x-icon :name="$s['icon']" class="h-4 w-4" />
+                            </span>
+                            <div class="min-w-0">
+                                <dt class="truncate text-xs font-medium text-slate-500" title="{{ $s['sub'] }}">{{ $s['label'] }}</dt>
+                                <dd class="tabular text-lg font-semibold leading-tight text-slate-900">{{ $s['value'] }}</dd>
+                            </div>
+                        </div>
+                    @endforeach
+                </dl>
             @endif
 
             <div class="card overflow-hidden">
                 @if ($projects->isEmpty())
-                    <div class="p-12 text-center">
-                        <x-icon name="folder" class="mx-auto h-10 w-10 text-slate-300" />
-                        <p class="mt-3 text-sm text-slate-500">No projects yet.</p>
-                    </div>
+                    <x-empty-state icon="folder" title="No projects yet."
+                                   description="Add a project so releases can be planned against it.">
+                        @if ($canManage)
+                            <a href="{{ route('projects.create') }}" class="btn-primary btn-sm">
+                                <x-icon name="plus" variant="outline" class="h-4 w-4" />New project
+                            </a>
+                        @endif
+                    </x-empty-state>
                 @else
+                    <div class="table-wrap">
                     <table class="table-base">
-                        <thead class="bg-slate-50 text-left text-xs font-medium uppercase tracking-wide text-slate-500">
+                        <thead>
                             <tr>
-                                <th class="px-6 py-3">Project</th>
-                                <th class="px-6 py-3">Releases</th>
-                                <th class="px-6 py-3">Status</th>
-                                <th class="px-6 py-3 text-right">Actions</th>
+                                <th>Project</th>
+                                <th>Releases</th>
+                                <th>Status</th>
+                                <th class="text-right">Actions</th>
                             </tr>
                         </thead>
-                        <tbody class="divide-y divide-slate-100">
+                        <tbody>
                             @foreach ($projects as $project)
                                 <tr class="{{ $project->isArchived() ? 'bg-slate-50/60' : '' }}">
-                                    <td class="px-6 py-4">
+                                    <td>
                                         <div class="flex items-center gap-3">
                                             <span class="inline-block h-3 w-3 flex-none rounded-full" style="background-color: {{ $project->color }}"></span>
                                             <div>
-                                                <a href="{{ route('projects.show', $project) }}" class="font-medium text-slate-900 hover:text-indigo-600">{{ $project->name }}</a>
+                                                <a href="{{ route('projects.show', $project) }}" class="font-medium text-slate-900 hover:text-brand-700">{{ $project->name }}</a>
                                                 @if ($project->description)
                                                     <p class="text-xs text-slate-500">{{ Str::limit($project->description, 80) }}</p>
                                                 @endif
                                             </div>
                                         </div>
                                     </td>
-                                    <td class="px-6 py-4 text-slate-600">{{ $project->releases_count }}</td>
-                                    <td class="px-6 py-4">
+                                    <td class="tabular text-slate-600">{{ $project->releases_count }}</td>
+                                    <td>
                                         @if ($project->isArchived())
-                                            <span class="rounded-full bg-slate-200 px-2.5 py-0.5 text-xs font-medium text-slate-700">Archived</span>
+                                            <span class="badge badge-slate">Archived</span>
                                         @else
-                                            <span class="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">Active</span>
+                                            <span class="badge badge-success">Active</span>
                                         @endif
                                     </td>
-                                    <td class="px-6 py-4">
+                                    <td>
                                         <div class="flex items-center justify-end gap-1">
                                             <x-action-btn icon="eye" tone="brand" :href="route('projects.show', $project)" title="View" aria-label="View {{ $project->name }}" />
-                                            @if (auth()->user()->canManageWorkspace())
+                                            @if ($canManage)
                                                 <x-action-btn icon="pencil" tone="brand" :href="route('projects.edit', $project)" title="Edit" aria-label="Edit {{ $project->name }}" />
                                                 @if ($project->isArchived())
                                                     <form method="POST" action="{{ route('projects.restore', $project) }}">@csrf
@@ -110,8 +124,21 @@
                             @endforeach
                         </tbody>
                     </table>
+                    </div>
                 @endif
             </div>
+
+            {{-- Breakdown below the table so the list is visible first --}}
+            @if ($projects->isNotEmpty())
+                <div class="pt-2">
+                    @include('partials.hbar-chart', [
+                        'title' => 'Releases by project',
+                        'subtitle' => 'Active projects, busiest first',
+                        'rows' => $pByReleases,
+                        'emptyText' => 'No releases assigned to active projects yet.',
+                    ])
+                </div>
+            @endif
         </div>
     </div>
 </x-app-layout>

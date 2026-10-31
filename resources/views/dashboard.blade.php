@@ -1,70 +1,64 @@
 <x-app-layout>
+    @php
+        // The timeline defaults to the current year + quarter; "Clear" returns there.
+        $hasFilters = request()->hasAny(['year', 'quarter', 'project_id', 'team_id', 'group_by']);
+    @endphp
+
     <x-slot name="header">
-        <div class="flex flex-wrap items-center justify-between gap-3">
-            <h2 class="page-title">Release timeline</h2>
+        <x-page-header title="Release timeline" description="Release windows by team or project, with conflicts and progress at a glance.">
             @if (auth()->user()->canManageReleases())
-                <a href="{{ route('releases.create') }}"
-                   class="btn-primary btn-sm">
-                    New release
-                </a>
+                <x-slot name="actions">
+                    <a href="{{ route('releases.create') }}" class="btn-primary btn-sm">
+                        <x-icon name="plus" variant="outline" class="h-4 w-4" />
+                        New release
+                    </a>
+                </x-slot>
             @endif
-        </div>
+        </x-page-header>
     </x-slot>
 
-    <div class="py-8">
+    <div class="py-6 sm:py-8">
         <div class="app-container space-y-6">
 
             {{-- Filters --}}
-            <form method="GET" action="{{ route('dashboard') }}" class="card p-4">
-                <div class="grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
-                    <div>
-                        <label class="block text-xs font-medium text-slate-500">Year</label>
-                        <select name="year" class="field-input">
-                            @foreach ($years as $y)
-                                <option value="{{ $y }}" @selected($filters['year'] === $y)>{{ $y }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-slate-500">Quarter</label>
-                        <select name="quarter" class="field-input">
-                            <option value="">All quarters</option>
-                            @foreach ([1,2,3,4] as $q)
-                                <option value="{{ $q }}" @selected($filters['quarter'] === $q)>Q{{ $q }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-slate-500">Project</label>
-                        <select name="project_id" class="field-input">
-                            <option value="">All projects</option>
-                            @foreach ($projects as $project)
-                                <option value="{{ $project->id }}" @selected($filters['project_id'] === $project->id)>{{ $project->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-slate-500">Team</label>
-                        <select name="team_id" class="field-input">
-                            <option value="">All teams</option>
-                            @foreach ($teams as $team)
-                                <option value="{{ $team->id }}" @selected($filters['team_id'] === $team->id)>{{ $team->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-slate-500">Group by</label>
-                        <select name="group_by" class="field-input">
-                            <option value="team" @selected($filters['group_by'] === 'team')>Team</option>
-                            <option value="project" @selected($filters['group_by'] === 'project')>Project</option>
-                        </select>
-                    </div>
-                    <div class="flex items-end gap-2">
-                        <button class="w-full btn-primary btn-sm">Apply</button>
-                        <a href="{{ route('dashboard') }}" class="btn-secondary btn-sm">Reset</a>
-                    </div>
-                </div>
-            </form>
+            <x-filter-bar :action="route('dashboard')" :active="$hasFilters">
+                <label for="year" class="filter-label">Year</label>
+                <select id="year" name="year" class="filter-select">
+                    @foreach ($years as $y)
+                        <option value="{{ $y }}" @selected($filters['year'] === $y)>{{ $y }}</option>
+                    @endforeach
+                </select>
+
+                <label for="quarter" class="filter-label">Quarter</label>
+                <select id="quarter" name="quarter" class="filter-select">
+                    <option value="">All quarters</option>
+                    @foreach ([1,2,3,4] as $q)
+                        <option value="{{ $q }}" @selected($filters['quarter'] === $q)>Q{{ $q }}</option>
+                    @endforeach
+                </select>
+
+                <label for="project_id" class="filter-label">Project</label>
+                <select id="project_id" name="project_id" class="filter-select max-w-[13rem]">
+                    <option value="">All projects</option>
+                    @foreach ($projects as $project)
+                        <option value="{{ $project->id }}" @selected($filters['project_id'] === $project->id)>{{ $project->name }}</option>
+                    @endforeach
+                </select>
+
+                <label for="team_id" class="filter-label">Team</label>
+                <select id="team_id" name="team_id" class="filter-select max-w-[13rem]">
+                    <option value="">All teams</option>
+                    @foreach ($teams as $team)
+                        <option value="{{ $team->id }}" @selected($filters['team_id'] === $team->id)>{{ $team->name }}</option>
+                    @endforeach
+                </select>
+
+                <label for="group_by" class="filter-label">Group by</label>
+                <select id="group_by" name="group_by" class="filter-select">
+                    <option value="team" @selected($filters['group_by'] === 'team')>Group by team</option>
+                    <option value="project" @selected($filters['group_by'] === 'project')>Group by project</option>
+                </select>
+            </x-filter-bar>
 
             {{-- ============================ OVERVIEW ============================ --}}
             @php

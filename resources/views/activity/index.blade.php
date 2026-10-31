@@ -1,14 +1,8 @@
 <x-app-layout>
+    @php $hasFilters = $filters['causer_id'] || $filters['event']; @endphp
+
     <x-slot name="header">
-        <div class="flex flex-wrap items-end justify-between gap-3">
-            <div>
-                <p class="eyebrow">Audit trail</p>
-                <h2 class="page-title">Activity</h2>
-            </div>
-            @if ($filters['causer_id'] || $filters['event'])
-                <a href="{{ route('activity.index') }}" class="btn-secondary btn-sm">Clear filters</a>
-            @endif
-        </div>
+        <x-page-header title="Activity" description="Audit trail of every change made across the workspace." />
     </x-slot>
 
     @php
@@ -22,60 +16,34 @@
 
     {{-- On lg+, the content becomes a fixed-height flex column: the KPI cards and
          filters stay pinned while each of the two panes scrolls independently.
-         On smaller screens it falls back to normal page scroll. --}}
-    <div class="py-8 lg:h-[calc(100vh-9.5rem)] lg:overflow-hidden lg:py-6">
-        <div class="app-container flex h-full flex-col gap-6">
+         The height subtracts the top bar + page header (measured: content starts
+         ~158px down). On smaller screens it falls back to normal page scroll. --}}
+    <div class="py-6 lg:h-[calc(100vh-9.875rem)] lg:overflow-hidden lg:py-6">
+        <div class="app-container flex h-full flex-col gap-4">
 
             {{-- ============================ KPI CARDS ============================ --}}
-            <div class="grid shrink-0 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                {{-- Total --}}
-                <div class="card card-pad">
-                    <div class="flex items-start justify-between">
-                        <div>
-                            <p class="eyebrow">Total events</p>
-                            <p class="mt-2 text-3xl font-semibold tracking-tight text-slate-900 tabular">{{ number_format($stats['total']) }}</p>
-                        </div>
-                        <span class="flex h-10 w-10 flex-none items-center justify-center rounded-lg bg-slate-100 text-slate-500">
-                            <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M3 4.75A.75.75 0 013.75 4h12.5a.75.75 0 010 1.5H3.75A.75.75 0 013 4.75zM3 10a.75.75 0 01.75-.75h12.5a.75.75 0 010 1.5H3.75A.75.75 0 013 10zm0 5.25a.75.75 0 01.75-.75h12.5a.75.75 0 010 1.5H3.75a.75.75 0 01-.75-.75z"/></svg>
+            <div class="grid shrink-0 grid-cols-2 gap-3 lg:grid-cols-4">
+                @foreach ([
+                    ['label' => 'Total events', 'value' => $stats['total'], 'sub' => $filters['causer_id'] ? 'For selected user' : 'All recorded activity', 'icon' => 'chart-bar', 'tone' => 'bg-slate-100 text-slate-500'],
+                    ['label' => 'Today', 'value' => $stats['today'], 'sub' => number_format($stats['week']).' in the last 7 days', 'icon' => 'clock', 'tone' => 'bg-brand-50 text-brand-600'],
+                    ['label' => 'Contributors', 'value' => $stats['contributors'], 'sub' => 'People with logged activity', 'icon' => 'user-group', 'tone' => 'bg-slate-100 text-slate-500'],
+                ] as $kpi)
+                    <div class="card flex items-center gap-3 px-4 py-3">
+                        <span class="flex h-9 w-9 flex-none items-center justify-center rounded-lg {{ $kpi['tone'] }}">
+                            <x-icon :name="$kpi['icon']" variant="outline" class="h-[18px] w-[18px]" />
                         </span>
-                    </div>
-                    <p class="mt-3 text-xs text-slate-400">
-                        {{ $filters['causer_id'] ? 'For selected user' : 'All recorded activity' }}
-                    </p>
-                </div>
-
-                {{-- Today --}}
-                <div class="card card-pad">
-                    <div class="flex items-start justify-between">
-                        <div>
-                            <p class="eyebrow">Today</p>
-                            <p class="mt-2 text-3xl font-semibold tracking-tight text-slate-900 tabular">{{ number_format($stats['today']) }}</p>
+                        <div class="min-w-0">
+                            <p class="text-xs font-medium text-slate-500">{{ $kpi['label'] }}</p>
+                            <p class="tabular text-xl font-semibold leading-tight tracking-tight text-slate-900">{{ number_format($kpi['value']) }}</p>
+                            <p class="truncate text-xs text-slate-400">{{ $kpi['sub'] }}</p>
                         </div>
-                        <span class="flex h-10 w-10 flex-none items-center justify-center rounded-lg bg-brand-50 text-brand-600">
-                            <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm.75-13a.75.75 0 00-1.5 0v5c0 .414.336.75.75.75h4a.75.75 0 000-1.5h-3.25V5z" clip-rule="evenodd"/></svg>
-                        </span>
                     </div>
-                    <p class="mt-3 text-xs text-slate-400">{{ number_format($stats['week']) }} in the last 7 days</p>
-                </div>
-
-                {{-- Contributors --}}
-                <div class="card card-pad">
-                    <div class="flex items-start justify-between">
-                        <div>
-                            <p class="eyebrow">Contributors</p>
-                            <p class="mt-2 text-3xl font-semibold tracking-tight text-slate-900 tabular">{{ number_format($stats['contributors']) }}</p>
-                        </div>
-                        <span class="flex h-10 w-10 flex-none items-center justify-center rounded-lg bg-slate-100 text-slate-500">
-                            <svg class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 8a3 3 0 100-6 3 3 0 000 6zM3.465 14.493a1.23 1.23 0 00.41 1.412A9.957 9.957 0 0010 18c2.31 0 4.438-.784 6.131-2.1.43-.333.604-.903.408-1.41a7.002 7.002 0 00-13.074.003z"/></svg>
-                        </span>
-                    </div>
-                    <p class="mt-3 text-xs text-slate-400">People with logged activity</p>
-                </div>
+                @endforeach
 
                 {{-- Event split --}}
-                <div class="card card-pad">
-                    <p class="eyebrow">Event breakdown</p>
-                    <div class="mt-3 space-y-2">
+                <div class="card col-span-2 px-4 py-3 lg:col-span-1">
+                    <p class="text-xs font-medium text-slate-500">Event breakdown</p>
+                    <div class="mt-1.5 space-y-1">
                         @foreach ($eventMeta as $key => $meta)
                             @php $val = $stats[$key]; $pct = $stats['total'] ? round($val / $stats['total'] * 100) : 0; @endphp
                             <div class="flex items-center gap-2 text-xs">
@@ -92,46 +60,53 @@
             </div>
 
             {{-- ============================ FILTERS ============================ --}}
-            <form method="GET" action="{{ route('activity.index') }}" class="card shrink-0 p-4">
-                <div class="grid gap-4 sm:grid-cols-3">
-                    <div>
-                        <label class="block text-xs font-medium text-slate-500">User</label>
-                        <select name="causer_id" class="field-input">
-                            <option value="">Everyone</option>
-                            @foreach ($users as $u)
-                                <option value="{{ $u->id }}" @selected($filters['causer_id'] === $u->id)>{{ $u->name }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-slate-500">Event</label>
-                        <select name="event" class="field-input">
-                            <option value="">All events</option>
-                            @foreach (['created' => 'Created', 'updated' => 'Updated', 'deleted' => 'Deleted'] as $val => $label)
-                                <option value="{{ $val }}" @selected($filters['event'] === $val)>{{ $label }}</option>
-                            @endforeach
-                        </select>
-                    </div>
-                    <div class="flex items-end gap-2">
-                        <button class="btn-primary btn-sm">Filter</button>
-                        <a href="{{ route('activity.index') }}" class="btn-secondary btn-sm">Reset</a>
-                    </div>
-                </div>
-            </form>
+            <x-filter-bar :action="route('activity.index')" :active="$hasFilters" :count="$activities->total()" noun="entry" class="shrink-0">
+                <label for="causer_id" class="filter-label">User</label>
+                <select id="causer_id" name="causer_id" class="filter-select max-w-[13rem]">
+                    <option value="">Everyone</option>
+                    @foreach ($users as $u)
+                        <option value="{{ $u->id }}" @selected($filters['causer_id'] === $u->id)>{{ $u->name }}</option>
+                    @endforeach
+                </select>
+
+                <label for="event" class="filter-label">Event</label>
+                <select id="event" name="event" class="filter-select">
+                    <option value="">All events</option>
+                    @foreach (['created' => 'Created', 'updated' => 'Updated', 'deleted' => 'Deleted'] as $val => $label)
+                        <option value="{{ $val }}" @selected($filters['event'] === $val)>{{ $label }}</option>
+                    @endforeach
+                </select>
+            </x-filter-bar>
 
             {{-- ==================== FEED (left) + CHARTS (right) ==================== --}}
-            <div class="grid gap-6 lg:min-h-0 lg:flex-1 lg:grid-cols-3">
+            <div class="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-3">
 
                 {{-- ----------------------- Activity feed ----------------------- --}}
                 <div class="lg:col-span-2 lg:flex lg:min-h-0 lg:flex-col">
                     <div class="card lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
                         <div class="card-header shrink-0">
-                            <h3 class="text-sm font-semibold text-slate-900">Activity log</h3>
-                            <span class="text-xs text-slate-400">{{ $activities->total() }} {{ Str::plural('entry', $activities->total()) }}</span>
+                            <h3 class="card-title">Activity log</h3>
+                            @if ($activities->hasPages())
+                                <span class="tabular text-xs text-slate-400">Page {{ $activities->currentPage() }} of {{ $activities->lastPage() }}</span>
+                            @endif
                         </div>
-                        <div class="px-6 py-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
-                            @include('partials.activity-list', ['activities' => $activities])
-                        </div>
+                        @if ($activities->isEmpty())
+                            <div class="lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+                                @if ($hasFilters)
+                                    <x-empty-state icon="funnel" title="No activity matches these filters."
+                                                   description="Try another person or event type.">
+                                        <a href="{{ route('activity.index') }}" class="btn-secondary btn-sm">Clear all filters</a>
+                                    </x-empty-state>
+                                @else
+                                    <x-empty-state icon="clock" title="No activity recorded yet."
+                                                   description="Changes to releases, tasks and other records will appear here as they happen." />
+                                @endif
+                            </div>
+                        @else
+                            <div class="px-6 py-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
+                                @include('partials.activity-list', ['activities' => $activities])
+                            </div>
+                        @endif
                     </div>
 
                     @if ($activities->hasPages())
@@ -140,7 +115,7 @@
                 </div>
 
                 {{-- ------------------------- Charts --------------------------- --}}
-                <div class="space-y-6 lg:min-h-0 lg:overflow-y-auto lg:pr-1">
+                <div class="space-y-4 lg:min-h-0 lg:overflow-y-auto lg:pr-1">
 
                     {{-- 14-day trend bar chart --}}
                     @php

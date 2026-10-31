@@ -1,20 +1,24 @@
 <x-app-layout>
     <x-slot name="header">
-        <div class="flex items-center justify-between">
-            <div class="flex items-center gap-3">
-                <span class="inline-block h-4 w-4 rounded-full" style="background-color: {{ $team->color }}"></span>
-                <h2 class="page-title">{{ $team->name }}</h2>
-                @if ($team->isArchived())
-                    <span class="rounded-full bg-slate-200 px-2.5 py-0.5 text-xs font-medium text-slate-700">Archived</span>
+        <x-page-header :title="$team->name"
+                       :breadcrumbs="['Teams' => route('teams.index'), $team->name => null]">
+            <x-slot name="actions">
+                <span class="mr-1 inline-flex items-center gap-2">
+                    <span class="inline-block h-3 w-3 flex-none rounded-full ring-2 ring-white ring-offset-1 ring-offset-slate-200" style="background-color: {{ $team->color }}" aria-hidden="true"></span>
+                    @if ($team->isArchived())
+                        <span class="badge badge-slate">Archived</span>
+                    @else
+                        <span class="badge badge-success">Active</span>
+                    @endif
+                </span>
+                @if (auth()->user()->canManageWorkspace())
+                    <a href="{{ route('teams.edit', $team) }}" class="btn-secondary btn-sm">
+                        <x-icon name="pencil-square" variant="outline" class="h-4 w-4" />
+                        Edit team
+                    </a>
                 @endif
-            </div>
-            @if (auth()->user()->canManageWorkspace())
-                <a href="{{ route('teams.edit', $team) }}" class="btn-secondary btn-sm">
-                    <x-icon name="pencil" class="h-4 w-4" />
-                    Edit team
-                </a>
-            @endif
-        </div>
+            </x-slot>
+        </x-page-header>
     </x-slot>
 
     @php
@@ -25,7 +29,7 @@
         $initials = fn ($name) => strtoupper(\Illuminate\Support\Str::of($name)->explode(' ')->map(fn ($p) => $p[0] ?? '')->take(2)->implode(''));
     @endphp
 
-    <div class="py-8">
+    <div class="py-6 sm:py-8">
         <div class="app-container space-y-6">
 
             {{-- ============ KPI band ============ --}}
@@ -37,15 +41,15 @@
             </div>
 
             {{-- ============ Two-column body ============ --}}
-            <div class="grid gap-6 lg:grid-cols-3">
+            <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
 
                 {{-- ---------- LEFT: main content ---------- --}}
-                <div class="space-y-6 lg:col-span-2">
+                <div class="min-w-0 space-y-6 lg:col-span-2">
 
                     {{-- Members --}}
                     <div class="card overflow-hidden">
-                        <div class="flex items-center justify-between border-b border-slate-100 px-6 py-4">
-                            <h3 class="text-sm font-semibold text-slate-700">Members ({{ $team->members->count() }})</h3>
+                        <div class="card-header">
+                            <h3 class="card-title">Members <span class="font-normal text-slate-400">({{ $team->members->count() }})</span></h3>
                         </div>
 
                         @if ($canManage)
@@ -67,7 +71,8 @@
                         @endif
 
                         @if ($team->members->isEmpty())
-                            <div class="px-6 py-8 text-center text-sm text-slate-400">No members yet.</div>
+                            <x-empty-state icon="user-group" title="No members yet."
+                                           :description="$canManage ? 'Add people above to staff this team.' : null" class="!py-10" />
                         @else
                             <ul class="divide-y divide-slate-100">
                                 @foreach ($team->members as $member)
@@ -100,20 +105,22 @@
 
                     {{-- Schedule --}}
                     <div class="card overflow-hidden">
-                        <div class="border-b border-slate-100 px-6 py-4">
-                            <h3 class="text-sm font-semibold text-slate-700">Schedule (chronological)</h3>
+                        <div class="card-header">
+                            <h3 class="card-title">Schedule (chronological)</h3>
                         </div>
-                        @include('partials.releases-table', ['releases' => $releases, 'conflicts' => $conflicts, 'showProject' => true, 'showTeam' => false])
+                        <div class="table-wrap">
+                            @include('partials.releases-table', ['releases' => $releases, 'conflicts' => $conflicts, 'showProject' => true, 'showTeam' => false])
+                        </div>
                     </div>
                 </div>
 
                 {{-- ---------- RIGHT: sidebar ---------- --}}
-                <div class="space-y-6">
+                <div class="min-w-0 space-y-6">
 
                     {{-- Team lead --}}
                     <div class="card overflow-hidden">
-                        <div class="border-b border-slate-100 px-6 py-4">
-                            <h3 class="text-sm font-semibold text-slate-700">Team lead</h3>
+                        <div class="card-header">
+                            <h3 class="card-title">Team lead</h3>
                         </div>
                         <div class="px-6 py-5">
                             @if ($team->teamLead)
@@ -157,8 +164,8 @@
 
                     {{-- About --}}
                     <div class="card overflow-hidden">
-                        <div class="border-b border-slate-100 px-6 py-4">
-                            <h3 class="text-sm font-semibold text-slate-700">About</h3>
+                        <div class="card-header">
+                            <h3 class="card-title">About</h3>
                         </div>
                         <dl class="divide-y divide-slate-100 text-sm">
                             <div class="flex items-center justify-between px-6 py-3">
@@ -172,9 +179,9 @@
                                 <dt class="text-slate-500">Status</dt>
                                 <dd>
                                     @if ($team->isArchived())
-                                        <span class="rounded-full bg-slate-200 px-2.5 py-0.5 text-xs font-medium text-slate-700">Archived</span>
+                                        <span class="badge badge-slate">Archived</span>
                                     @else
-                                        <span class="rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">Active</span>
+                                        <span class="badge badge-success">Active</span>
                                     @endif
                                 </dd>
                             </div>

@@ -1,6 +1,5 @@
 @php
     $user = auth()->user();
-    $initials = collect(explode(' ', $user->name))->filter()->take(2)->map(fn ($p) => mb_substr($p, 0, 1))->implode('');
 @endphp
 
 {{-- Top utility bar: menu button (mobile), command-palette trigger, quick
@@ -37,7 +36,7 @@
         <x-dropdown align="right" width="w-56">
             <x-slot name="trigger">
                 <button class="flex items-center gap-2.5 rounded-lg py-1 pl-1.5 pr-1 text-sm text-slate-600 transition hover:bg-slate-100">
-                    <span class="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-brand-100 text-xs font-semibold text-brand-700">{{ strtoupper($initials) }}</span>
+                    <x-avatar :user="$user" />
                     <span class="hidden text-left leading-tight sm:block">
                         <span class="block max-w-[11rem] truncate text-sm font-semibold text-slate-800">{{ $user->name }}</span>
                         <span class="block">@include('partials.role-badge', ['role' => $user->role, 'variant' => 'text'])</span>
