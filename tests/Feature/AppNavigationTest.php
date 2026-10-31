@@ -11,13 +11,19 @@ class AppNavigationTest extends TestCase
 {
     use RefreshDatabase;
 
+    /** Sidebar items marked current (breadcrumbs may carry aria-current too). */
+    private function activeNavItems(string $html): int
+    {
+        return preg_match_all('#<a [^>]*class="nav-item[^"]*"[^>]*aria-current="page"#', $html);
+    }
+
     public function test_current_page_item_is_marked_active(): void
     {
         $user = User::factory()->create(['role' => User::ROLE_ADMIN]);
 
         $html = $this->actingAs($user)->get(route('board.index'))->assertOk()->getContent();
 
-        $this->assertSame(1, substr_count($html, 'aria-current="page"'));
+        $this->assertSame(1, $this->activeNavItems($html));
         $this->assertMatchesRegularExpression('#href="[^"]*/board"[^>]*nav-item-active[^>]*aria-current="page"#', $html);
     }
 
@@ -32,7 +38,7 @@ class AppNavigationTest extends TestCase
 
         $html = $this->actingAs($user)->get(route('events.show', $event))->assertOk()->getContent();
 
-        $this->assertSame(1, substr_count($html, 'aria-current="page"'));
+        $this->assertSame(1, $this->activeNavItems($html));
         $this->assertMatchesRegularExpression('#href="[^"]*/calendar"[^>]*nav-item-active[^>]*aria-current="page"#', $html);
     }
 
@@ -42,7 +48,7 @@ class AppNavigationTest extends TestCase
 
         $html = $this->actingAs($user)->get(route('profile.edit'))->assertOk()->getContent();
 
-        $this->assertStringNotContainsString('aria-current="page"', $html);
+        $this->assertSame(0, $this->activeNavItems($html));
     }
 
     public function test_developer_shell_never_mentions_hidden_sections(): void
