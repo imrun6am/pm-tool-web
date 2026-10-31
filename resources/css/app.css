@@ -1,0 +1,222 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+[x-cloak] { display: none !important; }
+
+/* ---------------------------------------------------------------------------
+   Release Planner — "operations console" design system
+   Neutral slate surfaces, one indigo accent, hairline borders over heavy
+   shadows, Inter for crisp data-dense UI.
+--------------------------------------------------------------------------- */
+
+@layer base {
+    html {
+        scroll-behavior: smooth;
+        -webkit-text-size-adjust: 100%;
+    }
+
+    body {
+        @apply bg-slate-50 text-slate-800 antialiased;
+        font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    }
+
+    /* Tabular figures for anything numeric-heavy (dates, counts, timelines). */
+    table,
+    .tabular {
+        font-variant-numeric: tabular-nums;
+    }
+
+    h1, h2, h3, h4 {
+        @apply tracking-tight text-slate-900;
+    }
+
+    :focus-visible {
+        @apply outline-none ring-2 ring-brand-500/60 ring-offset-1 ring-offset-white;
+    }
+}
+
+@layer components {
+    /* Full-width app gutter — header and every page share this so they align. */
+    .app-container {
+        @apply mx-auto w-full px-4 sm:px-6 lg:px-8 xl:px-10;
+    }
+
+    /* Surfaces */
+    .card {
+        @apply rounded-xl border border-slate-200 bg-white shadow-card;
+    }
+    .card-pad {
+        @apply p-5 sm:p-6;
+    }
+    .card-header {
+        @apply flex items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 sm:px-6;
+    }
+
+    /* Buttons — fixed 40px control height so they line up with inputs.
+       Shared tactile physics: a quiet press on click, glide on hover, and
+       motion tuned out for reduced-motion users. Variants layer their own
+       surface on top. */
+    .btn {
+        @apply inline-flex h-10 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-4 text-sm font-medium leading-none
+        transition duration-150 ease-out focus-visible:outline-none focus-visible:ring-2
+        focus-visible:ring-brand-500/60 focus-visible:ring-offset-1 active:translate-y-px
+        motion-reduce:transition-none motion-reduce:active:translate-y-0
+        disabled:cursor-not-allowed disabled:opacity-60 disabled:shadow-none disabled:active:translate-y-0;
+    }
+    .btn-primary {
+        @apply btn border border-brand-700/40 bg-gradient-to-b from-brand-500 to-brand-600 text-white
+        shadow-btn-primary hover:from-brand-600 hover:to-brand-700 hover:shadow-btn-primary-hover
+        active:from-brand-700 active:to-brand-700 active:shadow-btn;
+    }
+    .btn-secondary {
+        @apply btn border border-slate-200 bg-white text-slate-700 shadow-btn
+        hover:border-slate-300 hover:bg-slate-50 hover:text-slate-900 active:bg-slate-100;
+    }
+    .btn-ghost {
+        @apply btn text-slate-600 hover:bg-slate-100 hover:text-slate-900 active:bg-slate-200;
+    }
+    .btn-danger {
+        @apply btn border border-rose-200 bg-white text-rose-600 shadow-btn
+        hover:border-rose-300 hover:bg-rose-50 active:bg-rose-100;
+    }
+    /* Compact 36px variant for table rows and dense toolbars. */
+    .btn-sm {
+        @apply h-9 gap-1 px-3 text-sm;
+    }
+    /* Square icon button — pair with .btn / .btn-sm for a 1:1 hit area. */
+    .btn-icon {
+        @apply w-10 px-0;
+    }
+    .btn-sm.btn-icon {
+        @apply w-9;
+    }
+
+    /* Inline text actions used inside table rows */
+    .link-muted {
+        @apply text-sm text-slate-500 transition-colors hover:text-brand-600;
+    }
+
+    /* Independently scrolling panes (e.g. release detail two-pane view).
+       Thin, unobtrusive scrollbars that only assert themselves on hover. */
+    .scroll-area {
+        scrollbar-width: thin;
+        scrollbar-color: theme(colors.slate.200) transparent;
+        scroll-behavior: smooth;
+        overscroll-behavior: contain;
+    }
+    .scroll-area::-webkit-scrollbar {
+        width: 0.5rem;
+        height: 0.5rem;
+    }
+    .scroll-area::-webkit-scrollbar-track {
+        background: transparent;
+    }
+    .scroll-area::-webkit-scrollbar-thumb {
+        border-radius: 9999px;
+        background-color: theme(colors.slate.200);
+    }
+    .scroll-area:hover::-webkit-scrollbar-thumb {
+        background-color: theme(colors.slate.300);
+    }
+    .scroll-area::-webkit-scrollbar-thumb:hover {
+        background-color: theme(colors.slate.400);
+    }
+
+    /* Form controls (layered on @tailwindcss/forms) */
+    .field-label {
+        @apply block text-sm font-medium text-slate-700;
+    }
+    .field-hint {
+        @apply mt-1 text-xs text-slate-400;
+    }
+    .field-input,
+    .field-select,
+    .field-textarea {
+        @apply mt-1 block w-full rounded-lg border-slate-300 text-sm text-slate-800 shadow-sm
+        transition focus:border-brand-500 focus:ring-brand-500;
+    }
+    /* Single-line controls share the 40px button height so forms and toolbars align. */
+    .field-input,
+    .field-select {
+        @apply h-10;
+    }
+    .field-error {
+        @apply mt-1 text-sm text-rose-600;
+    }
+
+    /* Settings-style two-column form section (fills full width nicely) */
+    .form-section {
+        @apply grid gap-x-8 gap-y-5 border-b border-slate-100 py-6 first:pt-0 last:border-0 last:pb-0 md:grid-cols-3;
+    }
+    .form-section-body {
+        @apply space-y-5 md:col-span-2;
+    }
+    .form-section-title {
+        @apply text-sm font-semibold text-slate-900;
+    }
+    .form-section-desc {
+        @apply mt-1 text-xs leading-relaxed text-slate-500;
+    }
+
+    /* Badges */
+    .badge {
+        @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium;
+    }
+
+    /* Data tables */
+    .table-base {
+        @apply min-w-full divide-y divide-slate-200 text-sm;
+    }
+    .table-base thead {
+        @apply bg-slate-50 text-left text-xs font-semibold uppercase tracking-wide text-slate-500;
+    }
+    .table-base thead th {
+        @apply px-6 py-3;
+    }
+    .table-base tbody {
+        @apply divide-y divide-slate-100;
+    }
+    .table-base tbody td {
+        @apply px-6 py-4;
+    }
+    .table-base tbody tr {
+        @apply transition-colors hover:bg-slate-50/70;
+    }
+
+    /* Rendered Markdown (release completion notes) */
+    .prose-notes :where(p, ul, ol, blockquote, pre) { @apply my-2; }
+    .prose-notes :where(h1, h2, h3, h4) { @apply mb-1 mt-3 font-semibold text-slate-900; }
+    .prose-notes h1 { @apply text-base; }
+    .prose-notes h2 { @apply text-sm; }
+    .prose-notes ul { @apply list-disc pl-5; }
+    .prose-notes ol { @apply list-decimal pl-5; }
+    .prose-notes li { @apply my-0.5; }
+    .prose-notes a { @apply font-medium text-brand-600 underline; }
+    .prose-notes code { @apply rounded bg-slate-100 px-1 py-0.5 text-xs text-slate-800; }
+    .prose-notes pre { @apply overflow-x-auto rounded-lg bg-slate-900 p-3 text-xs text-slate-100; }
+    .prose-notes blockquote { @apply border-l-2 border-slate-200 pl-3 text-slate-500; }
+    .prose-notes strong { @apply font-semibold text-slate-900; }
+
+    /* Trix rich-text editor — align with the field styling */
+    trix-toolbar .trix-button-row {
+        @apply flex-wrap gap-1;
+    }
+    trix-editor {
+        @apply mt-1 block min-h-[8rem] w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800 shadow-sm;
+    }
+    trix-editor:focus {
+        @apply border-brand-500 outline-none ring-1 ring-brand-500;
+    }
+    trix-editor:empty:not(:focus)::before {
+        @apply text-slate-400;
+    }
+
+    /* Page-title cluster used in the sticky sub-header */
+    .page-title {
+        @apply text-lg font-semibold tracking-tight text-slate-900 sm:text-xl;
+    }
+    .eyebrow {
+        @apply text-xs font-medium uppercase tracking-wide text-slate-400;
+    }
+}
