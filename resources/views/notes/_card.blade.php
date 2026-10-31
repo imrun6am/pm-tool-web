@@ -53,6 +53,7 @@
                     <input type="hidden" name="date" value="{{ $note->date->toDateString() }}">
                     <input id="note-edit-{{ $note->id }}" type="hidden" name="body" value="{{ $note->body }}">
                     <trix-editor input="note-edit-{{ $note->id }}" class="prose-notes"></trix-editor>
+                    <x-ai-enhance input="note-edit-{{ $note->id }}" kind="note" />
 
                     <div class="mt-3 grid gap-3 sm:grid-cols-[12rem_1fr]">
                         <div>

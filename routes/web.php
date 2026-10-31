@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\ActivityController;
+use App\Http\Controllers\AiEnhanceController;
 use App\Http\Controllers\BoardController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\CommentController;
@@ -138,6 +139,9 @@ Route::middleware('auth')->group(function () {
     Route::post('tasks/{task}/comments', [CommentController::class, 'storeForTask'])->name('tasks.comments.store');
     Route::put('comments/{comment}', [CommentController::class, 'update'])->name('comments.update');
     Route::delete('comments/{comment}', [CommentController::class, 'destroy'])->name('comments.destroy');
+
+    // "Enhance with Claude" for the note / meeting-note editors (JSON; nothing saved)
+    Route::post('ai/enhance', AiEnhanceController::class)->middleware('throttle:ai-enhance')->name('ai.enhance');
 
     // Kanban board
     Route::get('board', [BoardController::class, 'index'])->name('board.index');

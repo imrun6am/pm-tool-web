@@ -65,6 +65,7 @@
                         @error('body')
                             <p id="body-error" class="field-error"><x-icon name="exclamation-circle" variant="outline" class="h-4 w-4 flex-none" />{{ $message }}</p>
                         @enderror
+                        <x-ai-enhance input="note-add-body" kind="note" />
 
                         <div class="mt-4 grid gap-4 sm:grid-cols-[10rem_12rem_1fr]">
                             <x-field label="Date" for="note-date" name="date">

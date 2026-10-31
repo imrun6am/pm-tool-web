@@ -62,6 +62,7 @@
             <input id="meeting-note-body" type="hidden" name="body" value="{{ old('body', $meetingNote->body) }}">
             <trix-editor input="meeting-note-body" placeholder="Discussion, decisions, action items…" class="prose-notes min-h-[14rem]"
                          @invalid('body')></trix-editor>
+            <x-ai-enhance input="meeting-note-body" kind="meeting" title-field="title" type-field="type" />
         </x-field>
     </x-form-section>
 </div>

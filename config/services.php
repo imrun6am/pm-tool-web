@@ -32,10 +32,13 @@ return [
     'anthropic' => [
         'key' => env('ANTHROPIC_API_KEY'),
         'model' => env('KPI_REVIEW_MODEL', 'claude-sonnet-5-5'),
-        'effort' => env('KPI_REVIEW_EFFORT', 'high'),
+        'effort' => env('KPI_REVIEW_EFFORT', 'medium'),
         // Tasksheet "Add to board": splits a day's plan into board tasks.
-        'board_tasks_model' => env('BOARD_TASKS_MODEL', 'claude-opus-5-5'),
+        'board_tasks_model' => env('BOARD_TASKS_MODEL', 'claude-sonnet-5-5'),
         'board_tasks_effort' => env('BOARD_TASKS_EFFORT', 'low'),
+        // "Enhance with Claude" on notes and meeting notes.
+        'enhance_model' => env('ENHANCE_MODEL', 'claude-sonnet-5-5'),
+        'enhance_effort' => env('ENHANCE_EFFORT', 'low'),
     ],
 
     'slack' => [

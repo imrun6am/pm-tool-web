@@ -194,4 +194,90 @@ Alpine.data('settingsNav', (ids = []) => ({
     },
 }));
 
+/*
+ * "Enhance with Claude" (x-ai-enhance): sends a Trix editor's content to the
+ * server and swaps in the polished version. Nothing is saved; the swap is a
+ * normal undoable edit (⌘Z) and the Undo link restores the exact original.
+ */
+Alpine.data('aiEnhance', ({ input, kind, url, titleField = null, typeField = null }) => ({
+    busy: false,
+    done: false,
+    empty: true,
+    error: '',
+    previous: null,
+
+    editor() {
+        return document.querySelector(`trix-editor[input="${input}"]`);
+    },
+
+    init() {
+        const sync = (e) => {
+            if (e && e.target.getAttribute('input') !== input) return;
+            const el = this.editor();
+            this.empty = !el?.editor || el.editor.getDocument().toString().trim() === '';
+        };
+        document.addEventListener('trix-initialize', sync);
+        document.addEventListener('trix-change', sync);
+        this.$nextTick(() => sync());
+    },
+
+    field(id) {
+        const el = id ? document.getElementById(id) : null;
+        if (!el) return null;
+        return el.tagName === 'SELECT' ? el.selectedOptions[0]?.textContent.trim() ?? null : el.value || null;
+    },
+
+    async run() {
+        const el = this.editor();
+        if (!el?.editor || this.busy || this.empty) return;
+
+        const body = document.getElementById(input)?.value ?? '';
+        this.busy = true;
+        this.error = '';
+        el.setAttribute('contenteditable', 'false');
+        el.setAttribute('aria-busy', 'true');
+
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.content ?? '',
+                },
+                body: JSON.stringify({ kind, body, title: this.field(titleField), type: this.field(typeField) }),
+            });
+            const data = await response.json().catch(() => ({}));
+
+            if (!response.ok) {
+                this.error = response.status === 429
+                    ? 'Too many enhance requests — wait a minute and try again.'
+                    : data.message ?? 'Couldn’t enhance right now. Your text is unchanged.';
+                return;
+            }
+
+            el.setAttribute('contenteditable', 'true');
+            this.previous = body;
+            el.editor.recordUndoEntry('Enhance with Claude');
+            el.editor.setSelectedRange([0, el.editor.getDocument().getLength()]);
+            el.editor.insertHTML(data.html);
+            this.done = true;
+        } catch (e) {
+            this.error = 'Couldn’t reach the server. Your text is unchanged.';
+        } finally {
+            this.busy = false;
+            el.setAttribute('contenteditable', 'true');
+            el.removeAttribute('aria-busy');
+        }
+    },
+
+    undo() {
+        const el = this.editor();
+        if (!el?.editor || this.previous === null) return;
+        el.editor.loadHTML(this.previous);
+        this.previous = null;
+        this.done = false;
+    },
+}));
+
 Alpine.start();

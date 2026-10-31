@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use App\Models\User;
+use App\Services\Ai\ClaudeTextEnhancer;
+use App\Services\Ai\TextEnhancer;
 use App\Services\Board\ClaudePlanTaskExtractor;
 use App\Services\Board\PlanTaskExtractor;
 use App\Services\Kpi\ClaudeKpiAnalyzer;
@@ -35,6 +37,12 @@ class AppServiceProvider extends ServiceProvider
             config('services.anthropic.key'),
             config('services.anthropic.board_tasks_model'),
             config('services.anthropic.board_tasks_effort'),
+        ));
+
+        $this->app->bind(TextEnhancer::class, fn () => new ClaudeTextEnhancer(
+            config('services.anthropic.key'),
+            config('services.anthropic.enhance_model'),
+            config('services.anthropic.enhance_effort'),
         ));
     }
 
@@ -94,6 +102,9 @@ class AppServiceProvider extends ServiceProvider
             ->by($request->user()?->currentAccessToken()?->id
                 ? 'token:'.$request->user()->currentAccessToken()->id
                 : 'ip:'.$request->ip()));
+
+        // "Enhance with Claude": each click is a paid model call.
+        RateLimiter::for('ai-enhance', fn (Request $request) => Limit::perMinute(10)->by('user:'.$request->user()?->id));
 
         RateLimiter::for('login', fn (Request $request) => [
             Limit::perMinute(5)->by(mb_strtolower((string) $request->input('email')).'|'.$request->ip()),
