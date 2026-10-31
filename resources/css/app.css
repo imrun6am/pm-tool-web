@@ -212,6 +212,68 @@
         @apply text-slate-400;
     }
 
+    /* -----------------------------------------------------------------------
+       App shell — PM-tool layout: a light sidebar (grouped nav, colored
+       outline icons) beside the slate-50 canvas. On lg+ the sidebar is fixed
+       and collapses to a 4.5rem icon rail (`sidebar-collapsed:` variant, set
+       pre-paint on <html>); below lg it is an off-canvas drawer.
+    ----------------------------------------------------------------------- */
+    .sidebar {
+        @apply fixed inset-y-0 left-0 z-50 flex w-64 flex-col border-r border-sidebar-border bg-sidebar
+        transition-[width,transform,visibility] duration-200 ease-out motion-reduce:transition-none
+        max-lg:invisible max-lg:-translate-x-full max-lg:shadow-2xl
+        lg:z-40 lg:sidebar-collapsed:w-[4.5rem];
+    }
+    .sidebar.is-open {
+        @apply visible translate-x-0;
+    }
+    .app-main {
+        @apply flex min-h-screen flex-col transition-[padding] duration-200 ease-out motion-reduce:transition-none
+        lg:pl-64 lg:sidebar-collapsed:pl-[4.5rem];
+    }
+    .app-topbar {
+        @apply sticky top-0 z-40 border-b border-slate-200 bg-white/85 backdrop-blur-md;
+    }
+    .brand-mark {
+        @apply inline-flex h-8 w-8 flex-none items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-violet-600
+        text-xs font-bold tracking-tight text-white shadow-sm ring-1 ring-inset ring-white/20;
+    }
+
+    /* Nav groups and items — compact 36px rows. */
+    .nav-group-label {
+        @apply mb-1 px-2.5 text-[11px] font-semibold uppercase tracking-wider text-sidebar-muted
+        lg:sidebar-collapsed:sr-only;
+    }
+    .nav-group + .nav-group {
+        @apply mt-5;
+    }
+    /* Collapsed rail: headings are hidden, so a hairline separates groups. */
+    @media (min-width: theme(screens.lg)) {
+        html[data-sidebar="collapsed"] .nav-group + .nav-group {
+            @apply mt-3 border-t border-sidebar-border pt-3;
+        }
+    }
+    .nav-item {
+        @apply relative flex h-9 w-full items-center gap-3 rounded-lg px-2.5 text-sm font-medium text-sidebar-text
+        transition-colors hover:bg-sidebar-hover hover:text-slate-900
+        lg:sidebar-collapsed:justify-center lg:sidebar-collapsed:px-0;
+    }
+    /* Active: tinted row, brand text, and an accent bar on the sidebar edge. */
+    .nav-item-active {
+        @apply bg-sidebar-active font-semibold text-sidebar-active-text hover:bg-sidebar-active hover:text-sidebar-active-text
+        before:absolute before:-left-3 before:inset-y-1.5 before:w-[3px] before:rounded-r-full before:bg-brand-600;
+    }
+    /* Text that hides (but stays accessible) when the rail is collapsed. */
+    .nav-label {
+        @apply truncate lg:sidebar-collapsed:sr-only;
+    }
+
+    /* Keyboard shortcut hint */
+    .kbd {
+        @apply inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded border border-slate-200 bg-white px-1
+        font-sans text-[11px] font-medium leading-none text-slate-500 shadow-[0_1px_0_0] shadow-slate-200;
+    }
+
     /* Page-title cluster used in the sticky sub-header */
     .page-title {
         @apply text-lg font-semibold tracking-tight text-slate-900 sm:text-xl;

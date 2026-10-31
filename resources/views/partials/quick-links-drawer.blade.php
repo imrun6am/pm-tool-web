@@ -2,18 +2,12 @@
     $viewer = auth()->user();
     $limited = $viewer->hasLimitedAccess();
 @endphp
-{{-- Quick-links slide-over, opened by a floating right-edge handle. --}}
+{{-- Quick-links slide-over, opened from the top bar's Quick links button
+     (dispatches `toggle-quick-links`). --}}
 <div x-data="{ open: {{ session('quick-links-open') ? 'true' : 'false' }}, adding: {{ $errors->hasAny(['label', 'url', 'visibility', 'release_id']) ? 'true' : 'false' }} }"
      @toggle-quick-links.window="open = !open"
      @keydown.escape.window="open = false"
      class="relative z-50">
-
-    {{-- Floating handle on the right screen edge --}}
-    <button type="button" @click="open = true" x-show="!open"
-            class="fixed right-0 top-1/3 z-40 rounded-l-xl bg-brand-600 p-2.5 text-white shadow-lg transition hover:bg-brand-700"
-            title="Quick links" aria-label="Quick links">
-        <x-icon name="link" class="h-5 w-5" />
-    </button>
 
     {{-- Backdrop --}}
     <div x-show="open" x-transition.opacity style="display: none;"

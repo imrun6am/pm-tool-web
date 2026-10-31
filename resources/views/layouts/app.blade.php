@@ -11,6 +11,9 @@
         <link rel="preconnect" href="https://fonts.bunny.net">
         <link href="https://fonts.bunny.net/css?family=inter:400,500,600,700&display=swap" rel="stylesheet" />
 
+        <!-- Restore the collapsed sidebar before first paint (no layout flash). -->
+        <script>try { if (localStorage.getItem('rp.sidebar') === 'collapsed') document.documentElement.dataset.sidebar = 'collapsed'; } catch (e) {}</script>
+
         <!-- Scripts -->
         @vite(['resources/css/app.css', 'resources/js/app.js'])
     </head>
@@ -24,48 +27,60 @@
         $stickyHeader = filter_var($attributes->get('sticky-header', false), FILTER_VALIDATE_BOOLEAN) && ! $fullHeight;
     @endphp
     <body class="min-h-full font-sans">
-        <div @class([
-            'flex min-h-screen flex-col',
-            'lg:h-screen lg:overflow-hidden' => $fullHeight,
-        ])>
-            {{-- Sticky top bar (sticky still matters on mobile, where full-height
-                 pages fall back to normal page scroll). --}}
+        <div x-data="appShell" @keydown.escape.window="closeMobile()">
+            {{-- Grouped sidebar: fixed rail on lg+, off-canvas drawer below. --}}
+            @include('layouts.sidebar')
+
+            {{-- Mobile drawer backdrop --}}
+            <div x-show="mobileOpen" x-cloak @click="closeMobile()" aria-hidden="true"
+                 x-transition:enter="transition-opacity duration-200 motion-reduce:transition-none" x-transition:enter-start="opacity-0" x-transition:enter-end="opacity-100"
+                 x-transition:leave="transition-opacity duration-150 motion-reduce:transition-none" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+                 class="fixed inset-0 z-[45] bg-slate-900/40 backdrop-blur-[2px] lg:hidden"></div>
+
+            {{-- Content column, offset by the sidebar on lg+ --}}
             <div @class([
-                'sticky top-0 z-40 border-b border-slate-200 bg-white/90 backdrop-blur-md',
-                'lg:flex-none' => $fullHeight,
+                'app-main',
+                'lg:h-screen lg:overflow-hidden' => $fullHeight,
             ])>
-                @include('layouts.navigation')
-            </div>
+                {{-- Sticky utility bar (sticky still matters on mobile, where
+                     full-height pages fall back to normal page scroll). --}}
+                <div @class(['app-topbar', 'lg:flex-none' => $fullHeight])>
+                    @include('layouts.navigation')
+                </div>
 
-            {{-- Page sub-header --}}
-            @isset($header)
-                <header @class([
-                    'border-b border-slate-200 bg-white',
-                    'lg:flex-none' => $fullHeight,
-                    'sticky top-16 z-30 shadow-sm' => $stickyHeader,
+                {{-- Page sub-header --}}
+                @isset($header)
+                    <header @class([
+                        'border-b border-slate-200 bg-white',
+                        'lg:flex-none' => $fullHeight,
+                        'sticky top-16 z-30 shadow-sm' => $stickyHeader,
+                    ])>
+                        <div class="app-container py-4 sm:py-5">
+                            {{ $header }}
+                        </div>
+                    </header>
+                @endisset
+
+                {{-- Inline validation summary (page-scoped, persists while fixing) --}}
+                <div @class(['app-container', 'lg:flex-none' => $fullHeight])>
+                    @include('layouts.flash')
+                </div>
+
+                {{-- Page content --}}
+                <main @class([
+                    'flex-1',
+                    'lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden' => $fullHeight,
                 ])>
-                    <div class="app-container py-4 sm:py-5">
-                        {{ $header }}
-                    </div>
-                </header>
-            @endisset
-
-            {{-- Inline validation summary (page-scoped, persists while fixing) --}}
-            <div @class(['app-container', 'lg:flex-none' => $fullHeight])>
-                @include('layouts.flash')
+                    {{ $slot }}
+                </main>
             </div>
-
-            {{-- Page content --}}
-            <main @class([
-                'flex-1',
-                'lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden' => $fullHeight,
-            ])>
-                {{ $slot }}
-            </main>
         </div>
 
         {{-- Quick-links slide-over (data via view composer) --}}
         @include('partials.quick-links-drawer')
+
+        {{-- ⌘K command palette (role-filtered entries via view composer) --}}
+        @include('layouts.command-palette')
 
         {{-- Floating toasts + confirmation modal --}}
         @include('layouts.toasts')

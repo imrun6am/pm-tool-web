@@ -4,6 +4,7 @@ namespace App\Providers;
 
 use App\Models\User;
 use App\Services\QuickLinkService;
+use App\Support\Navigation;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -45,6 +46,17 @@ class AppServiceProvider extends ServiceProvider
                 'myQuickLinks' => $partitioned['mine'],
                 'sharedQuickLinks' => $partitioned['shared'],
                 'drawerReleases' => $quickLinks->attachableReleases(),
+            ]);
+        });
+
+        // App-shell navigation: the sidebar (desktop rail + mobile drawer) and
+        // the command palette share one role-filtered menu.
+        View::composer(['layouts.sidebar', 'layouts.command-palette'], function ($view) {
+            $user = Auth::user();
+
+            $view->with([
+                'navGroups' => Navigation::groups($user),
+                'createActions' => Navigation::createActions($user),
             ]);
         });
     }
