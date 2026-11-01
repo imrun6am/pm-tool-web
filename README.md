@@ -35,11 +35,22 @@ proposal, specs, design, and task list this implementation follows.
 - **Projects & Teams** — CRUD with colors; archive when they have releases, hard-delete when empty.
 - **Documents** — upload/list/download/delete files per release (max 20 MB; pdf, doc(x), xls(x),
   ppt(x), txt, csv, png, jpg, zip).
-- **Users & roles** — six roles: **Admin, CTO, Team Lead, Developer, QA, Viewer**. Only Admin
-  manages structure (projects, teams, releases, off-days, documents); **Admin + CTO** manage
-  user accounts (create, set role, reset password, deactivate); **every signed-in user
-  collaborates** on tasks, comments, board, and calendar. Self-registration is disabled and
-  deactivated accounts cannot log in. Enforced by middleware and policies, not just hidden buttons.
+- **Users & roles** — seven roles: **Admin, CTO, Tech Lead, Team Lead, Developer, QA, Viewer**.
+  - The **leadership tier** (Admin, CTO, Tech Lead, Team Lead) shares one identical access level:
+    it manages projects, teams and membership, releases, off-days, documents, and user accounts
+    (create, set role, reset password, deactivate).
+  - **Performance** is lead-only. Admin, CTO, and Tech Lead oversee every team and own the
+    competency catalog; a Team Lead sees only the teams they are the assigned lead of.
+  - **KPI review reports** are Admin only.
+  - **Developer and QA** have limited access: no projects, teams, releases list, or activity
+    feed, and a personal member dashboard. They can still open a release's detail page and
+    upload documents to it.
+  - **Viewer** can see the planning views but cannot upload documents.
+  - **Every signed-in user collaborates** on tasks, comments, board, calendar, notes, meeting
+    notes, and the tasksheet.
+
+  Self-registration is disabled and deactivated accounts cannot log in. Enforced by middleware
+  and policies, not just hidden buttons.
 
 ## Requirements
 
@@ -64,17 +75,18 @@ Open http://127.0.0.1:8000 and log in.
 
 ### Demo logins (from the seeder)
 
-All demo accounts use the password `password`. Accounts are created by an Admin/CTO in
-**Users** — there is no public sign-up.
+All demo accounts use the password `password`. Accounts are created by a lead (Admin, CTO,
+Tech Lead, or Team Lead) in **Users** — there is no public sign-up.
 
-| Role      | Email                |
-| --------- | -------------------- |
-| Admin     | `admin@example.com`  |
-| CTO       | `cto@example.com`    |
-| Team Lead | `lead@example.com`   |
-| Developer | `dev@example.com`    |
-| QA        | `qa@example.com`     |
-| Viewer    | `viewer@example.com` |
+| Role      | Email                  |
+| --------- | ---------------------- |
+| Admin     | `admin@example.com`    |
+| CTO       | `cto@example.com`      |
+| Tech Lead | `techlead@example.com` |
+| Team Lead | `lead@example.com`     |
+| Developer | `dev@example.com`      |
+| QA        | `qa@example.com`       |
+| Viewer    | `viewer@example.com`   |
 
 The seed data includes a deliberate same-team overlap (**Team Alpha** — *Checkout v2.4* Jul 10–30
 and *Billing hotfix* Jul 20–Aug 5) so the conflict warning and amber highlight are visible
@@ -167,6 +179,10 @@ restricted-field omission, and the domain rules the API must preserve.
 - **`App\Models\Concerns\RecordsActivity`** is a lightweight in-app audit trait (no external
   package) added to auditable models; it records create/update/delete with the causer and, for
   updates, old → new values, denormalizing a `release_id` for fast per-release history.
-- **Permissions:** the `admin` middleware (`EnsureUserIsAdmin`) guards structural write routes;
-  task/comment routes sit under `auth` so any signed-in user can collaborate; `CommentPolicy`
-  limits comment edit/delete to the author or an admin.
+- **Permissions:** every capability check on `User` funnels through `LEAD_ROLES`, so the four
+  leadership roles never drift apart. Route middleware aliases (in `bootstrap/app.php`):
+  `lead` / `manage-releases` / `manage-users` guard structural writes, `full-access` keeps
+  Developer/QA out of planning views, `admin` guards KPI reports, and
+  `can:manage-competencies` guards the competency catalog. Task/comment routes sit under `auth`
+  so any signed-in user can collaborate; `CommentPolicy` limits comment edit/delete to the
+  author or an admin.

@@ -43,7 +43,7 @@ class ReleaseCompletionTest extends TestCase
     {
         $release = $this->release();
         $this->actingAs(User::factory()->create(['role' => User::ROLE_ADMIN]))
-            ->post(route('releases.complete', $release), ['completion_notes' => "Ok <script>alert(1)</script>"]);
+            ->post(route('releases.complete', $release), ['completion_notes' => 'Ok <script>alert(1)</script>']);
 
         $this->assertStringNotContainsString('<script>', (string) $release->refresh()->renderedCompletionNotes());
     }

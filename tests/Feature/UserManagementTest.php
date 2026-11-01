@@ -5,9 +5,11 @@ namespace Tests\Feature;
 use App\Models\Project;
 use App\Models\Release;
 use App\Models\Task;
+use App\Models\TasksheetEntry;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Tests\TestCase;
 
@@ -111,7 +113,7 @@ class UserManagementTest extends TestCase
         $dev = User::factory()->create(['role' => User::ROLE_DEVELOPER, 'name' => 'Gone Person']);
         $team->members()->attach($dev);
 
-        \App\Models\TasksheetEntry::create([
+        TasksheetEntry::create([
             'team_id' => $team->id, 'user_id' => $dev->id,
             'date' => today()->subDay()->toDateString(), 'plan' => 'Legacy work',
         ]);
@@ -127,7 +129,7 @@ class UserManagementTest extends TestCase
             ->assertSee('Deleted user');
 
         // Login is blocked (soft-deleted accounts are out of the auth scope).
-        \Illuminate\Support\Facades\Auth::logout();
+        Auth::logout();
         $this->post('/login', ['email' => $dev->email, 'password' => 'password']);
         $this->assertGuest();
     }
@@ -139,7 +141,7 @@ class UserManagementTest extends TestCase
         $dev = User::factory()->create(['role' => User::ROLE_DEVELOPER, 'name' => 'Paused Person']);
         $team->members()->attach($dev);
 
-        \App\Models\TasksheetEntry::create([
+        TasksheetEntry::create([
             'team_id' => $team->id, 'user_id' => $dev->id,
             'date' => today()->subDay()->toDateString(), 'plan' => 'Recent work',
         ]);

@@ -10,6 +10,7 @@ use App\Models\TasksheetEntry;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Tests\TestCase;
 
 class DevQaAccessTest extends TestCase
@@ -100,7 +101,7 @@ class DevQaAccessTest extends TestCase
         ])->assertRedirect();
 
         $this->actingAs($dev)->post(route('releases.documents.store', $release), [
-            'document' => \Illuminate\Http\UploadedFile::fake()->create('spec.pdf', 10, 'application/pdf'),
+            'document' => UploadedFile::fake()->create('spec.pdf', 10, 'application/pdf'),
         ])->assertRedirect();
         $this->assertSame(1, $release->documents()->count());
     }
@@ -111,7 +112,7 @@ class DevQaAccessTest extends TestCase
         $viewer = User::factory()->create(['role' => User::ROLE_VIEWER]);
 
         $this->actingAs($viewer)->post(route('releases.documents.store', $release), [
-            'document' => \Illuminate\Http\UploadedFile::fake()->create('spec.pdf', 10, 'application/pdf'),
+            'document' => UploadedFile::fake()->create('spec.pdf', 10, 'application/pdf'),
         ])->assertForbidden();
         $this->assertSame(0, $release->documents()->count());
     }
