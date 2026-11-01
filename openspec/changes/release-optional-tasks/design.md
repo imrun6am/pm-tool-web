@@ -49,6 +49,52 @@ The board and the API task index accept `release_id=none`, which maps to `whereN
 ### 6. Tasksheet without a release
 `board_release_id` becomes nullable. When it is empty, `PlanToBoardService` creates unlinked tasks and dedupes against the member's unlinked top-level tasks. A chosen release must still belong to the row's team and be open.
 
+### 7. A task's team is stored, not derived
+A task's team used to come only from `release->team`, which an unlinked task doesn't have. There were three options:
+- (a) store an optional `tasks.team_id`;
+- (b) derive the team from the release or the assignee's current membership;
+- (c) match a team filter on either the release's team or the assignee's membership.
+
+We chose (a). It is explicit, it stays stable when people change teams, and it filters with a plain indexed `where`. Options (b) and (c) make a card's team change as membership changes, and they can't express "this work belongs to team X" for an unassigned task.
+
+The rules for `team_id`:
+- **Linked tasks:** always the release's team. `TaskService::update` forces it, and the `Release` `updated` hook resyncs it when a release changes team.
+- **Unlinked tasks:**
+  - on create, the team comes from the request, else from the assignee's single current team, else none;
+  - on update, the team changes only when `team_id` is sent;
+  - unlinking keeps the existing team.
+- **Subtasks:** they copy the parent's team, and follow it alongside `release_id`.
+- **Board quick-add:** under a team filter, the new card takes that team. Tasksheet add-to-board uses the row's team.
+
+### 8. Developers and QA see only their own teams' tasks
+The user asked for this explicitly: Developers and QA don't choose a team, and they don't see other teams' work.
+
+**Visibility:** `Task::scopeVisibleTo($user)` / `isVisibleTo()` let a limited user see:
+- tasks whose `team_id` is one of their current teams (`team_user.left_at` null);
+- tasks assigned to them, from any team;
+- teamless tasks they created (personal tasks).
+
+Leads and viewers are unrestricted.
+
+**Enforcement:**
+- **Lists:** the scope is applied in the services by viewer: `BoardService::columns`/`move`, `TaskService::filtered`/`forRelease`/`assignableUsers`, and the release pages' task lists and counts.
+- **Direct URLs:** `TaskPolicy` (`view`/`update`/`delete`/`create(?Release)`) guards show, update, status, delete, subtasks, task comments and board moves, on the web and API. Anything else is a 403.
+
+**Team choice:** the `KeepsTasksInViewerTeams` request concern, used by `TaskRequest` and the new shared `BoardTaskRequest`, handles the team for limited users.
+- **One team:** `team_id` is pinned to that team on create, and on edit when one is sent. A submitted team is ignored.
+- **Several teams:** they must pick one of their own, unless a release decides it.
+- **No team:** the task stays teamless (personal) instead of being refused, so a newcomer can still track their own work.
+- **Releases:** only their teams' releases can be linked.
+- **Assignees:** only teammates or themselves.
+- **Edits:** a task's unchanged release, team or assignee always passes, so a task from another team that is assigned to them stays editable without being moved.
+
+**UI:**
+- the board hides the Team filter for single-team members and limits options, releases and the assignee list to their teams;
+- quick-add asks multi-team members which team a card is for;
+- the task page shows the team read-only unless they are on several teams.
+
+**Model invariant:** `Task::saving` copies the release's team whenever `release_id` changes, so seeders and direct `Task::create` calls keep linked tasks consistent.
+
 ## Risks / Trade-offs
 
 - **Losing the cascade.** Deleting a release no longer removes its tasks, so the board can collect unlinked leftovers. The board's "No release" filter makes them easy to find and archive.

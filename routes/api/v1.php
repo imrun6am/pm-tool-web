@@ -42,4 +42,5 @@ Route::middleware(['auth:sanctum', 'active-api'])->group(function () {
     Route::group([], base_path('routes/api/v1/tasksheet.php'));
     Route::group([], base_path('routes/api/v1/performance.php'));
     Route::group([], base_path('routes/api/v1/insights.php'));
+    Route::group([], base_path('routes/api/v1/engagement.php'));
 });

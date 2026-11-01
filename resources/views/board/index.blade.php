@@ -1,13 +1,17 @@
 @php
     use Illuminate\Support\Str;
 
-    $hasFilters = $filters['release_id'] || $filters['assignee_id'];
+    $hasFilters = $filters['release_id'] || $filters['team_id'] || $filters['assignee_id'];
     $me = auth()->user();
 
-    // "My tasks" toggles the assignee filter and keeps the release.
+    // Developers and QA are pinned to their team: no team choice unless they are on several.
+    $teamChoice = ! $me->hasLimitedAccess() || $teams->count() > 1;
+
+    // "My tasks" toggles the assignee filter and keeps the release and team.
     $mine = $filters['assignee_id'] === $me->id;
     $mineUrl = route('board.index', array_filter([
         'release_id' => $filters['release_id'],
+        'team_id' => $filters['team_id'],
         'assignee_id' => $mine ? null : $me->id,
     ]));
 
@@ -47,6 +51,17 @@
                         <option value="{{ $r->id }}" @selected($filters['release_id'] === $r->id)>{{ $r->name }}</option>
                     @endforeach
                 </select>
+
+                @if ($teamChoice)
+                    <label for="team_id" class="filter-label">Team</label>
+                    <select id="team_id" name="team_id" class="filter-select max-w-[12rem]">
+                        <option value="">All teams</option>
+                        <option value="none" @selected($filters['team_id'] === 'none')>No team</option>
+                        @foreach ($teams as $tm)
+                            <option value="{{ $tm->id }}" @selected($filters['team_id'] === $tm->id)>{{ $tm->name }}</option>
+                        @endforeach
+                    </select>
+                @endif
 
                 <label for="assignee_id" class="filter-label">Assignee</label>
                 <select id="assignee_id" name="assignee_id" class="filter-select max-w-[13rem]">
@@ -151,6 +166,17 @@
                                     <textarea id="new-card-{{ $status }}" name="title" x-ref="title" rows="2" required maxlength="255" placeholder="What needs doing?"
                                               @keydown.escape="adding = false"
                                               class="field-control"></textarea>
+                                    @if (is_int($filters['team_id']))
+                                        <input type="hidden" name="team_id" value="{{ $filters['team_id'] }}">
+                                    @elseif ($me->hasLimitedAccess() && $teamChoice)
+                                        {{-- On several teams: pick which one the card belongs to --}}
+                                        <label for="new-card-team-{{ $status }}" class="sr-only">Team</label>
+                                        <select id="new-card-team-{{ $status }}" name="team_id" required class="field-control field-sm">
+                                            @foreach ($teams as $tm)
+                                                <option value="{{ $tm->id }}">{{ $tm->name }}</option>
+                                            @endforeach
+                                        </select>
+                                    @endif
                                     @if ($release)
                                         <input type="hidden" name="release_id" value="{{ $release->id }}">
                                     @else

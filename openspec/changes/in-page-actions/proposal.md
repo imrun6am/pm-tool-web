@@ -10,7 +10,7 @@ Soft navigation (`soft-page-navigation`) removed the blank flash between pages, 
 - The **top progress bar** also runs for region submissions.
 - If the redirected page doesn't contain the region (for example, deleting from a detail page redirects to the index), Turbo falls back to a whole-page soft visit.
 - **Scroll is kept** on every other action. With `turbo-refresh-scroll=preserve`, any remaining form that redirects back to the same page keeps its position, and on a validation failure the first invalid field is scrolled into view.
-- Converted first: notes (create, edit, delete), users (activate/deactivate, delete), performance competencies (activate/deactivate, delete), quick links in the drawer (add, edit, pin, delete), and the release tasks panel (add task/subtask, change status, delete).
+- Converted first: notes (create, edit, delete), users (activate/deactivate, delete), performance competencies (activate/deactivate, delete), quick links in the drawer (add, edit, pin, delete), the release tasks panel (add task/subtask, change status, delete), and release comments (post, edit, delete).
 
 ## Capabilities
 

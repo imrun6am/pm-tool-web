@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\ReadsTaskFilters;
+use App\Http\Requests\BoardTaskRequest;
 use App\Models\Release;
 use App\Models\Task;
 use App\Models\Team;
@@ -25,30 +26,30 @@ class BoardController extends Controller
         $releaseId = $this->idOrNoneFilter($request, 'release_id');
         $teamId = $this->idOrNoneFilter($request, 'team_id');
         $assigneeId = $request->filled('assignee_id') ? (int) $request->integer('assignee_id') : null;
+        $viewer = $request->user();
+
+        // Developers and QA only ever see their own teams' work, releases and people.
+        $limited = $viewer->hasLimitedAccess();
+        $teamIds = $limited ? $viewer->currentTeamIds() : null;
 
         return view('board.index', [
             'columns' => $this->board->columns([
                 'release_id' => $releaseId,
                 'team_id' => $teamId,
                 'assignee_id' => $assigneeId,
-            ]),
+            ], $viewer),
             'statuses' => Task::STATUSES,
             'release' => is_int($releaseId) ? Release::find($releaseId) : null,
-            'releases' => Release::orderBy('year', 'desc')->orderBy('name')->get(),
-            'teams' => Team::orderBy('name')->get(),
-            'users' => User::orderBy('name')->get(),
+            'releases' => Release::visibleTo($viewer)->orderBy('year', 'desc')->orderBy('name')->get(),
+            'teams' => Team::when($limited, fn ($q) => $q->whereIn('id', $teamIds))->orderBy('name')->get(),
+            'users' => User::visibleTo($viewer)->orderBy('name')->get(),
             'filters' => ['release_id' => $releaseId, 'team_id' => $teamId, 'assignee_id' => $assigneeId],
         ]);
     }
 
-    public function storeTask(Request $request): RedirectResponse
+    public function storeTask(BoardTaskRequest $request): RedirectResponse
     {
-        $data = $request->validate([
-            'release_id' => ['nullable', Rule::exists('releases', 'id')],
-            'team_id' => ['nullable', Rule::exists('teams', 'id')],
-            'title' => ['required', 'string', 'max:255'],
-            'status' => ['required', Rule::in(array_keys(Task::STATUSES))],
-        ]);
+        $data = $request->validated();
 
         $this->board->quickAdd(
             isset($data['release_id']) ? Release::findOrFail($data['release_id']) : null,
@@ -69,7 +70,9 @@ class BoardController extends Controller
             'ordered_ids.*' => ['integer'],
         ]);
 
-        $this->board->move($task, $data['status'], $data['ordered_ids'] ?? []);
+        $this->authorize('update', $task);
+
+        $this->board->move($task, $data['status'], $data['ordered_ids'] ?? [], $request->user());
 
         return response()->json(['ok' => true]);
     }

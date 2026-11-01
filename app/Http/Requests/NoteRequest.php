@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\Note;
+use App\Rules\VisiblePerson;
 use App\Support\HtmlSanitizer;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
@@ -22,7 +23,8 @@ class NoteRequest extends FormRequest
             'visibility' => ['required', Rule::in(array_keys(Note::VISIBILITIES))],
             'date' => ['required', 'date'],
             'recipients' => ['nullable', 'array'],
-            'recipients.*' => ['integer', 'exists:users,id'],
+            'recipients.*' => ['integer', 'exists:users,id',
+                new VisiblePerson($this->user(), $this->route('note')?->recipients()->pluck('users.id')->all() ?? [])],
         ];
     }
 

@@ -10,10 +10,11 @@ use App\Services\EventService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Validation\Rule;
 
 /**
  * Calendar events. Any signed-in user creates; EventPolicy limits editing and
- * deleting to the creator or a lead.
+ * deleting to the creator, and hides others' private events.
  *
  * The all-day normalization and the month-grid window live in EventService,
  * shared with the Blade calendar — so a client drawing a month sees exactly the
@@ -37,6 +38,7 @@ class EventController extends ApiController
             'month' => ['nullable', 'integer', 'between:1,12'],
             'from' => ['nullable', 'date'],
             'to' => ['nullable', 'date'],
+            'show' => ['nullable', Rule::in(array_keys(EventService::SHOW))],
         ]);
 
         [$from, $to] = $this->window($request);
@@ -44,7 +46,8 @@ class EventController extends ApiController
         $events = $this->events->inWindow($from, $to, [
             'release_id' => $this->filterId($request, 'release_id'),
             'type' => $request->input('type'),
-        ]);
+            'show' => $request->input('show'),
+        ], $request->user());
 
         // Y-m-d => [event ids], so a client can fill a month grid without
         // re-deriving which days each multi-day event covers.
@@ -63,6 +66,8 @@ class EventController extends ApiController
 
     public function show(Request $request, Event $event): JsonResponse
     {
+        $this->authorize('view', $event);
+
         $event->load(['creator', 'release', 'attendees']);
 
         // Attendees-only meeting notes are filtered out for viewers who may

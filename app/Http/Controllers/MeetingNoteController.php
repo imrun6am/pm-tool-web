@@ -43,10 +43,11 @@ class MeetingNoteController extends Controller
             'search' => $search,
             'from' => $range['from'],
             'to' => $range['to'],
-            'releases' => Release::orderBy('year', 'desc')->orderBy('name')->get(),
+            // Developers and QA filter only by their own teams' releases and people.
+            'releases' => Release::visibleTo(request()->user())->orderBy('year', 'desc')->orderBy('name')->get(),
             // Person filters list everyone who could plausibly appear, including
             // deactivated users, so an old note stays reachable by its author.
-            'users' => User::orderBy('name')->get(),
+            'users' => User::visibleTo(request()->user())->orderBy('name')->get(),
         ]);
     }
 
@@ -54,7 +55,9 @@ class MeetingNoteController extends Controller
     {
         // "Write meeting note" on a meeting-type event passes ?event={id}:
         // the note is pre-filled from — and linked to — that event.
-        $event = ($eventId = request()->integer('event')) ? Event::find($eventId) : null;
+        $event = ($eventId = request()->integer('event'))
+            ? Event::visibleTo(request()->user())->find($eventId)
+            : null;
 
         return view('meeting-notes.create', [
             'meetingNote' => new MeetingNote([
@@ -63,8 +66,8 @@ class MeetingNoteController extends Controller
                 'release_id' => $event?->release_id ?? (request()->integer('release') ?: null),
                 'meeting_date' => $event?->starts_at ?? now(),
             ]),
-            'releases' => Release::ongoing()->orderBy('year', 'desc')->orderBy('name')->get(),
-            'users' => User::active()->orderBy('name')->get(),
+            'releases' => Release::ongoing()->visibleTo(request()->user())->orderBy('year', 'desc')->orderBy('name')->get(),
+            'users' => User::active()->visibleTo(request()->user())->orderBy('name')->get(),
             // Notes written from an event start with that event's attendees.
             'selectedAttendees' => $event ? $event->attendees()->pluck('users.id')->all() : [],
         ]);
@@ -98,8 +101,9 @@ class MeetingNoteController extends Controller
             'meetingNote' => $meetingNote,
             // Ongoing releases, plus this note's own even if it has since
             // completed — so editing never silently drops an existing link.
-            'releases' => $this->meetingNotes->linkableReleases($meetingNote),
-            'users' => User::active()->orderBy('name')->get(),
+            'releases' => $this->meetingNotes->linkableReleases($meetingNote, request()->user()),
+            'users' => User::active()->visibleTo(request()->user())->orderBy('name')->get()
+                ->concat($meetingNote->attendees)->unique('id')->sortBy('name')->values(),
             'selectedAttendees' => $meetingNote->attendees()->pluck('users.id')->all(),
         ]);
     }

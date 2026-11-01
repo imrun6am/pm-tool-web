@@ -44,7 +44,7 @@ The layout renders the flash toasts both as the toaster's initial data and as `<
 
 ### 5. Scroll on whole-page actions
 
-`<meta name="turbo-refresh-scroll" content="preserve">` makes any same-URL redirect (a Turbo "page refresh") keep scroll. The refresh method stays `replace`. Morphing was rejected because idiomorph would revert attributes that Alpine owns (`style="display:none"` from `x-show`, bound classes) and blank Trix editors. After such a render, if the page has `[aria-invalid="true"]`, the first invalid field is scrolled into view, so errors on long forms aren't hidden below the fold.
+`<meta name="turbo-refresh-scroll" content="preserve">` makes any same-URL redirect (a Turbo "page refresh") keep scroll. The refresh method stays `replace`. Morphing was rejected because idiomorph would revert attributes that Alpine owns (`style="display:none"` from `x-show`, bound classes) and blank Trix editors. After such a render, if the page has `[aria-invalid="true"]`, the first invalid field is scrolled into view, so errors on long forms aren't hidden below the fold. Turbo also focuses the incoming page's `[autofocus]` element after a render. On a refresh that would scroll away (the profile form autofocuses its name field), so `turbo:before-render` removes `autofocus` from the new body when `session.view.isPageRefresh(visit)`.
 
 ## Risks / Trade-offs
 

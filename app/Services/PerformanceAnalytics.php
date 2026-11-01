@@ -397,9 +397,10 @@ class PerformanceAnalytics
      */
     private function boardPanel(User $member): array
     {
-        $tasks = Task::where('assignee_id', $member->id)->get();
+        // Archived tasks are filed away and left out of the record entirely.
+        $tasks = Task::counted()->where('assignee_id', $member->id)->get();
         $assigned = $tasks->count();
-        $done = $tasks->whereIn('status', Task::DONE_STATUSES)->count();
+        $done = $tasks->where('status', 'done')->count();
         $rework = $tasks->where('status', 'recheck')->count();
 
         return [

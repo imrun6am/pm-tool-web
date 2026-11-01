@@ -257,10 +257,11 @@ class DashboardServiceTest extends TestCase
         $analytics = $this->service->analytics($filters, $releases, []);
 
         $this->assertSame(1, $analytics['active']);
-        $this->assertSame(3, $analytics['taskTotal']);
+        // Archived tasks are left out of the mix, the total, and the done share.
+        $this->assertSame(2, $analytics['taskTotal']);
         $this->assertSame(1, $analytics['statusCounts']['todo']);
-        // done + archive both count as finished.
-        $this->assertSame(67, $analytics['donePct']);
+        $this->assertArrayNotHasKey('archive', $analytics['statusCounts']);
+        $this->assertSame(50, $analytics['donePct']);
     }
 
     public function test_done_percentage_is_zero_rather_than_dividing_by_nothing(): void

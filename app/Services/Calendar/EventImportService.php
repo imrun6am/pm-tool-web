@@ -210,6 +210,7 @@ class EventImportService
                 $event = $this->events->create([
                     'title' => $row['title'],
                     'type' => $row['type'],
+                    'visibility' => $row['visibility'] ?? Event::VISIBILITY_SHARED,
                     'description' => $row['description'] ?? null,
                     'location' => $row['location'] ?? null,
                     'release_id' => $row['release_id'] ?? null,
@@ -221,6 +222,7 @@ class EventImportService
                 $proposals[$index] = array_merge($proposals[$index], [
                     'title' => $row['title'],
                     'type' => $row['type'],
+                    'visibility' => $row['visibility'] ?? Event::VISIBILITY_SHARED,
                     'date' => $row['date'],
                     'start_time' => $allDay ? null : ($row['start_time'] ?? null),
                     'end_date' => $row['end_date'] ?? null,
@@ -329,6 +331,8 @@ class EventImportService
         $p = [
             'title' => $title,
             'type' => array_key_exists($item['type'] ?? null, Event::TYPES) ? $item['type'] : 'other',
+            // Like the event form: shared unless the reviewer makes it private.
+            'visibility' => Event::VISIBILITY_SHARED,
             'date' => $date,
             'start_time' => $allDay ? null : $startTime,
             'end_date' => $endDate,

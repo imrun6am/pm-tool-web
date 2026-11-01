@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Event;
+use App\Models\Team;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -75,25 +76,39 @@ class CalendarEventTest extends TestCase
             ->assertSee('July 2026');
     }
 
-    public function test_only_creator_or_admin_can_edit_or_delete(): void
+    public function test_only_the_creator_edits_and_admins_may_also_delete_shared_events(): void
     {
         $creator = User::factory()->create(['role' => User::ROLE_DEVELOPER]);
         $event = Event::create([
             'title' => 'X', 'type' => 'meeting', 'starts_at' => '2026-07-24 10:00:00', 'created_by' => $creator->id,
         ]);
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
 
-        // A different non-admin cannot edit or delete.
-        $other = User::factory()->create(['role' => User::ROLE_DEVELOPER]);
-        $this->actingAs($other)->get(route('events.edit', $event))->assertForbidden();
-        $this->actingAs($other)->delete(route('events.destroy', $event))->assertForbidden();
+        // Nobody else may edit — a lead or an admin included.
+        foreach ([User::ROLE_DEVELOPER, User::ROLE_TECH_LEAD, User::ROLE_ADMIN] as $role) {
+            $other = $role === User::ROLE_ADMIN ? $admin : User::factory()->create(['role' => $role]);
+            $this->actingAs($other)->get(route('events.edit', $event))->assertForbidden();
+            $this->actingAs($other)->put(route('events.update', $event), $this->payload(['title' => 'Hijacked']))->assertForbidden();
+        }
+        $this->assertSame('X', $event->fresh()->title);
+
+        // Deleting: not another member or a lead…
+        $this->actingAs(User::factory()->create(['role' => User::ROLE_DEVELOPER]))->delete(route('events.destroy', $event))->assertForbidden();
+        $this->actingAs(User::factory()->create(['role' => User::ROLE_TECH_LEAD]))->delete(route('events.destroy', $event))->assertForbidden();
+
+        // …but an admin may remove a shared event, not someone's private one.
+        $private = Event::create([
+            'title' => 'Mine', 'type' => 'other', 'starts_at' => '2026-07-25 10:00:00', 'created_by' => $creator->id, 'visibility' => 'private',
+        ]);
+        $this->actingAs($admin)->delete(route('events.destroy', $private))->assertForbidden();
+        $this->actingAs($admin)->delete(route('events.destroy', $event))->assertRedirect();
+        $this->assertNull($event->fresh());
+        $event = $private;
 
         // The creator can — the edit URL opens the drawer on the event page.
         $this->actingAs($creator)->get(route('events.edit', $event))
             ->assertRedirect(route('events.show', [$event, 'edit' => 1]));
-
-        // An admin can delete anyone's event.
-        $this->actingAs(User::factory()->create(['role' => User::ROLE_ADMIN]))
-            ->delete(route('events.destroy', $event))->assertRedirect();
+        $this->actingAs($creator)->delete(route('events.destroy', $event))->assertRedirect();
         $this->assertSame(0, Event::count());
     }
 
@@ -145,6 +160,8 @@ class CalendarEventTest extends TestCase
     public function test_edit_drawer_only_renders_for_those_who_may_edit(): void
     {
         $creator = User::factory()->create(['role' => User::ROLE_DEVELOPER]);
+        $teammate = User::factory()->create(['role' => User::ROLE_DEVELOPER]);
+        Team::create(['name' => 'T', 'color' => '#0891b2'])->members()->attach([$creator->id, $teammate->id]);
         $event = Event::create([
             'title' => 'Retro', 'type' => 'meeting', 'starts_at' => '2026-07-24 10:00:00', 'created_by' => $creator->id,
         ]);
@@ -155,7 +172,7 @@ class CalendarEventTest extends TestCase
         $this->actingAs($creator)->get(route('events.show', [$event, 'edit' => 1]))
             ->assertOk()->assertSee('open: true', false);
 
-        $this->actingAs(User::factory()->create(['role' => User::ROLE_DEVELOPER]))
+        $this->actingAs($teammate)
             ->get(route('events.show', $event))
             ->assertOk()->assertDontSee($update, false);
     }

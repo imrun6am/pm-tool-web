@@ -215,6 +215,9 @@
         </div>
 
         <div class="p-5 sm:p-6">
+            {{-- Claude: suggest phase dates --}}
+            @include('ai.partials.schedule-assistant', ['release' => $release])
+
             {{-- Live timeline preview — mirrors the release detail page --}}
             <div x-show="hasWindow" x-cloak>
                 <div class="mb-2 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500">

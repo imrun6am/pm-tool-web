@@ -3,7 +3,7 @@
     $dot = fn ($event) => match ($event) {
         'created' => 'bg-emerald-500',
         'deleted' => 'bg-rose-500',
-        default => 'bg-indigo-500',
+        default => 'bg-brand-500',
     };
 @endphp
 

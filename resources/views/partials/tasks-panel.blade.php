@@ -37,7 +37,7 @@
         <div class="rounded-lg border border-slate-200 p-3" x-data="{ addSub: false }">
             <div class="flex flex-wrap items-start justify-between gap-2">
                 <div class="min-w-0">
-                    <a href="{{ route('tasks.show', $task) }}" class="text-sm font-medium text-slate-900 hover:text-indigo-600">{{ $task->title }}</a>
+                    <a href="{{ route('tasks.show', $task) }}" class="text-sm font-medium text-slate-900 hover:text-brand-600">{{ $task->title }}</a>
                     <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
                         @if ($task->assignee) <span>👤 {{ $task->assignee->name }}</span> @endif
                         @if ($task->due_date) <span>📅 {{ $task->due_date->format('M j') }}</span> @endif
@@ -54,7 +54,7 @@
                             @endforeach
                         </select>
                     </form>
-                    <button type="button" @click="addSub = !addSub" class="text-xs text-slate-400 hover:text-indigo-600" title="Add subtask">+ Sub</button>
+                    <button type="button" @click="addSub = !addSub" class="text-xs text-slate-400 hover:text-brand-600" title="Add subtask">+ Sub</button>
                     <form method="POST" action="{{ route('tasks.destroy', $task) }}" data-confirm="Delete this task and its subtasks?" data-confirm-verb="Delete">
                         @csrf @method('DELETE')
                         <button class="text-xs text-slate-400 hover:text-rose-600">✕</button>
@@ -67,7 +67,7 @@
                 <ul class="mt-2 space-y-1 border-l-2 border-slate-100 pl-3">
                     @foreach ($task->subtasks as $sub)
                         <li class="flex items-center justify-between gap-2">
-                            <a href="{{ route('tasks.show', $sub) }}" class="text-sm text-slate-700 hover:text-indigo-600 {{ $sub->isDone() ? 'line-through text-slate-400' : '' }}">{{ $sub->title }}</a>
+                            <a href="{{ route('tasks.show', $sub) }}" class="text-sm text-slate-700 hover:text-brand-600 {{ $sub->isDone() ? 'line-through text-slate-400' : '' }}">{{ $sub->title }}</a>
                             <div class="flex items-center gap-2">
                                 @include('partials.status-badge', ['status' => $sub->status])
                                 <form method="POST" action="{{ route('tasks.destroy', $sub) }}" data-confirm="Delete this subtask?" data-confirm-verb="Delete">

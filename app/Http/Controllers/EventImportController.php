@@ -46,8 +46,8 @@ class EventImportController extends Controller
         return view('calendar.imports.show', [
             'import' => $import,
             'rows' => $import->isReviewable() ? $this->imports->reviewRows($import) : [],
-            'users' => User::active()->orderBy('name')->get(['id', 'name', 'email']),
-            'releases' => Release::orderByDesc('year')->orderBy('name')->get(['id', 'name', 'year']),
+            'users' => User::active()->visibleTo(request()->user())->orderBy('name')->get(['id', 'name', 'email']),
+            'releases' => Release::visibleTo(request()->user())->orderByDesc('year')->orderBy('name')->get(['id', 'name', 'year']),
             'canConfirm' => request()->user()->can('confirm', $import),
         ]);
     }

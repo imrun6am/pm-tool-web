@@ -4,13 +4,13 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Concerns\ReadsTaskFilters;
 use App\Http\Requests\Api\V1\MoveTaskRequest;
+use App\Http\Requests\BoardTaskRequest;
 use App\Http\Resources\V1\TaskResource;
 use App\Models\Release;
 use App\Models\Task;
 use App\Services\BoardService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
-use Illuminate\Validation\Rule;
 
 /**
  * The kanban board.
@@ -35,7 +35,7 @@ class BoardController extends ApiController
             'release_id' => $releaseId,
             'team_id' => $teamId,
             'assignee_id' => $assigneeId,
-        ]);
+        ], $request->user());
 
         $columns = [];
         foreach (Task::STATUSES as $status => $label) {
@@ -64,14 +64,9 @@ class BoardController extends ApiController
      * Quick-add straight onto a column. `release_id` and `team_id` are
      * optional; a linked card takes its release's team.
      */
-    public function storeTask(Request $request): JsonResponse
+    public function storeTask(BoardTaskRequest $request): JsonResponse
     {
-        $data = $request->validate([
-            'release_id' => ['nullable', Rule::exists('releases', 'id')],
-            'team_id' => ['nullable', Rule::exists('teams', 'id')],
-            'title' => ['required', 'string', 'max:255'],
-            'status' => ['required', Rule::in(array_keys(Task::STATUSES))],
-        ]);
+        $data = $request->validated();
 
         $task = $this->board->quickAdd(
             isset($data['release_id']) ? Release::findOrFail($data['release_id']) : null,
@@ -90,10 +85,13 @@ class BoardController extends ApiController
     /** A drag: status change and column reorder in one atomic step. */
     public function move(MoveTaskRequest $request, Task $task): JsonResponse
     {
+        $this->authorize('update', $task);
+
         $this->board->move(
             $task,
             $request->string('status')->toString(),
             $request->input('ordered_ids', []),
+            $request->user(),
         );
 
         return $this->ok(

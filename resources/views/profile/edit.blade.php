@@ -2,6 +2,7 @@
     $sections = [
         ['id' => 'profile', 'label' => __('Profile'), 'icon' => 'identification'],
         ['id' => 'password', 'label' => __('Password'), 'icon' => 'lock-closed'],
+        ['id' => 'preferences', 'label' => 'Preferences', 'icon' => 'sparkles'],
         ['id' => 'danger-zone', 'label' => 'Danger zone', 'icon' => 'exclamation-circle'],
     ];
     $teams = $user->teams()->orderBy('name')->get();
@@ -72,6 +73,7 @@
 
                     @include('profile.partials.update-profile-information-form')
                     @include('profile.partials.update-password-form')
+                    @include('profile.partials.preferences-form')
                     @include('profile.partials.delete-user-form')
                 </div>
             </div>

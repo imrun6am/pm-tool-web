@@ -1,4 +1,5 @@
-{{-- Expects: $comments (Collection), $storeUrl (string) --}}
+{{-- Expects: $comments (Collection), $storeUrl (string). Optional: $composer
+     (default true) — false when the page renders its own comment box. --}}
 <div class="space-y-4">
     @forelse ($comments as $comment)
         <div class="flex gap-3" x-data="{ editing: false }">
@@ -38,6 +39,7 @@
     @endforelse
 </div>
 
+@if ($composer ?? true)
 <form method="POST" action="{{ $storeUrl }}" class="mt-4">
     @csrf
     <textarea name="body" rows="2" required placeholder="Write a comment…"
@@ -46,3 +48,4 @@
         <button class="btn-primary btn-sm">Post comment</button>
     </div>
 </form>
+@endif

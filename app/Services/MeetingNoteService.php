@@ -115,15 +115,19 @@ class MeetingNoteService
     }
 
     /**
-     * Releases that may be linked: the ongoing ones, plus the note's own even if
-     * it has since completed — so editing never silently drops a live link.
+     * Releases that may be linked: the ongoing ones (only their own teams' for
+     * a developer or QA viewer), plus the note's own even if it has since
+     * completed — so editing never silently drops a live link.
      *
      * @return Collection<int, Release>
      */
-    public function linkableReleases(?MeetingNote $note = null): Collection
+    public function linkableReleases(?MeetingNote $note = null, ?User $viewer = null): Collection
     {
         return Release::query()
-            ->where(fn ($q) => $q->whereNull('completed_at')->orWhere('id', $note?->release_id))
+            ->where(fn ($q) => $q
+                ->where(fn ($open) => $open->whereNull('completed_at')
+                    ->when($viewer, fn ($v) => $v->visibleTo($viewer)))
+                ->orWhere('id', $note?->release_id))
             ->orderBy('year', 'desc')
             ->orderBy('name')
             ->get();

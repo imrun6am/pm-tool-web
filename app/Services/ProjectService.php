@@ -42,9 +42,10 @@ class ProjectService
     {
         $project->load(['releases' => fn ($q) => $q
             ->with('team:id,name,color')
+            // Archived tasks count toward neither the total nor the done figure.
             ->withCount([
-                'tasks',
-                'tasks as done_tasks_count' => fn ($t) => $t->whereIn('status', Task::DONE_STATUSES),
+                'tasks' => fn ($t) => $t->counted(),
+                'tasks as done_tasks_count' => fn ($t) => $t->where('status', 'done'),
             ])
             ->orderBy('start_date'),
         ]);
@@ -104,19 +105,21 @@ class ProjectService
         $completed = $releases->whereNotNull('completed_at');
 
         // Task-status mix across every release in the project (one grouped query).
+        // Archived tasks are left out of the mix and the total entirely.
         $raw = Task::query()
+            ->counted()
             ->whereIn('release_id', $releaseIds)
             ->selectRaw('status, count(*) as aggregate')
             ->groupBy('status')
             ->pluck('aggregate', 'status');
 
         $statusCounts = [];
-        foreach (array_keys(Task::STATUSES) as $status) {
+        foreach (Task::countedStatuses() as $status) {
             $statusCounts[$status] = (int) ($raw[$status] ?? 0);
         }
 
         $taskTotal = array_sum($statusCounts);
-        $doneTasks = $statusCounts['done'] + $statusCounts['archive'];
+        $doneTasks = $statusCounts['done'];
 
         // Open tasks already past their due date (done/archived excluded).
         $overdue = $releaseIds->isEmpty() ? 0 : Task::query()

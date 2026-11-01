@@ -176,7 +176,7 @@ class DashboardService
             'statusLabels' => Task::STATUSES,
             'taskTotal' => $taskTotal,
             'donePct' => $taskTotal > 0
-                ? (int) round(($statusCounts['done'] + $statusCounts['archive']) / $taskTotal * 100)
+                ? (int) round($statusCounts['done'] / $taskTotal * 100)
                 : 0,
             'teamWorkload' => $teamWorkload,
             'teamWorkloadMax' => collect($teamWorkload)->max('count') ?: 0,
@@ -231,6 +231,7 @@ class DashboardService
 
         // Meetings I'm attending (or created) in the next fortnight.
         $meetings = Event::with(['release', 'creator'])
+            ->visibleTo($user)
             ->where('type', 'meeting')
             ->whereBetween('starts_at', [now(), now()->addDays(14)])
             ->where(fn ($q) => $q
@@ -320,13 +321,15 @@ class DashboardService
     private function statusCounts(Collection $releaseIds): array
     {
         $raw = Task::query()
+            ->counted()
             ->whereIn('release_id', $releaseIds)
             ->selectRaw('status, count(*) as aggregate')
             ->groupBy('status')
             ->pluck('aggregate', 'status');
 
+        // Archived tasks are left out of the mix and the total entirely.
         $counts = [];
-        foreach (array_keys(Task::STATUSES) as $status) {
+        foreach (Task::countedStatuses() as $status) {
             $counts[$status] = (int) ($raw[$status] ?? 0);
         }
 

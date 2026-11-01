@@ -13,6 +13,10 @@ Every task has to belong to a release (`tasks.release_id` is required). People w
 - **Board:**
   - cards show the release chip only when a release is linked;
   - the release filter gains a "No release" option (`release_id=none`), on the web and API board and on the API task index.
+- **Team on tasks:** a new optional `tasks.team_id` (FK, `nullOnDelete`), backfilled from each linked task's release.
+  - **Linked:** the team is the release's team and follows the release if its team changes.
+  - **Unlinked:** the team is chosen (board quick-add under a team filter, or the task page). Otherwise it defaults to the assignee's team when they belong to exactly one. The tasksheet uses the row's team.
+  - **Board filter:** a Team filter ("No team" included) combines with the release and assignee filters, on the web and API board and on the API task index.
 - **Assignees:**
   - an unlinked task can be assigned to any active user;
   - a linked task keeps the "release team members only" rule, checked against the release being linked.
@@ -29,7 +33,9 @@ Every task has to belong to a release (`tasks.release_id` is required). People w
 
 ## Impact
 
-- **Migration:** `2026_11_01_100001_make_tasks_release_id_nullable.php`. It drops and re-adds the FK with `nullOnDelete`; SQLite rebuilds the table.
+- **Migrations:**
+  - `2026_11_01_100001_make_tasks_release_id_nullable.php` drops and re-adds the FK with `nullOnDelete`; SQLite rebuilds the table.
+  - `2026_11_01_100002_add_team_id_to_tasks_table.php` adds `team_id` and backfills it.
 - **Backend:**
   - `TaskService`: `create`, `release_id` writable, subtask inheritance, `assignableUsers`;
   - `BoardService` (`quickAdd` takes `?Release`, plus the `none` filter);
@@ -41,4 +47,9 @@ Every task has to belong to a release (`tasks.release_id` is required). People w
   - new `POST /api/v1/tasks`;
   - `docs/api-v1.md`.
 - **Views:** `board/index`, `partials/board-card`, `tasks/show`, `tasksheet/_row`, and the release delete confirmation.
-- **Access:** unchanged. Task routes are open to every signed-in user, like the global board, so an unlinked task is visible to everyone, Developer and QA included.
+- **Access:** leads and viewers see every task. Developers and QA see only:
+  - their current teams' tasks;
+  - tasks assigned to them;
+  - teamless tasks they created.
+
+  This is enforced by `TaskPolicy` and viewer-scoped service queries (design §8).

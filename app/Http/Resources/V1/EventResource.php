@@ -28,6 +28,8 @@ class EventResource extends JsonResource
             'type' => $this->type,
             'type_label' => $this->typeLabel(),
             'type_color' => $this->typeColor(),
+            'visibility' => $this->visibility,
+            'is_private' => $this->isPrivate(),
             'starts_at' => $this->starts_at?->toIso8601String(),
             'ends_at' => $this->ends_at?->toIso8601String(),
             'all_day' => (bool) $this->all_day,
@@ -40,6 +42,7 @@ class EventResource extends JsonResource
             'created_by' => new UserSummaryResource($this->whenLoaded('creator')),
             'attendees' => UserSummaryResource::collection($this->whenLoaded('attendees')),
             'can_edit' => $request->user()?->can('update', $this->resource) ?? false,
+            'can_delete' => $request->user()?->can('delete', $this->resource) ?? false,
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
         ];

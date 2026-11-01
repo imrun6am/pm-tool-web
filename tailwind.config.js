@@ -9,8 +9,8 @@ export default {
         './vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php',
         './storage/framework/views/*.php',
         './resources/views/**/*.blade.php',
-        // Navigation registry holds the sidebar's accent color classes.
-        './app/Support/Navigation.php',
+        // Navigation registry and the semantic Palette hold full color classes.
+        './app/Support/*.php',
     ],
 
     theme: {
@@ -19,17 +19,21 @@ export default {
                 sans: ['Inter', 'Figtree', ...defaultTheme.fontFamily.sans],
             },
             colors: {
+                // Vibrant "electric" blue. Text-bearing steps are AA on white:
+                // 600 = 5.1:1 (4.7:1 on brand-50), 700 = 6.6:1. 500 and below
+                // are for fills, gradients and focus rings, never text.
                 brand: {
-                    50: '#eef2ff',
-                    100: '#e0e7ff',
-                    200: '#c7d2fe',
-                    300: '#a5b4fc',
-                    400: '#818cf8',
-                    500: '#6366f1',
-                    600: '#4f46e5',
-                    700: '#4338ca',
-                    800: '#3730a3',
-                    900: '#312e81',
+                    50: '#eef5ff',
+                    100: '#d9e8ff',
+                    200: '#bcd6ff',
+                    300: '#8ebcff',
+                    400: '#5a99fc',
+                    500: '#2f7cf8',
+                    600: '#0b63f6',
+                    700: '#0a50d0',
+                    800: '#0f42a6',
+                    900: '#133a84',
+                    950: '#0c2452',
                 },
                 // App-shell sidebar: a light neutral surface beside the
                 // slate-50 canvas, PM-tool style. Contrast-checked (WCAG AA).
@@ -39,22 +43,22 @@ export default {
                     text: colors.slate[600],
                     muted: colors.slate[500],
                     hover: colors.slate[100],
-                    active: '#eef2ff',
-                    'active-text': '#4338ca',
+                    active: '#eef5ff',
+                    'active-text': '#0a50d0',
                 },
                 // Semantic status aliases.
                 success: colors.emerald,
                 warning: colors.amber,
                 danger: colors.rose,
-                info: colors.sky,
+                info: colors.blue,
             },
             boxShadow: {
                 card: '0 1px 2px 0 rgb(15 23 42 / 0.04), 0 1px 3px 0 rgb(15 23 42 / 0.06)',
                 pop: '0 10px 30px -12px rgb(15 23 42 / 0.25)',
-                // Button depth: hairline lift at rest, indigo-tinted glow on hover.
+                // Button depth: hairline lift at rest, brand-blue glow on hover.
                 btn: '0 1px 2px 0 rgb(15 23 42 / 0.05)',
-                'btn-primary': '0 1px 2px 0 rgb(15 23 42 / 0.12), 0 2px 5px -1px rgb(79 70 229 / 0.28)',
-                'btn-primary-hover': '0 6px 18px -4px rgb(79 70 229 / 0.5), 0 2px 6px -2px rgb(79 70 229 / 0.35)',
+                'btn-primary': '0 1px 2px 0 rgb(15 23 42 / 0.12), 0 2px 5px -1px rgb(11 99 246 / 0.30)',
+                'btn-primary-hover': '0 6px 18px -4px rgb(11 99 246 / 0.5), 0 2px 6px -2px rgb(11 99 246 / 0.35)',
             },
             keyframes: {
                 'fade-in-up': {

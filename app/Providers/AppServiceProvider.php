@@ -36,17 +36,9 @@ class AppServiceProvider extends ServiceProvider
             config('services.anthropic.effort'),
         ));
 
-        $this->app->bind(PlanTaskExtractor::class, fn () => new ClaudePlanTaskExtractor(
-            config('services.anthropic.key'),
-            config('services.anthropic.board_tasks_model'),
-            config('services.anthropic.board_tasks_effort'),
-        ));
-
-        $this->app->bind(TextEnhancer::class, fn () => new ClaudeTextEnhancer(
-            config('services.anthropic.key'),
-            config('services.anthropic.enhance_model'),
-            config('services.anthropic.enhance_effort'),
-        ));
+        // These two call Claude through AiGateway (model/effort in config/ai.php).
+        $this->app->bind(PlanTaskExtractor::class, ClaudePlanTaskExtractor::class);
+        $this->app->bind(TextEnhancer::class, ClaudeTextEnhancer::class);
 
         $this->app->bind(EventExtractor::class, fn () => new ClaudeEventExtractor(
             config('services.anthropic.key'),
@@ -83,7 +75,7 @@ class AppServiceProvider extends ServiceProvider
             $view->with([
                 'myQuickLinks' => $partitioned['mine'],
                 'sharedQuickLinks' => $partitioned['shared'],
-                'drawerReleases' => $quickLinks->attachableReleases(),
+                'drawerReleases' => $quickLinks->attachableReleases(Auth::user()),
             ]);
         });
 

@@ -6,11 +6,13 @@ use App\Models\Event;
 use App\Models\Note;
 use App\Models\Project;
 use App\Models\Release;
+use App\Models\Task;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 class DatabaseSeeder extends Seeder
@@ -95,6 +97,12 @@ class DatabaseSeeder extends Seeder
         $r1->comments()->create(['user_id' => $admin->id, 'body' => 'Kickoff is scheduled for Monday — please review the scope.']);
         $r1->comments()->create(['user_id' => $viewer->id, 'body' => 'Looks good. One question about the refund flow — added a task comment.']);
         $t1->comments()->create(['user_id' => $viewer->id, 'body' => 'Blocked until we get the sandbox credentials from the provider.']);
+
+        // Model events are off while seeding, so give linked tasks their
+        // release's team here (Task::saving does it in the app).
+        Task::whereNotNull('release_id')->update([
+            'team_id' => DB::raw('(select releases.team_id from releases where releases.id = tasks.release_id)'),
+        ]);
 
         // Off-days: a holiday plus the weekends in the window.
         $r1->offDays()->create(['date' => "$year-07-14", 'reason' => 'Public holiday']);

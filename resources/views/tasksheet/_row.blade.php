@@ -266,6 +266,7 @@
                                             </label>
                                             <input id="{{ $idp }}-feedback" type="hidden" name="feedback" value="{{ $val('feedback') }}">
                                             <trix-editor input="{{ $idp }}-feedback" class="prose-notes bg-white"></trix-editor>
+                                            @include('ai.partials.feedback-draft', ['idp' => $idp, 'team' => $team ?? null, 'rowUser' => $rowUser, 'day' => $day])
                                         </div>
                                     @endif
                                 </div>

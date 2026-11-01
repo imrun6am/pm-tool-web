@@ -59,26 +59,29 @@ Route::middleware('full-access')->group(function () {
 });
 
 /*
- | Release detail and collaboration — every authenticated user.
+ | Release detail and collaboration — every authenticated user, except that
+ | developers/QA only reach their own teams' releases (release-visible).
  */
-Route::get('releases/{release}', [ReleaseController::class, 'show'])->name('releases.show');
-Route::get('releases/{release}/conflicts', [ReleaseController::class, 'conflicts'])->name('releases.conflicts');
-Route::get('releases/{release}/phases', [ReleasePhaseController::class, 'index'])->name('releases.phases.index');
-Route::get('releases/{release}/off-days', [ReleaseOffDayController::class, 'index'])->name('releases.off-days.index');
+Route::middleware('release-visible')->group(function () {
+    Route::get('releases/{release}', [ReleaseController::class, 'show'])->name('releases.show');
+    Route::get('releases/{release}/conflicts', [ReleaseController::class, 'conflicts'])->name('releases.conflicts');
+    Route::get('releases/{release}/phases', [ReleasePhaseController::class, 'index'])->name('releases.phases.index');
+    Route::get('releases/{release}/off-days', [ReleaseOffDayController::class, 'index'])->name('releases.off-days.index');
 
-Route::get('releases/{release}/documents', [ReleaseDocumentController::class, 'index'])
-    ->name('releases.documents.index');
-Route::get('releases/{release}/documents/{document}', [ReleaseDocumentController::class, 'download'])
-    ->name('releases.documents.download')
-    ->scopeBindings();
-// Upload is open to contributors; a non-viewer guard lives in the request.
-Route::post('releases/{release}/documents', [ReleaseDocumentController::class, 'store'])
-    ->name('releases.documents.store');
+    Route::get('releases/{release}/documents', [ReleaseDocumentController::class, 'index'])
+        ->name('releases.documents.index');
+    Route::get('releases/{release}/documents/{document}', [ReleaseDocumentController::class, 'download'])
+        ->name('releases.documents.download')
+        ->scopeBindings();
+    // Upload is open to contributors; a non-viewer guard lives in the request.
+    Route::post('releases/{release}/documents', [ReleaseDocumentController::class, 'store'])
+        ->name('releases.documents.store');
 
-Route::get('releases/{release}/tasks', [TaskController::class, 'indexForRelease'])->name('releases.tasks.index');
-Route::post('releases/{release}/tasks', [TaskController::class, 'storeForRelease'])->name('releases.tasks.store');
+    Route::get('releases/{release}/tasks', [TaskController::class, 'indexForRelease'])->name('releases.tasks.index');
+    Route::post('releases/{release}/tasks', [TaskController::class, 'storeForRelease'])->name('releases.tasks.store');
 
-Route::get('releases/{release}/comments', [CommentController::class, 'indexForRelease'])
-    ->name('releases.comments.index');
-Route::post('releases/{release}/comments', [CommentController::class, 'storeForRelease'])
-    ->name('releases.comments.store');
+    Route::get('releases/{release}/comments', [CommentController::class, 'indexForRelease'])
+        ->name('releases.comments.index');
+    Route::post('releases/{release}/comments', [CommentController::class, 'storeForRelease'])
+        ->name('releases.comments.store');
+});

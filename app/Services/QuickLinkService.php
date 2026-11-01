@@ -100,13 +100,16 @@ class QuickLinkService
     }
 
     /**
-     * Ongoing releases, for the drawer's "attach to a release" picker.
+     * Ongoing releases, for the drawer's "attach to a release" picker — only
+     * their own teams' for a developer or QA viewer.
      *
      * @return Collection<int, Release>
      */
-    public function attachableReleases(): Collection
+    public function attachableReleases(?User $viewer = null): Collection
     {
-        return Release::ongoing()->orderBy('year', 'desc')->orderBy('name')->get();
+        return Release::ongoing()
+            ->when($viewer, fn ($q) => $q->visibleTo($viewer))
+            ->orderBy('year', 'desc')->orderBy('name')->get();
     }
 
     /**

@@ -346,6 +346,7 @@ class CalendarImportTest extends TestCase
         $user = User::factory()->create(['role' => User::ROLE_QA]);
         $sara = User::factory()->create(['name' => 'Sara Khan']);
         $release = $this->release('Release 2.4');
+        $release->team->members()->attach([$user->id, $sara->id]); // QA links their own team's release and people
         $import = $this->reviewable($user, [
             $this->event(['title' => 'Kick-off', 'start_date' => '2026-11-03', 'start_time' => '10:00', 'end_time' => '11:00']),
             $this->event(['title' => 'Release window', 'type' => 'release', 'start_date' => '2026-11-20', 'end_date' => '2026-11-21', 'start_time' => null, 'end_time' => null, 'all_day' => true]),

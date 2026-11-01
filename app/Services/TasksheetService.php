@@ -32,12 +32,17 @@ class TasksheetService
     /** How many days of output the trend chart covers, including the viewed day. */
     public const TREND_DAYS = 14;
 
-    /** Active teams, the viewer's own first. */
+    /**
+     * Active teams, the viewer's own first. Developers and QA get only their
+     * own teams — other teams' sheets are not theirs to read.
+     */
     public function teamsFor(User $viewer): Collection
     {
         $myTeamIds = $viewer->teams()->pluck('teams.id');
 
-        return Team::active()->orderBy('name')->get()
+        return Team::active()
+            ->when($viewer->hasLimitedAccess(), fn ($q) => $q->whereIn('id', $myTeamIds))
+            ->orderBy('name')->get()
             ->sortBy(fn (Team $t) => [$myTeamIds->contains($t->id) ? 0 : 1, $t->name])
             ->values();
     }

@@ -24,6 +24,8 @@ class CommentController extends ApiController
 
     public function indexForTask(Request $request, Task $task): AnonymousResourceCollection
     {
+        $this->authorize('view', $task);
+
         return $this->paginate($request, $task->comments()->with('user'), CommentResource::class);
     }
 
@@ -39,6 +41,8 @@ class CommentController extends ApiController
 
     public function storeForTask(CommentRequest $request, Task $task): JsonResponse
     {
+        $this->authorize('update', $task);
+
         $comment = $task->comments()->create([
             'user_id' => $request->user()->id,
             'body' => $request->validated('body'),

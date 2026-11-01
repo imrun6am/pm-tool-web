@@ -44,6 +44,8 @@ class EventController extends Controller
 
     public function show(Event $event): View
     {
+        $this->authorize('view', $event);
+
         $event->load(['creator', 'release', 'attendees']);
 
         // Meeting notes the viewer may see (attendees-only ones are filtered out).
@@ -52,8 +54,10 @@ class EventController extends Controller
 
         // Editing happens in a drawer on this page, for those who may edit.
         $form = request()->user()->can('update', $event) ? [
-            'releases' => Release::orderBy('year', 'desc')->orderBy('name')->get(),
-            'users' => User::active()->orderBy('name')->get(),
+            'releases' => Release::visibleTo(request()->user(), $event->release_id)
+                ->orderBy('year', 'desc')->orderBy('name')->get(),
+            'users' => User::active()->visibleTo(request()->user())->orderBy('name')->get()
+                ->concat($event->attendees)->unique('id')->sortBy('name')->values(),
             'selectedAttendees' => $event->attendees->pluck('id')->all(),
             'openEdit' => request()->boolean('edit'),
         ] : [];

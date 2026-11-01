@@ -29,6 +29,9 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/', fn () => redirect()->route('dashboard'));
 
+// Inbox, quick capture, preferences, onboarding (before `tasks/{task}` below).
+require __DIR__.'/engagement.php';
+
 Route::middleware('auth')->group(function () {
     Route::get('/dashboard', DashboardController::class)->name('dashboard');
 
@@ -117,15 +120,18 @@ Route::middleware('auth')->group(function () {
      | included (they get a restricted, no-edit view). Collaboration on a
      | release (tasks, comments, links, documents) lives here too.
      */
-    Route::get('releases/{release}', [ReleaseController::class, 'show'])->name('releases.show');
-    Route::get('releases/{release}/documents/{document}', [ReleaseDocumentController::class, 'download'])
-        ->name('releases.documents.download')
-        ->scopeBindings();
-    Route::post('releases/{release}/tasks', [TaskController::class, 'store'])->name('releases.tasks.store');
-    Route::post('releases/{release}/comments', [CommentController::class, 'storeForRelease'])->name('releases.comments.store');
-    // Upload is open to contributors; a non-viewer guard lives in the controller.
-    Route::post('releases/{release}/documents', [ReleaseDocumentController::class, 'store'])
-        ->name('releases.documents.store');
+    // Developers/QA only reach their own teams' releases (release-visible).
+    Route::middleware('release-visible')->group(function () {
+        Route::get('releases/{release}', [ReleaseController::class, 'show'])->name('releases.show');
+        Route::get('releases/{release}/documents/{document}', [ReleaseDocumentController::class, 'download'])
+            ->name('releases.documents.download')
+            ->scopeBindings();
+        Route::post('releases/{release}/tasks', [TaskController::class, 'store'])->name('releases.tasks.store');
+        Route::post('releases/{release}/comments', [CommentController::class, 'storeForRelease'])->name('releases.comments.store');
+        // Upload is open to contributors; a non-viewer guard lives in the controller.
+        Route::post('releases/{release}/documents', [ReleaseDocumentController::class, 'store'])
+            ->name('releases.documents.store');
+    });
 
     /*
      | Collaboration — any authenticated user (admin or viewer) may participate.

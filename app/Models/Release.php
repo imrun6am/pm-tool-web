@@ -80,6 +80,24 @@ class Release extends Model
         });
     }
 
+    /**
+     * Releases the user may see: all of them for leads and viewers; only their
+     * current teams' releases for developers and QA — plus `$keep`, a record's
+     * current release, so an edit form never drops it.
+     */
+    public function scopeVisibleTo(Builder $query, User $user, ?int $keep = null): Builder
+    {
+        return $user->hasLimitedAccess()
+            ? $query->where(fn (Builder $q) => $q->whereIn('team_id', $user->currentTeamIds())->orWhereKey($keep))
+            : $query;
+    }
+
+    /** The single-record form of scopeVisibleTo(). */
+    public function isVisibleTo(User $user): bool
+    {
+        return ! $user->hasLimitedAccess() || $user->currentTeamIds()->contains($this->team_id);
+    }
+
     public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class);

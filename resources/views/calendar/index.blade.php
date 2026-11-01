@@ -3,12 +3,12 @@
         <x-page-header title="Calendar" description="Click any day to add an event on that date.">
             <x-slot name="actions">
                 <div class="flex items-center gap-1">
-                    <a href="{{ route('calendar.index', ['year' => $prev->year, 'month' => $prev->month]) }}"
+                    <a href="{{ route('calendar.index', ['year' => $prev->year, 'month' => $prev->month, 'show' => $show !== 'all' ? $show : null]) }}"
                        class="btn-secondary btn-sm btn-icon" title="Previous month" aria-label="Previous month">‹</a>
                     <span class="tabular px-1 text-center text-sm font-semibold text-slate-800 sm:min-w-[8.5rem]">{{ $monthLabel }}</span>
-                    <a href="{{ route('calendar.index', ['year' => $next->year, 'month' => $next->month]) }}"
+                    <a href="{{ route('calendar.index', ['year' => $next->year, 'month' => $next->month, 'show' => $show !== 'all' ? $show : null]) }}"
                        class="btn-secondary btn-sm btn-icon" title="Next month" aria-label="Next month">›</a>
-                    <a href="{{ route('calendar.index') }}" class="btn-ghost btn-sm">Today</a>
+                    <a href="{{ route('calendar.index', ['show' => $show !== 'all' ? $show : null]) }}" class="btn-ghost btn-sm">Today</a>
                 </div>
                 <a href="{{ route('calendar.imports.index') }}" class="btn-secondary btn-sm" title="Create events from a file">
                     <x-icon name="sparkles" variant="outline" class="h-4 w-4" />
@@ -24,6 +24,20 @@
 
     <div class="py-6 sm:py-8">
         <div class="app-container">
+            {{-- Whose events: everything I may see, only mine, or only shared ones --}}
+            <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <nav class="inline-flex rounded-lg bg-slate-100 p-0.5 text-sm" aria-label="Filter events">
+                    @foreach (\App\Services\EventService::SHOW as $value => $label)
+                        <a href="{{ route('calendar.index', array_filter(['year' => request('year'), 'month' => request('month'), 'show' => $value !== 'all' ? $value : null])) }}"
+                           @if ($show === $value) aria-current="page" @endif
+                           class="rounded-md px-3 py-1 font-medium transition-colors {{ $show === $value ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800' }}">{{ $label }}</a>
+                    @endforeach
+                </nav>
+                <span class="inline-flex items-center gap-1.5 text-xs text-slate-500">
+                    <x-icon name="lock-closed" variant="outline" class="h-3.5 w-3.5" /> Private — only you and the people you invite
+                </span>
+            </div>
+
             <div class="card overflow-hidden">
                 {{-- Weekday header --}}
                 <div class="grid grid-cols-7 border-b border-slate-200 bg-slate-50 text-center text-xs font-medium text-slate-500">
@@ -58,7 +72,8 @@
                                             <a href="{{ route('events.show', $event) }}" onclick="event.stopPropagation()"
                                                class="block truncate rounded-md bg-slate-50 px-1.5 py-0.5 text-[11px] font-medium text-slate-700 transition-colors hover:bg-slate-100"
                                                style="border-left: 3px solid {{ $event->typeColor() }}"
-                                               title="{{ $event->title }} · {{ $event->timeLabel() }}">
+                                               title="{{ $event->title }} · {{ $event->timeLabel() }}{{ $event->isPrivate() ? ' · Private' : '' }}">
+                                                @if ($event->isPrivate())<x-icon name="lock-closed" variant="outline" class="-mt-0.5 mr-0.5 inline h-3 w-3 text-slate-400" /><span class="sr-only">Private:</span>@endif
                                                 @unless ($event->all_day)<span class="text-slate-400">{{ $event->starts_at->format('ga') }}</span> @endunless{{ $event->title }}
                                             </a>
                                         @endforeach

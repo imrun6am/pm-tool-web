@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Http\Requests\Concerns\KeepsTasksInViewerTeams;
 use App\Models\Release;
 use App\Models\Task;
 use Illuminate\Foundation\Http\FormRequest;
@@ -9,13 +10,42 @@ use Illuminate\Validation\Rule;
 
 class TaskRequest extends FormRequest
 {
+    use KeepsTasksInViewerTeams;
+
+    /**
+     * Any signed-in user may collaborate on tasks, within the TaskPolicy:
+     * developers and QA only on their own teams' tasks and releases.
+     */
     public function authorize(): bool
     {
-        // Any authenticated user may collaborate on tasks.
-        return $this->user() !== null;
+        $user = $this->user();
+        if ($user === null) {
+            return false;
+        }
+
+        if ($task = $this->route('task')) {
+            return $user->can('update', $task); // an edit, or a subtask under it
+        }
+
+        return $user->can('create', [Task::class, $this->route('release')]);
+    }
+
+    protected function prepareForValidation(): void
+    {
+        // A subtask's team is its parent's, and a release's task is the
+        // release's team's — only a standalone task or an edit takes one.
+        if (! $this->routeIs('*subtasks.store') && ! $this->route('release')) {
+            $this->pinViewerTeam(creating: ! $this->route('task'));
+        }
     }
 
     public function rules(): array
+    {
+        return $this->withViewerTeamRules($this->baseRules(), creating: ! $this->route('task') && ! $this->route('release'));
+    }
+
+    /** @return array<string, array<int, mixed>> */
+    private function baseRules(): array
     {
         return [
             // Optional link to a release; ignored where the route fixes it (a

@@ -309,6 +309,7 @@ class ResourceContractTest extends TestCase
     {
         $release = $this->release();
         $dev = User::factory()->create(['role' => User::ROLE_DEVELOPER]);
+        $this->team->members()->attach($dev);
         Sanctum::actingAs($dev);
 
         $parent = $this->postJson("/api/v1/releases/{$release->id}/tasks", ['title' => 'Parent'])
@@ -325,7 +326,7 @@ class ResourceContractTest extends TestCase
     {
         $release = $this->release();
         $outsider = User::factory()->create(['role' => User::ROLE_DEVELOPER]);
-        Sanctum::actingAs($outsider);
+        Sanctum::actingAs($this->lead());
 
         $this->postJson("/api/v1/releases/{$release->id}/tasks", [
             'title' => 'Fix login',
@@ -336,7 +337,9 @@ class ResourceContractTest extends TestCase
     public function test_deleting_a_task_removes_its_subtasks(): void
     {
         $release = $this->release();
-        Sanctum::actingAs(User::factory()->create(['role' => User::ROLE_DEVELOPER]));
+        $dev = User::factory()->create(['role' => User::ROLE_DEVELOPER]);
+        $this->team->members()->attach($dev);
+        Sanctum::actingAs($dev);
 
         $parent = $this->postJson("/api/v1/releases/{$release->id}/tasks", ['title' => 'Parent'])
             ->json('data.id');
@@ -367,7 +370,9 @@ class ResourceContractTest extends TestCase
     public function test_moving_a_card_sets_status_and_reorders_the_column(): void
     {
         $release = $this->release();
-        Sanctum::actingAs(User::factory()->create(['role' => User::ROLE_DEVELOPER]));
+        $dev = User::factory()->create(['role' => User::ROLE_DEVELOPER]);
+        $this->team->members()->attach($dev);
+        Sanctum::actingAs($dev);
 
         $a = Task::create(['release_id' => $release->id, 'title' => 'A', 'status' => 'todo', 'position' => 0]);
         $b = Task::create(['release_id' => $release->id, 'title' => 'B', 'status' => 'todo', 'position' => 1]);
@@ -399,6 +404,7 @@ class ResourceContractTest extends TestCase
         $author = User::factory()->create(['role' => User::ROLE_DEVELOPER]);
         $recipient = User::factory()->create(['role' => User::ROLE_QA]);
         $stranger = User::factory()->create(['role' => User::ROLE_QA]);
+        $this->team->members()->attach([$author->id, $recipient->id, $stranger->id]); // shared with teammates only
 
         Sanctum::actingAs($author);
         $this->postJson('/api/v1/notes', [

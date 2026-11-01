@@ -6,9 +6,12 @@ use App\Models\Project;
 use App\Models\Release;
 use App\Models\Task;
 use App\Models\TasksheetEntry;
+use App\Models\TasksheetExport;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Arr;
+use Illuminate\Support\Facades\Queue;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -177,6 +180,41 @@ class WebApiParityTest extends TestCase
         $this->assertSame(9, $apiTrend[count($apiTrend) - 1]['work_points']);
     }
 
+    public function test_a_tasksheet_export_is_recorded_and_reported_alike_on_both_surfaces(): void
+    {
+        Queue::fake();
+        $lead = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        $input = ['team' => $this->team->id, 'from' => '2026-08-31', 'to' => '2026-08-01', 'fill' => 'empty', 'leave' => 'bogus'];
+
+        $this->actingAs($lead)->post(route('tasksheet.exports.store'), $input)->assertRedirect();
+
+        $this->app['auth']->forgetGuards();
+        Sanctum::actingAs($lead);
+        $this->postJson('/api/v1/tasksheet/exports', $input)->assertStatus(202);
+
+        // The same input records the same export through either door.
+        [$web, $api] = TasksheetExport::orderBy('id')->get()->all();
+        $recorded = fn (TasksheetExport $e) => $e->only(['team_id', 'member_id', 'filters', 'include_feedback', 'chunks_total', 'rows_total', 'status'])
+            + ['range' => [$e->date_from->toDateString(), $e->date_to->toDateString()]];
+        $this->assertSame($recorded($web), $recorded($api));
+
+        // …and one export reports the same status on both surfaces.
+        $web->update(['status' => TasksheetExport::STATUS_PROCESSING, 'chunks_total' => 4, 'chunks_done' => 4]);
+        $fields = ['id', 'status', 'status_label', 'progress', 'chunks_done', 'chunks_total', 'rows_total', 'merging', 'error', 'completed_at'];
+
+        $this->app['auth']->forgetGuards();
+        $webStatus = $this->actingAs($lead)
+            ->getJson(route('tasksheet.exports.status', ['ids' => $web->id]))
+            ->assertOk()->json('data.0');
+
+        $this->app['auth']->forgetGuards();
+        Sanctum::actingAs($lead);
+        $apiStatus = $this->getJson("/api/v1/tasksheet/exports/{$web->id}")->assertOk()->json('data');
+
+        $this->assertTrue($apiStatus['merging']);
+        $this->assertSame(Arr::only($webStatus, $fields), Arr::only($apiStatus, $fields));
+    }
+
     public function test_the_board_columns_agree_on_both_surfaces(): void
     {
         $release = $this->release();
@@ -234,5 +272,48 @@ class WebApiParityTest extends TestCase
         $this->assertSame($webStats['inactive'], $api['inactive']);
         $this->assertSame($webStats['engineers'], $api['engineers']);
         $this->assertSame($webStats['roleDistribution'], $api['role_distribution']);
+    }
+
+    public function test_member_analytics_are_identical_on_both_surfaces(): void
+    {
+        $dev = User::factory()->create(['role' => User::ROLE_DEVELOPER]);
+        $this->team->members()->attach($dev);
+
+        $this->travelTo(now()->subDays(3));
+        $task = Task::create(['title' => 'Mine', 'status' => 'todo', 'assignee_id' => $dev->id, 'due_date' => today()->addDays(5)->toDateString()]);
+        $task->update(['status' => 'in_progress']);
+        $this->travelBack();
+        $task->update(['status' => 'done']);
+        Task::create(['title' => 'Open', 'status' => 'in_review', 'assignee_id' => $dev->id, 'due_date' => today()->subDay()->toDateString()]);
+        TasksheetEntry::create([
+            'team_id' => $this->team->id, 'user_id' => $dev->id, 'date' => today()->toDateString(), 'ticket_count' => 4,
+        ]);
+
+        $web = $this->actingAs($dev)->get(route('dashboard', ['period' => 'quarter']))->assertOk()->viewData('analytics');
+
+        $this->app['auth']->forgetGuards();
+        Sanctum::actingAs($dev);
+        $api = $this->getJson('/api/v1/dashboard?period=quarter')->assertOk()->json('data.analytics');
+
+        $this->assertSame('quarter', $api['period']['key']);
+        $this->assertSame($web['today']['overdue'], $api['today']['overdue']);
+        $this->assertSame($web['today']['dueSoon'], $api['today']['due_soon']);
+        $this->assertSame($web['today']['inReview'], $api['today']['in_review']);
+        $this->assertSame($web['kpis']['completed'], $api['kpis']['completed']);
+        $this->assertSame($web['kpis']['onTimeRate'], $api['kpis']['on_time_rate']);
+        $this->assertSame($web['kpis']['tickets'], $api['kpis']['tickets']);
+        $this->assertEquals($web['kpis']['cycleDays'], $api['kpis']['cycle_days']);
+        $this->assertSame($web['streak']['current'], $api['streak']['current']);
+        $this->assertSame($web['pace']['thisWeek'], $api['pace']['this_week']);
+        $this->assertSame($web['statusCounts'], $api['status_counts']);
+        $this->assertSame(
+            collect($web['weekly'])->map(fn ($w) => [$w['weekStart']->toDateString(), $w['count']])->all(),
+            collect($api['weekly'])->map(fn ($w) => [$w['week_start'], $w['count']])->all()
+        );
+        $this->assertSame(
+            collect($web['focus'])->pluck('task.id')->all(),
+            collect($api['focus'])->pluck('task.id')->all()
+        );
+        $this->assertSame(1, $api['kpis']['completed']['current']);
     }
 }

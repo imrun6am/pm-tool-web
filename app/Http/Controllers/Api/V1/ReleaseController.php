@@ -50,8 +50,13 @@ class ReleaseController extends ApiController
         $release->load([
             'project', 'team', 'phases', 'completedBy', 'members',
             'documents.uploader', 'offDays', 'comments.user',
+            // Developers and QA see only their own teams' tasks here too.
+            'rootTasks' => fn ($q) => $q->visibleTo($request->user()),
             'rootTasks.assignee', 'rootTasks.subtasks.assignee',
-        ])->loadCount(['tasks', 'documents', 'comments', 'offDays', 'members']);
+        ])->loadCount([
+            'tasks' => fn ($q) => $q->visibleTo($request->user()),
+            'documents', 'comments', 'offDays', 'members',
+        ]);
 
         $release->setRelation('meetingNotes', $release->meetingNotes()
             ->with('author')->visibleTo($request->user())->get());

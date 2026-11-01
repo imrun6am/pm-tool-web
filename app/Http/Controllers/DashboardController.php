@@ -5,19 +5,29 @@ namespace App\Http\Controllers;
 use App\Models\Release;
 use App\Services\DashboardFilters;
 use App\Services\DashboardService;
+use App\Services\DeliveryAnalyticsService;
+use App\Services\MemberAnalyticsService;
+use App\Services\MemberPeriod;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class DashboardController extends Controller
 {
-    public function __construct(private readonly DashboardService $dashboard) {}
+    public function __construct(
+        private readonly DashboardService $dashboard,
+        private readonly MemberAnalyticsService $memberAnalytics,
+        private readonly DeliveryAnalyticsService $delivery,
+    ) {}
 
     public function __invoke(Request $request): View
     {
-        // Developers/QA get a personal "what am I doing today" dashboard
-        // instead of the release-planning timeline.
+        // Developers/QA get a personal "what am I doing today" dashboard —
+        // with their own analytics — instead of the release-planning timeline.
         if ($request->user()->hasLimitedAccess()) {
-            return view('dashboard-member', $this->dashboard->memberSnapshot($request->user()));
+            return view('dashboard-member', [
+                ...$this->dashboard->memberSnapshot($request->user()),
+                'analytics' => $this->memberAnalytics->forUser($request->user(), MemberPeriod::fromRequest($request)),
+            ]);
         }
 
         $filters = DashboardFilters::fromRequest($request);
@@ -31,6 +41,7 @@ class DashboardController extends Controller
             'rangeStart' => $filters->rangeStart,
             'rangeEnd' => $filters->rangeEnd,
             'analytics' => $this->dashboard->analytics($filters, $releases, $conflicts),
+            'delivery' => $this->delivery->forUser($request->user(), $filters, $releases, $conflicts),
             'phaseColors' => Release::PHASE_COLORS,
             'phaseLabels' => Release::PHASES,
             'hasConflicts' => in_array(true, $conflicts, true),

@@ -61,7 +61,9 @@ class AuthorizationTest extends TestCase
         $release = $this->release();
 
         foreach ([User::ROLE_DEVELOPER, User::ROLE_QA] as $role) {
-            Sanctum::actingAs($this->user($role));
+            $user = $this->user($role);
+            $release->team->members()->attach($user); // their own team's release
+            Sanctum::actingAs($user);
 
             foreach ([
                 '/api/v1/board',

@@ -3,6 +3,7 @@
 namespace App\Http\Resources\V1;
 
 use App\Models\User;
+use App\Services\PreferenceService;
 use Illuminate\Http\Request;
 
 /**
@@ -37,6 +38,8 @@ class AuthUserResource extends UserResource
             ],
             'teams' => TeamSummaryResource::collection($this->whenLoaded('teams')),
             'led_teams' => TeamSummaryResource::collection($this->whenLoaded('ledTeams')),
+            // Every known preference, defaults filled in (PUT /me/preferences).
+            'preferences' => app(PreferenceService::class)->all($this->resource),
         ]);
     }
 }

@@ -49,6 +49,8 @@
         @if ($locked)
             <p class="px-4 py-6 text-sm text-slate-500">This period hasn’t started yet — nothing to rate.</p>
         @else
+            {{-- Claude: evidence from the member's record (never a score) --}}
+            @include('ai.partials.score-evidence', ['team' => $team, 'member' => $rowUser, 'period' => $period])
             <form method="POST" action="{{ route('performance.scores.upsert') }}"
                   x-data="{ scores: {{ Illuminate\Support\Js::from($seedScores) }}, notes: {{ Illuminate\Support\Js::from($seedNotes) }}, noteOpen: {} }"
                   class="space-y-1 px-2 py-2">

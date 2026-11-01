@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\RecordsActivity;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -47,14 +48,71 @@ class Task extends Model
     /** Statuses that count as finished work (delivered and/or filed away). */
     public const DONE_STATUSES = ['done', 'archive'];
 
+    /**
+     * Statuses left out of every task count, total, and progress figure.
+     * Archived work is filed away: it is never open or overdue, and it does
+     * not count as done either.
+     */
+    public const UNCOUNTED_STATUSES = ['archive'];
+
+    /** Statuses that do take part in counts — every status but the uncounted ones. */
+    public static function countedStatuses(): array
+    {
+        return array_values(array_diff(array_keys(self::STATUSES), self::UNCOUNTED_STATUSES));
+    }
+
+    /** Only tasks that take part in counts and progress (archived excluded). */
+    public function scopeCounted(Builder $query): Builder
+    {
+        return $query->whereNotIn('status', self::UNCOUNTED_STATUSES);
+    }
+
     protected static function booted(): void
     {
+        // A linked task's team is always its release's, however it is saved.
+        static::saving(function (Task $task) {
+            if ($task->release_id && $task->isDirty('release_id')) {
+                $task->team_id = Release::whereKey($task->release_id)->value('team_id');
+            }
+        });
+
         static::deleting(function (Task $task) {
             // Delete subtasks via Eloquent so their comments + activity are handled,
             // then remove this task's own (polymorphic) comments.
             $task->subtasks()->get()->each->delete();
             $task->comments()->delete();
         });
+    }
+
+    /**
+     * Tasks the user may see. Leads and viewers see everything. Developers and
+     * QA see their current teams' tasks, tasks assigned to them, and teamless
+     * tasks they created; other teams' work stays hidden.
+     */
+    public function scopeVisibleTo(Builder $query, User $user): Builder
+    {
+        if (! $user->hasLimitedAccess()) {
+            return $query;
+        }
+
+        $teamIds = $user->currentTeamIds();
+
+        return $query->where(fn (Builder $q) => $q
+            ->whereIn('team_id', $teamIds)
+            ->orWhere('assignee_id', $user->id)
+            ->orWhere(fn (Builder $own) => $own->whereNull('team_id')->where('created_by', $user->id)));
+    }
+
+    /** The single-record form of scopeVisibleTo(). */
+    public function isVisibleTo(User $user): bool
+    {
+        if (! $user->hasLimitedAccess()) {
+            return true;
+        }
+
+        return ($this->team_id !== null && $user->currentTeamIds()->contains($this->team_id))
+            || $this->assignee_id === $user->id
+            || ($this->team_id === null && $this->created_by === $user->id);
     }
 
     public function release(): BelongsTo
@@ -123,8 +181,9 @@ class Task extends Model
      */
     public function subtaskProgress(): array
     {
-        $total = $this->subtasks->count();
-        $done = $this->subtasks->whereIn('status', self::DONE_STATUSES)->count();
+        $counted = $this->subtasks->whereNotIn('status', self::UNCOUNTED_STATUSES);
+        $total = $counted->count();
+        $done = $counted->where('status', 'done')->count();
 
         return ['done' => $done, 'total' => $total];
     }

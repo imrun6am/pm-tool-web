@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Collection;
 use Laravel\Sanctum\HasApiTokens;
 
 #[Fillable(['name', 'email', 'password', 'role', 'deactivated_at'])]
@@ -60,6 +61,9 @@ class User extends Authenticatable
      *
      * @var list<string>
      */
+    /** Roles kept to their own teams' work (see hasLimitedAccess). */
+    public const LIMITED_ROLES = [self::ROLE_DEVELOPER, self::ROLE_QA];
+
     public const LEAD_ROLES = [
         self::ROLE_ADMIN,
         self::ROLE_CTO,
@@ -73,6 +77,7 @@ class User extends Authenticatable
             'email_verified_at' => 'datetime',
             'deactivated_at' => 'datetime',
             'password' => 'hashed',
+            'preferences' => 'array',
         ];
     }
 
@@ -178,7 +183,7 @@ class User extends Authenticatable
      */
     public function hasLimitedAccess(): bool
     {
-        return in_array($this->role, [self::ROLE_DEVELOPER, self::ROLE_QA], true);
+        return in_array($this->role, self::LIMITED_ROLES, true);
     }
 
     public function isActive(): bool
@@ -221,6 +226,46 @@ class User extends Authenticatable
     public function teams(): BelongsToMany
     {
         return $this->belongsToMany(Team::class)->withTimestamps()->wherePivotNull('left_at');
+    }
+
+    /**
+     * Ids of the teams this user currently belongs to.
+     *
+     * @return Collection<int, int>
+     */
+    public function currentTeamIds(): Collection
+    {
+        return $this->teams()->pluck('teams.id');
+    }
+
+    /**
+     * The given user, the people who currently share a team with them, and
+     * the assigned leads of those teams.
+     */
+    public function scopeTeammatesOf(Builder $query, User $user): Builder
+    {
+        $teamIds = $user->currentTeamIds();
+
+        return $query->where(fn (Builder $q) => $q
+            ->whereKey($user->id)
+            ->orWhereHas('teams', fn (Builder $t) => $t->whereIn('teams.id', $teamIds))
+            ->orWhereIn('users.id', Team::whereIn('id', $teamIds)->whereNotNull('team_lead_id')->select('team_lead_id')));
+    }
+
+    /**
+     * People the viewer may see in pickers, filters and lists: everyone for
+     * leads and viewers; for developers and QA, only their teammates (see
+     * scopeTeammatesOf).
+     */
+    public function scopeVisibleTo(Builder $query, User $viewer): Builder
+    {
+        return $viewer->hasLimitedAccess() ? $query->teammatesOf($viewer) : $query;
+    }
+
+    /** Whether this person's role sees the whole organisation (leads and viewers). */
+    public function isOrgWide(): bool
+    {
+        return ! $this->hasLimitedAccess();
     }
 
     /** Teams this user is the assigned lead of (the query form of leadsTeam). */
@@ -267,6 +312,6 @@ class User extends Authenticatable
 
     protected function activityExtraIgnored(): array
     {
-        return ['email_verified_at'];
+        return ['email_verified_at', 'preferences'];
     }
 }

@@ -1,27 +1,21 @@
 <x-guest-layout>
-    <div class="mb-4 text-sm text-slate-600">
-        {{ __('This is a secure area of the application. Please confirm your password before continuing.') }}
+    <div class="mb-7">
+        <h1 class="text-2xl font-bold tracking-tight text-slate-900">Confirm it’s you</h1>
+        <p class="mt-1.5 text-sm text-slate-500">{{ __('This is a secure area of the application. Please confirm your password before continuing.') }}</p>
     </div>
 
-    <form method="POST" action="{{ route('password.confirm') }}">
+    <form method="POST" action="{{ route('password.confirm') }}" x-data="{ busy: false }" @submit="busy = true" class="space-y-5">
         @csrf
 
-        <!-- Password -->
         <div>
-            <x-input-label for="password" :value="__('Password')" />
-
-            <x-text-input id="password" class="block mt-1 w-full"
-                            type="password"
-                            name="password"
-                            required autocomplete="current-password" />
-
-            <x-input-error :messages="$errors->get('password')" class="mt-2" />
+            <label for="password" class="field-label">{{ __('Password') }}</label>
+            <input id="password" name="password" type="password" required autofocus autocomplete="current-password"
+                   class="field-control mt-1.5 h-11" @error('password') aria-invalid="true" aria-describedby="password-error" @enderror>
+            @error('password')
+                <p id="password-error" class="field-error"><x-icon name="exclamation-circle" variant="outline" class="h-4 w-4 flex-none" />{{ $message }}</p>
+            @enderror
         </div>
 
-        <div class="flex justify-end mt-4">
-            <x-primary-button>
-                {{ __('Confirm') }}
-            </x-primary-button>
-        </div>
+        <button type="submit" class="btn-primary h-11 w-full justify-center" :disabled="busy">{{ __('Confirm') }}</button>
     </form>
 </x-guest-layout>

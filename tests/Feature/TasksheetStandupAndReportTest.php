@@ -536,8 +536,10 @@ class TasksheetStandupAndReportTest extends TestCase
             ->postJson('/api/v1/tasksheet/standup', $this->target($team, $dev) + ['attended' => false])
             ->assertForbidden();
 
+        // Both surfaces stopped rendering inline: the web redirects to its
+        // exports page, the API's report is retired in favour of its exports.
         $this->actingAs($lead, 'sanctum')
-            ->get('/api/v1/tasksheet/report?team='.$team->id.'&date='.today()->toDateString())
-            ->assertOk();
+            ->getJson('/api/v1/tasksheet/report?team='.$team->id.'&date='.today()->toDateString())
+            ->assertStatus(410);
     }
 }

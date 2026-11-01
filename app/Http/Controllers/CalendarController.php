@@ -26,8 +26,10 @@ class CalendarController extends Controller
         $new = $request->query('new');
         $newDate = is_string($new) && strtotime($new) ? Carbon::parse($new) : null;
 
+        $show = array_key_exists($request->query('show'), EventService::SHOW) ? $request->query('show') : 'all';
+
         $byDate = $this->events->groupByDate(
-            $this->events->inWindow($gridStart, $gridEnd),
+            $this->events->inWindow($gridStart, $gridEnd, ['show' => $show], $request->user()),
             $gridStart,
             $gridEnd,
         );
@@ -38,14 +40,16 @@ class CalendarController extends Controller
             'prev' => $first->copy()->subMonthNoOverflow(),
             'next' => $first->copy()->addMonthNoOverflow(),
             'today' => now(),
+            'show' => $show,
             // The "New event" drawer.
             'newEvent' => new Event([
                 'type' => 'meeting',
                 'starts_at' => $newDate ? $newDate->setTime(9, 0) : now()->addHour()->startOfHour(),
             ]),
             'openNewEvent' => $new !== null,
-            'releases' => Release::orderBy('year', 'desc')->orderBy('name')->get(),
-            'users' => User::active()->orderBy('name')->get(),
+            // Developers and QA pick only their own teams' releases and people.
+            'releases' => Release::visibleTo($request->user())->orderBy('year', 'desc')->orderBy('name')->get(),
+            'users' => User::active()->visibleTo($request->user())->orderBy('name')->get(),
         ]);
     }
 

@@ -23,7 +23,7 @@
                 @foreach ($releases as $release)
                     <tr class="{{ ($conflicts[$release->id] ?? false) ? 'bg-amber-50/60' : '' }}">
                         <td class="px-6 py-4">
-                            <a href="{{ route('releases.show', $release) }}" class="font-medium text-slate-900 hover:text-indigo-600">{{ $release->name }}</a>
+                            <a href="{{ route('releases.show', $release) }}" class="font-medium text-slate-900 hover:text-brand-600">{{ $release->name }}</a>
                         </td>
                         @if ($showProject)
                             <td class="px-6 py-4">

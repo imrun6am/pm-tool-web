@@ -11,6 +11,7 @@ use App\Models\Team;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Str;
 use Tests\TestCase;
 
 class DevQaAccessTest extends TestCase
@@ -53,6 +54,7 @@ class DevQaAccessTest extends TestCase
     {
         $release = $this->release();
         $dev = User::factory()->create(['role' => User::ROLE_DEVELOPER]);
+        $release->team->members()->attach($dev); // devs work within their own team
         $task = Task::create(['release_id' => $release->id, 'title' => 'Fix login', 'status' => 'todo']);
 
         foreach ([
@@ -72,6 +74,7 @@ class DevQaAccessTest extends TestCase
     {
         $release = $this->release();
         $dev = User::factory()->create(['role' => User::ROLE_DEVELOPER]);
+        $release->team->members()->attach($dev); // their own team's release
 
         $this->actingAs($dev)->get(route('releases.show', $release))
             ->assertOk()
@@ -87,6 +90,7 @@ class DevQaAccessTest extends TestCase
     {
         $release = $this->release();
         $dev = User::factory()->create(['role' => User::ROLE_DEVELOPER]);
+        $release->team->members()->attach($dev); // devs work within their own team
 
         $this->actingAs($dev)->post(route('releases.tasks.store', $release), ['title' => 'Dev task'])
             ->assertRedirect();
@@ -149,6 +153,7 @@ class DevQaAccessTest extends TestCase
     {
         $release = $this->release();
         $dev = User::factory()->create(['role' => User::ROLE_DEVELOPER]);
+        $release->team->members()->attach($dev); // devs work within their own team
         $task = Task::create(['release_id' => $release->id, 'title' => 'Fix login', 'status' => 'todo']);
 
         // Dev can now reach release details, so the name is a link again.
@@ -178,15 +183,21 @@ class DevQaAccessTest extends TestCase
             'starts_at' => now()->addDays(3)->setTime(10, 0), 'created_by' => User::factory()->create()->id,
         ]);
 
-        $this->actingAs($dev)->get(route('dashboard'))
+        $html = $this->actingAs($dev)->get(route('dashboard'))
             ->assertOk()
             ->assertSee('My day')
             ->assertSee('Open assigned task')
-            ->assertDontSee('Finished task')
             ->assertSee('Not filled — fill now')
             ->assertSee('Alpha')
             ->assertSee('Sprint sync')
-            ->assertDontSee('Board meeting');
+            ->assertDontSee('Board meeting')
+            ->getContent();
+
+        // Done work is celebrated under "Recently completed", never listed as open.
+        $myTasks = Str::between($html, 'id="my-tasks"', 'id="recently-completed"');
+        $this->assertStringContainsString('Open assigned task', $myTasks);
+        $this->assertStringNotContainsString('Finished task', $myTasks);
+        $this->assertStringContainsString('Finished task', Str::after($html, 'id="recently-completed"'));
     }
 
     public function test_tasksheet_states_on_member_dashboard_progress_from_partial_to_filled(): void

@@ -92,6 +92,8 @@ class ReleaseController extends Controller
     {
         $release->load([
             'project', 'team', 'phases', 'documents.uploader',
+            // Developers and QA see only their own teams' tasks here too.
+            'rootTasks' => fn ($q) => $q->visibleTo(request()->user()),
             'rootTasks.subtasks.assignee', 'rootTasks.assignee', 'rootTasks.comments',
             'offDays', 'comments.user', 'members',
         ]);

@@ -9,7 +9,7 @@
         // Shared palette so cards, charts and the feed all speak the same colour language.
         $eventMeta = [
             'created' => ['label' => 'Created', 'hex' => '#10b981', 'bg' => 'bg-emerald-500', 'soft' => 'bg-emerald-50', 'text' => 'text-emerald-600'],
-            'updated' => ['label' => 'Updated', 'hex' => '#6366f1', 'bg' => 'bg-brand-500', 'soft' => 'bg-brand-50', 'text' => 'text-brand-600'],
+            'updated' => ['label' => 'Updated', 'hex' => '#2f7cf8', 'bg' => 'bg-brand-500', 'soft' => 'bg-brand-50', 'text' => 'text-brand-600'],
             'deleted' => ['label' => 'Deleted', 'hex' => '#f43f5e', 'bg' => 'bg-rose-500', 'soft' => 'bg-rose-50', 'text' => 'text-rose-600'],
         ];
     @endphp

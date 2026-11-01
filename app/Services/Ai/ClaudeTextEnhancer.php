@@ -2,15 +2,14 @@
 
 namespace App\Services\Ai;
 
-use Anthropic\Client;
 use App\Services\Kpi\MissingApiKeyException;
 use App\Support\HtmlSanitizer;
 use RuntimeException;
 
 /**
  * "Enhance with Claude": rewrites a note or meeting minutes into clean,
- * organized text without changing what they say. One short, non-streaming
- * request with structured JSON output; the result is sanitized to the tags
+ * organized text without changing what they say. One short request through
+ * AiGateway with structured JSON output; the result is sanitized to the tags
  * the Trix editor understands.
  */
 class ClaudeTextEnhancer implements TextEnhancer
@@ -37,14 +36,12 @@ class ClaudeTextEnhancer implements TextEnhancer
         TXT;
 
     public function __construct(
-        private readonly ?string $apiKey,
-        private readonly string $model,
-        private readonly string $effort,
+        private readonly AiGateway $ai,
     ) {}
 
     public function enhance(string $kind, string $html, array $context = []): string
     {
-        if (blank($this->apiKey)) {
+        if (blank(config('services.anthropic.key'))) {
             throw new MissingApiKeyException('ANTHROPIC_API_KEY is not set.');
         }
 
@@ -59,42 +56,15 @@ class ClaudeTextEnhancer implements TextEnhancer
         }
         $prompt .= "Polish and organize this {$kind}.\n\n<note>\n{$html}\n</note>";
 
-        $message = (new Client(apiKey: $this->apiKey))->beta->messages->create(
-            model: $this->model,
-            maxTokens: 16000,
-            system: $system,
-            messages: [['role' => 'user', 'content' => $prompt]],
-            outputConfig: ['effort' => $this->effort, 'format' => ['type' => 'json_schema', 'schema' => [
-                'type' => 'object',
-                'properties' => ['html' => ['type' => 'string', 'description' => 'The polished note as editor HTML']],
-                'required' => ['html'],
-                'additionalProperties' => false,
-            ]]],
-            // A policy decline is re-run server-side on the recommended fallback model.
-            fallbacks: 'default',
-            betas: ['server-side-fallback-2026-07-01'],
-            requestOptions: ['timeout' => 60],
-        );
+        // Through AiGateway: switchable, refusal-safe, and logged on the AI usage page.
+        $out = $this->ai->json('note_enhance', $system, $prompt, [
+            'type' => 'object',
+            'properties' => ['html' => ['type' => 'string', 'description' => 'The polished note as editor HTML']],
+            'required' => ['html'],
+            'additionalProperties' => false,
+        ], auth()->user(), timeout: 60);
 
-        if ($message->stopReason === 'refusal') {
-            throw new RuntimeException('Claude declined to enhance this text.');
-        }
-        if ($message->stopReason === 'max_tokens') {
-            throw new RuntimeException('Claude ran out of output tokens.');
-        }
-
-        // Text after the last fallback block is the answering model's.
-        $json = '';
-        foreach ($message->content as $block) {
-            if ($block->type === 'fallback') {
-                $json = '';
-            } elseif ($block->type === 'text') {
-                $json .= $block->text;
-            }
-        }
-
-        $out = json_decode($json, true);
-        $clean = HtmlSanitizer::clean(is_array($out) && is_string($out['html'] ?? null) ? $out['html'] : '');
+        $clean = HtmlSanitizer::clean(is_string($out['html'] ?? null) ? $out['html'] : '');
         if (HtmlSanitizer::isEmpty($clean)) {
             throw new RuntimeException('Claude returned an unreadable response.');
         }

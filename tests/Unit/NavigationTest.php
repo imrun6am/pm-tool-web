@@ -8,6 +8,14 @@ use Tests\TestCase;
 
 class NavigationTest extends TestCase
 {
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        // "Ask Claude" shows only when Claude is configured; pin it for the shape tests.
+        config(['services.anthropic.key' => 'test-key']);
+    }
+
     private function user(string $role): User
     {
         return new User(['role' => $role]);
@@ -25,10 +33,10 @@ class NavigationTest extends TestCase
     {
         foreach (User::LEAD_ROLES as $role) {
             // KPI reports are admin-only (Claude-drafted HR reviews).
-            $administration = $role === User::ROLE_ADMIN ? ['performance', 'kpi-reports', 'users'] : ['performance', 'users'];
+            $administration = $role === User::ROLE_ADMIN ? ['performance', 'kpi-reports', 'users', 'ai-usage'] : ['performance', 'users'];
 
             $this->assertSame([
-                'overview' => ['dashboard'],
+                'overview' => ['dashboard', 'ask'],
                 'planning' => ['releases', 'projects', 'teams'],
                 'work' => ['board', 'tasksheet', 'calendar'],
                 'collaboration' => ['notes', 'meetings', 'activity'],
@@ -49,7 +57,7 @@ class NavigationTest extends TestCase
     {
         foreach ([User::ROLE_DEVELOPER, User::ROLE_QA] as $role) {
             $this->assertSame([
-                'overview' => ['dashboard'],
+                'overview' => ['dashboard', 'ask'],
                 'work' => ['board', 'tasksheet', 'calendar'],
                 'collaboration' => ['notes', 'meetings'],
             ], $this->shape($this->user($role)), "role: {$role}");
@@ -60,8 +68,15 @@ class NavigationTest extends TestCase
     {
         $items = collect(Navigation::groups($this->user(User::ROLE_ADMIN)))->flatMap(fn ($g) => $g['items']);
 
-        $this->assertCount(13, $items);
+        $this->assertCount(15, $items);
         $this->assertSame($items->count(), $items->pluck('icon')->unique()->count());
+    }
+
+    public function test_ask_claude_is_hidden_until_claude_is_configured(): void
+    {
+        config(['services.anthropic.key' => null]);
+
+        $this->assertSame(['dashboard'], $this->shape($this->user(User::ROLE_ADMIN))['overview']);
     }
 
     public function test_internal_visibility_rules_are_not_exposed(): void
@@ -77,10 +92,10 @@ class NavigationTest extends TestCase
     {
         $labels = fn (string $role) => array_column(Navigation::createActions($this->user($role)), 'label');
 
-        $this->assertSame(['New release', 'New event', 'New meeting note'], $labels(User::ROLE_TEAM_LEAD));
+        $this->assertSame(['New task', 'New release', 'New event', 'New meeting note'], $labels(User::ROLE_TEAM_LEAD));
 
         foreach ([User::ROLE_DEVELOPER, User::ROLE_QA, User::ROLE_VIEWER] as $role) {
-            $this->assertSame(['New event', 'New meeting note'], $labels($role), "role: {$role}");
+            $this->assertSame(['New task', 'New event', 'New meeting note'], $labels($role), "role: {$role}");
         }
     }
 }

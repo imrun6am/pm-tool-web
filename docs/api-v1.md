@@ -54,6 +54,7 @@ the one the planner typed.
 | 401    | No valid token (or the account was deactivated)    |
 | 403    | Authenticated, but the role may not do this        |
 | 404    | Not found, or not visible to the caller            |
+| 410    | Retired endpoint — the body names its replacement  |
 | 422    | Validation failed, or a domain rule refused        |
 | 429    | Throttled — see the `Retry-After` header           |
 
@@ -157,6 +158,57 @@ without a client release.
 
 There is **no registration endpoint** — accounts are created only under `/users`.
 
+**Planning dashboard** — every other role gets `mode: "planning"` (timeline, `analytics`) plus a
+`delivery` object tailored to the caller. It follows the same `year`/`quarter`/`project_id`/`team_id`
+filters, and its KPIs compare the **last 28 days** with the 28 before. Archived tasks are never counted.
+
+| `delivery.audience` | Who          | Scope                                                       |
+| ------------------- | ------------ | ----------------------------------------------------------- |
+| `org`               | Admin, CTO, Tech Lead | all teams (or `team_id`)                           |
+| `team`              | Team Lead    | the teams they lead (`team_ids`), unless `team_id` is given |
+| `viewer`            | Viewer       | all teams; `people`, `attention`, `compliance` are `null`   |
+
+| `delivery` key    | Contents                                                                    |
+| ----------------- | --------------------------------------------------------------------------- |
+| `scope_label`, `team_ids`, `window` | What's in view; `window` has `days`, `start`, `end`, `previous_start`, `previous_end` |
+| `kpis`            | Each `{current, previous, change}`: `throughput`, `cycle_days`, `on_time_rate`, `rework_rate` (share of finished work that went through Recheck) |
+| `backlog`         | Open work: `open`, `overdue`, `due_soon`, `in_review`, `recheck`, `unassigned` |
+| `aging`           | Open tasks by age since creation: `[{label, count}]`                       |
+| `weekly`          | 12 × `{week_start, count, is_current, is_best}` completions               |
+| `team_load`       | `[{id, name, color, open, overdue}]` (`id` null = no team)                 |
+| `people`          | Up to 8 `{user, open, in_progress, in_review, overdue}` — not for viewers  |
+| `attention`       | `overdue` and `in_review` task lists (6 each) — not for viewers            |
+| `releases`        | Ongoing releases in view: `{release, total, done, pct, elapsed_pct, late_phases, flags, at_risk}`, at-risk first |
+| `at_risk_count`   | Releases with any flag: double-booked, a phase ended with open work, done share trailing time used by 25+ points, or past end date |
+| `compliance`      | Last 10 working days: `fill_rate`, `standup_rate`, counts, `today_attended`, and per-team `teams[]` — not for viewers |
+| `mine`            | The caller's own `open`, `overdue`, `due_soon`                             |
+
+**Member dashboard** — for developers and QA, `GET /dashboard` returns `mode: "member"`: `my_tasks`,
+`overdue_count`, `tasksheet_today`, `upcoming_meetings`, and an `analytics` object holding that
+member's own numbers only (never a colleague's, never lead feedback or scores). Optional
+`?period=week|month|quarter` (default `month`; anything else is 422) picks the span; every KPI
+compares it with the **same elapsed span** of the previous period (Nov 1–5 vs Oct 1–5).
+
+| `analytics` key   | Contents                                                                  |
+| ----------------- | ------------------------------------------------------------------------- |
+| `period`          | `key`, `label`, `start`, `end`, `previous_start`, `previous_end`          |
+| `today`           | `open`, `overdue`, `due_soon` (today + 7 days), `in_progress`, `in_review` |
+| `focus`           | Up to 6 `{reason, task}` — `overdue`, then `due_today`, then `in_progress` |
+| `kpis`            | Each `{current, previous, change}`: `completed`, `on_time_rate`, `cycle_days`, `lead_days`, `tickets`, `ticket_points`, `work_points`, `comments`, `meetings`, `standup_attended`, `standup_marked`, `standup_rate`, `days_logged`, `days_expected`, `tasksheet_rate` |
+| `weekly`          | 12 × `{week_start, count, is_current, is_best}`, oldest first             |
+| `best_week`       | All-time `{week_start, count}` (`week_start` null with no completions)    |
+| `pace`            | `this_week`, `goal` (ceil of the previous 8 weeks' average; null with no history), `pct` |
+| `status_counts`   | Each counted status → count, plus `task_total` (archived tasks are never counted) |
+| `heatmap`         | `total`, `active_days`, `days[]` of `{date, count, level 0–4, tasks, comments, tasksheet_logged}` for the last 26 weeks |
+| `streak`          | `current`, `best`, `active_today` — weekdays; weekends and full-day leave never break it |
+| `lead_time_trend` | 12 × `{week_start, days}`                                                 |
+| `recent`          | Up to 5 `{completed_at, task}`, newest first                              |
+| `on_team`, `has_history` | Booleans for empty states                                          |
+
+Completion and start times are read from the audit trail (first move to In Progress, last move into
+Done). Archived tasks appear in no count, rate, trend, streak or best. Rates and averages are `null`, not 0, when there is nothing to divide by — render
+"no data yet".
+
 ### Workspace
 
 | Method   | Path                                | Access           |
@@ -236,19 +288,19 @@ serialized, so there is no public URL to leak.
 
 | Method            | Path                                                     |
 | ----------------- | -------------------------------------------------------- |
-| `GET`             | `/tasks` — `?release_id=&assignee_id=&status=&phase=&overdue=1&include_subtasks=1` |
-| `POST`            | `/tasks` — top-level task; `release_id` optional         |
+| `GET`             | `/tasks` — `?release_id=&team_id=&assignee_id=&status=&phase=&overdue=1&include_subtasks=1` |
+| `POST`            | `/tasks` — top-level task; `release_id`, `team_id` optional |
 | `GET/PUT/DELETE`  | `/tasks/{id}`                                            |
 | `PATCH`           | `/tasks/{id}/status`                                     |
 | `POST`            | `/tasks/{id}/subtasks` — one level only; 422 on a subtask |
 | `GET/POST`        | `/tasks/{id}/comments`                                   |
 | `PUT/DELETE`      | `/comments/{id}` — author or lead                        |
-| `GET`             | `/board` — every status column, even when empty; `?release_id=&assignee_id=` |
-| `POST`            | `/board/tasks` — `{ title, status, release_id? }`        |
+| `GET`             | `/board` — every status column, even when empty; `?release_id=&team_id=&assignee_id=` |
+| `POST`            | `/board/tasks` — `{ title, status, release_id?, team_id? }` |
 | `PATCH`           | `/board/tasks/{id}` — `{ status, ordered_ids[] }`, atomic |
-| `GET`             | `/events` — `?year=&month=` or `?from=&to=`; returns `events_by_date` |
-| `POST`            | `/events`                                                |
-| `GET/PUT/DELETE`  | `/events/{id}` — creator or lead may write               |
+| `GET`             | `/events` — `?year=&month=` or `?from=&to=`, `?show=all\|mine\|shared`; returns `events_by_date`. Others' private events are never listed |
+| `POST`            | `/events` — `visibility`: `shared` (default) or `private` (creator + attendees only) |
+| `GET/PUT/DELETE`  | `/events/{id}` — 403 on someone else's private event; **creator only** may edit; `DELETE` also by an admin on a shared event |
 | `GET/POST`        | `/notes` — visibility-scoped; `?author=&date=&from=&to=` |
 | `GET/PUT/DELETE`  | `/notes/{id}` — **author only**, leads included          |
 | `GET/POST`        | `/meeting-notes` — filters below                         |
@@ -266,9 +318,68 @@ on an unlinked task.
 - **Subtasks:** a subtask always has its parent's release; its own `release_id` is ignored, and it
   follows the parent when the parent's release changes.
 - **Filtering:** `?release_id=none` on `GET /tasks` and `GET /board` selects unlinked tasks.
+  `?team_id=` works the same way (`none` selects tasks with no team), and all filters combine.
 - **Assignees:** on a linked task, the assignee must be a member of the release's team. On an
   unlinked task, any user may be assigned.
 - **Deleting a release:** its tasks stay, unlinked.
+
+**Task teams.** Every task carries an optional `team_id`, and `team` is a team summary when
+loaded.
+
+- **Linked tasks:** the team is always the release's team. A `team_id` you send is ignored, and
+  the team follows when the release moves to another team.
+- **Unlinked tasks:** creating one sets the `team_id` you send. Without one, the team defaults to
+  the assignee's team when they belong to exactly one, otherwise it is `null`. `PUT` changes the
+  team only when `team_id` is sent.
+- **Unlinking:** the task keeps the team it had.
+- **Subtasks:** a subtask always has its parent's team.
+
+**Developers and QA are kept to their own teams.** These rules apply to everyone whose role is
+`developer` or `qa`.
+
+- **What they see:** tasks of their current teams, tasks assigned to them, and teamless tasks they
+  created.
+  - `GET /tasks`, `GET /board`, `GET /releases/{id}/tasks` and `tasks_count` on `GET /releases/{id}`
+    leave out everything else, whatever the filters ask for.
+  - Any other task is **403** on `GET/PUT/DELETE /tasks/{id}`, `PATCH /tasks/{id}/status`,
+    `POST /tasks/{id}/subtasks`, `GET/POST /tasks/{id}/comments` and `PATCH /board/tasks/{id}`.
+  - A board reorder only renumbers cards they can see.
+- **Creating:** they don't choose a team. `POST /tasks` and `POST /board/tasks` set it on the server,
+  ignoring any `team_id` sent.
+  - On exactly one team: that team.
+  - On several teams: `team_id` is required unless `release_id` is given, and must be one of
+    their teams (422 otherwise).
+  - On no team: the task has no team. It's a personal task, visible only to its creator, its
+    assignee and leads.
+- **Releases:** `release_id` must be one of their teams' releases (422).
+  `POST /releases/{id}/tasks` on another team's release is 403.
+- **Assignees:** they may assign only themselves or a current teammate (422).
+- **Editing:** keeping a task's current release, team or assignee is always allowed, so a task lent
+  to them from another team can still be edited.
+- **Leads and viewers** see every task and may set any team.
+
+**Beyond tasks**, Developers and QA see other teams' data nowhere else either.
+
+- **People:** "people they can see" means themselves, their current teammates, and the assigned
+  leads of their teams. Every person they pick (event attendees, meeting-note attendees, note
+  recipients) must be one of them (422). People already on a record may be kept.
+- **Releases:** only their own teams' releases. Every `/releases/{id}/…` route open to all users
+  returns **403** for another team's release: show, conflicts, phases, off-days, documents and
+  document download/upload, tasks, and comments. Linking a release to an event, meeting note,
+  quick link or task must use one of their teams' releases (422).
+- **Tasksheet:** `GET /tasksheet` offers only their own teams. A `team_id` for another team falls
+  back to their own.
+- **Events:** `GET /events` lists only:
+  - events they created or attend;
+  - events linked to one of their teams' releases;
+  - unlinked events with no attendees, created by a teammate or by a lead/viewer
+    (organisation-wide entries such as holidays).
+
+  An unlinked event with attendees is only for its creator and attendees. Any other
+  `GET /events/{id}` is **403**.
+- **Meeting notes:** the same rule applies to everyone-visibility notes. Attendees-only notes are
+  unchanged. Any other `GET /meeting-notes/{id}` is **403**.
+- **Notes:** shared notes appear only from teammates. Any other `GET /notes/{id}` is **404**.
 
 
 Rich-text bodies (notes, meeting notes, tasksheet fields) are sanitized on write; the value you
@@ -318,7 +429,14 @@ since been retired still returns a readable `type_label`.
 | `PUT`  | `/tasksheet/entries`              | Upsert one member's row for one date         |
 | `GET`  | `/tasksheet/users/{member}`       | That member or a lead only                   |
 | `POST` | `/tasksheet/standup`              | **Leads only** — set standup attendance      |
-| `GET`  | `/tasksheet/report`               | PDF; team-wide is lead-only                  |
+| `POST` | `/tasksheet/exports`              | Queue a PDF export → `202`; team-wide is lead-only |
+| `GET`  | `/tasksheet/exports`              | Your 25 most recent exports + capacity       |
+| `GET`  | `/tasksheet/exports/status?ids=`  | Status of several of your exports            |
+| `GET`  | `/tasksheet/exports/{id}`         | One export — poll this                       |
+| `GET`  | `/tasksheet/exports/{id}/download`| The PDF, once `ready`                        |
+| `POST` | `/tasksheet/exports/{id}/retry`   | Re-queue a `failed` export → `202`           |
+| `DELETE` | `/tasksheet/exports/{id}`       | Cancel (if running) and delete               |
+| `GET`  | `/tasksheet/report`               | **Retired** — `410 Gone`, see below          |
 
 - Rows include people whose membership **covered that date** — even if they have since left, been
   deactivated, or been deleted. History does not rewrite itself.
@@ -345,11 +463,73 @@ also cleared automatically if a row becomes a full-day leave.
 On `GET /tasksheet` these filter the day's **rows**, which include members with no saved row at all —
 so `fill=empty` and `attendance=unmarked` are how you find people who have not filled anything in.
 
-**PDF report** — `GET /tasksheet/report?team=&member=&date=` or `&from=&to=`, plus any of the filters
-above. `date` means a single day; a reversed `from`/`to` is swapped, not rejected. A team-wide report
-requires a lead; a member may request `member={their own id}` only. **`feedback` is withheld from any
-report a non-lead obtains, including their own** — inclusion is decided by who is asking, not by
-whose rows are in it. Returns a PDF body, not JSON.
+**PDF exports.** Tasksheet PDFs are built in the background, a bounded chunk of rows per queued
+job, so no request ever renders a large PDF. The API and the web exports page share one service,
+one policy and one set of records.
+
+1. **Create** — `POST /tasksheet/exports` with `team`, `member`, and either `date` (one day) or
+   `from`/`to`, plus any of the `attendance` / `fill` / `leave` filters above. A reversed `from`/`to`
+   is swapped, not rejected. A team-wide (or other-member) export requires a lead; a member may
+   send `member={their own id}` only, anything else is `403`. **`feedback` is included only when a
+   lead asks** — never in a member's own export. Answers **`202 Accepted`** with the export and a
+   `Location` header pointing at `GET /tasksheet/exports/{id}`.
+2. **Poll** — `GET /tasksheet/exports/{id}` every ~2 s while `status` is `pending` or
+   `processing`; stop once it is `ready` or `failed`. For several at once use
+   `GET /tasksheet/exports/status?ids=4,7` (or `ids[]=4&ids[]=7`, at most 50).
+3. **Download** — follow `download_url` (`null` until `ready`). Returns a PDF body, not JSON.
+
+```json
+{
+  "data": {
+    "id": 7,
+    "status": "processing",
+    "status_label": "Generating",
+    "progress": 40,
+    "chunks_done": 2,
+    "chunks_total": 4,
+    "rows_total": 280,
+    "merging": false,
+    "error": null,
+    "download_url": null,
+    "team_id": 3, "member_id": null,
+    "date_from": "2026-08-01", "date_to": "2026-08-31",
+    "filters": { "attendance": "missed" },
+    "filter_labels": ["Did not attend standup"],
+    "includes_feedback": true,
+    "requested_by": 1,
+    "team": { "id": 3, "name": "Core", "color": "#0891b2", "is_archived": false },
+    "member": null,
+    "created_at": "2026-11-01T09:40:00+00:00", "started_at": "…", "completed_at": null
+  },
+  "message": "Export queued."
+}
+```
+
+- `status` is `pending` → `processing` → `ready` | `failed`. `progress` (0–100) counts the final
+  merge as a step, so it reaches 100 only when the file exists; `merging: true` means every part is
+  rendered and only the merge remains. A `failed` export carries `error`. On a server running the
+  `sync` queue the `202` itself may already say `ready`.
+- `filters` is always an object (`{}` when none). Status, progress and `download_url` are the same
+  values the web exports page shows.
+- `GET /tasksheet/exports` returns the list whole (not paginated) with
+  `meta: { has_capacity, max_running }`. Exports are pruned after 14 days.
+- **Exports are private to whoever created them** — leads and admins included. Someone else's
+  export is `403` on show, download, retry and delete, and is silently left out of the list and
+  `status`. Download also re-checks the rule, so a lead who has since been demoted loses team-wide
+  files and any file carrying feedback.
+- `422` when you already have `max_running` exports in progress (create or retry), or when you
+  retry an export that has not failed. `404` when you download one that is not `ready` yet.
+
+**Retired: `GET /tasksheet/report`.** It used to render the PDF inside the request, which a wide
+range could not survive. It now answers **`410 Gone`** and does nothing else — it neither renders
+nor queues anything:
+
+```http
+HTTP/1.1 410 Gone
+Link: <https://…/api/v1/tasksheet/exports>; rel="successor-version"
+
+{ "message": "This endpoint has been retired. …", "successor": { "method": "POST", "url": "https://…/api/v1/tasksheet/exports" } }
+```
 
 ### Performance — leads only
 
@@ -378,6 +558,44 @@ recorded scores can only be **deactivated**, not deleted.
 `updated` entries carry a `changes` object of old → new per field. Performance scores never
 appear in this feed.
 
+### Engagement — open to every authenticated user
+
+The caller's own inbox, preferences and getting-started checklist, plus task search. Nothing here
+reaches another user's data.
+
+| Method | Path                               | Notes |
+| ------ | ---------------------------------- | ----- |
+| `GET`  | `/notifications`                   | Newest first, paginated; `?unread=1`. `meta.unread_count` is always the total unread |
+| `POST` | `/notifications/{id}/read`         | Marks one read; someone else's id is a `404` |
+| `POST` | `/notifications/read-all`          | `message` says how many were unread |
+| `GET`  | `/search/tasks?q=`                 | Up to 8 `TaskSummary` rows the caller may see, open first; fewer than 2 characters returns `[]` |
+| `PUT`  | `/me/preferences`                  | Partial: `{ "celebrations": bool }`; returns every preference |
+| `GET`  | `/onboarding`                      | `{ visible, steps: [{ key, label, description, done }] }` |
+| `POST` | `/onboarding/dismiss`              | Hides the checklist on every device |
+
+A notification:
+
+```json
+{
+  "id": "9b1f…", "kind": "assigned",
+  "message": "Lee Lead assigned you “Fix login bug”", "excerpt": null,
+  "task": { "id": 42, "title": "Fix login bug" },
+  "actor": { "id": 3, "name": "Lee Lead" },
+  "is_read": false, "read_at": null, "created_at": "2026-11-01T09:30:00+00:00"
+}
+```
+
+`kind` is `assigned`, `commented` (with an `excerpt`), `due_tomorrow` or `overdue`. Nobody is notified
+about their own action, and only people who may see the task are notified. Reminders come from the
+daily `notifications:due-reminders` command (08:00), once per task and kind.
+
+`GET /me` now includes `preferences` (every known key, defaults filled in).
+
+**Celebrations.** When the caller moves a task from an open status to `done` (for example
+`PATCH /tasks/{id}/status`), the response carries an `X-Celebrate` header: URL-encoded JSON
+`{ "message": "…", "all_clear": bool }`. It is absent when the user turned `celebrations` off. Show
+it however suits the client; the web app shows a small toast.
+
 ---
 
 ## Role matrix
@@ -405,7 +623,8 @@ appear in this feed.
 - **Deactivation is immediate.** When an account is deactivated or deleted its tokens are revoked;
   the next call returns 401. Treat any 401 as "sign out and show the login screen".
 - **Poll, don't assume push.** v1 has no websockets. Refresh on window focus and on a modest
-  timer.
+  timer. Tasksheet PDF exports are the one place to poll quickly (~2 s) — and only while one is
+  running.
 - **The dashboard ships geometry, not raw rows.** Bar offsets/widths are percentages of the axis
   and phase segments are positioned relative to their bar — draw them, don't recompute them, or
   your timeline will drift from the web app's.
@@ -419,7 +638,7 @@ appear in this feed.
 ```
 routes/api.php                      → mounts versions
 routes/api/v1.php                   → /v1 prefix, shared middleware, loads the domain files
-routes/api/v1/{auth,account,workspace,releases,collaboration,tasksheet,performance,insights}.php
+routes/api/v1/{auth,account,workspace,releases,collaboration,tasksheet,performance,insights,engagement}.php
 app/Http/Controllers/Api/V1/        → controllers (ApiController is the shared base)
 app/Http/Resources/V1/              → API resources
 app/Http/Requests/Api/V1/           → API-only requests (login, password, board move, …)

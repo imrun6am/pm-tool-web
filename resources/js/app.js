@@ -2,6 +2,8 @@ import Alpine from 'alpinejs';
 import * as Turbo from '@hotwired/turbo';
 import 'trix';
 import './tasksheet-exports';
+import './engagement';
+import './ai';
 
 window.Alpine = Alpine;
 
@@ -22,8 +24,14 @@ Turbo.config.drive.progressBarDelay = 0;
 
 let outgoingBody = null;
 
-document.addEventListener('turbo:before-render', () => {
+document.addEventListener('turbo:before-render', (e) => {
     outgoingBody = document.body;
+    // A same-page refresh (an action that redirected back here) keeps its
+    // scroll position; don't let Turbo's [autofocus] handling jump away.
+    const visit = Turbo.session.navigator.currentVisit;
+    if (visit && Turbo.session.view.isPageRefresh?.(visit)) {
+        e.detail.newBody.querySelectorAll('[autofocus]').forEach((el) => el.removeAttribute('autofocus'));
+    }
     // `scroll-behavior: smooth` on <html> would animate Turbo's jump to the
     // top (or its back/forward restore); switch it off for the swap.
     document.documentElement.style.scrollBehavior = 'auto';
@@ -181,14 +189,19 @@ Alpine.data('appShell', () => ({
 /*
  * ⌘K / Ctrl+K command palette over the user's (role-filtered) navigation
  * entries. `results` holds indices into `entries`; the list itself is
- * server-rendered so icons come from <x-icon>.
+ * server-rendered so icons come from <x-icon>. From two characters on, it
+ * also lists matching tasks (`tasks`, from `searchUrl`) after the pages;
+ * `active` runs over pages first, then tasks.
  */
-Alpine.data('commandPalette', (entries = []) => ({
+Alpine.data('commandPalette', (entries = [], searchUrl = '') => ({
     entries,
     open: false,
     query: '',
     active: 0,
     returnFocus: null,
+    tasks: [],
+    searchSeq: 0,
+    searchTimer: null,
 
     get results() {
         const q = this.query.trim().toLowerCase();
@@ -197,8 +210,46 @@ Alpine.data('commandPalette', (entries = []) => ({
             .filter((i) => q === '' || `${this.entries[i].label} ${this.entries[i].group}`.toLowerCase().includes(q));
     },
 
+    get total() {
+        return this.results.length + this.tasks.length;
+    },
+
     init() {
-        this.$watch('query', () => (this.active = 0));
+        this.$watch('query', () => {
+            this.active = 0;
+            this.searchTasks();
+        });
+    },
+
+    destroy() {
+        clearTimeout(this.searchTimer);
+    },
+
+    /** Debounced task search; a stale response never overwrites a newer one. */
+    searchTasks() {
+        clearTimeout(this.searchTimer);
+        const q = this.query.trim();
+        const seq = ++this.searchSeq;
+        if (!searchUrl || q.length < 2) {
+            this.tasks = [];
+            return;
+        }
+        this.searchTimer = setTimeout(async () => {
+            try {
+                const response = await fetch(`${searchUrl}?q=${encodeURIComponent(q)}`, { headers: { Accept: 'application/json' } });
+                if (!response.ok) return;
+                const data = await response.json();
+                if (seq === this.searchSeq) this.tasks = data.data;
+            } catch (e) {
+                // Search is a convenience; page results still work.
+            }
+        }, 150);
+    },
+
+    optionId(position) {
+        return position < this.results.length
+            ? `cmdk-opt-${this.results[position]}`
+            : `cmdk-task-${position - this.results.length}`;
     },
 
     onKeydown(e) {
@@ -214,6 +265,7 @@ Alpine.data('commandPalette', (entries = []) => ({
         this.returnFocus = document.activeElement;
         this.query = '';
         this.active = 0;
+        this.tasks = [];
         this.open = true;
         this.$nextTick(() => this.$refs.input.focus());
     },
@@ -224,15 +276,20 @@ Alpine.data('commandPalette', (entries = []) => ({
     },
 
     move(step) {
-        const count = this.results.length;
+        const count = this.total;
         if (!count) return;
         this.active = (this.active + step + count) % count;
-        this.$nextTick(() => document.getElementById(`cmdk-opt-${this.results[this.active]}`)?.scrollIntoView({ block: 'nearest' }));
+        this.$nextTick(() => document.getElementById(this.optionId(this.active))?.scrollIntoView({ block: 'nearest' }));
     },
 
     go(position = this.active) {
-        const entry = this.entries[this.results[position]];
-        if (entry) Turbo.visit(entry.url);
+        const target = position < this.results.length
+            ? this.entries[this.results[position]]
+            : this.tasks[position - this.results.length];
+        if (!target) return;
+        // Close first: an entry may open a dialog instead of navigating (New task).
+        this.close();
+        Turbo.visit(target.url);
     },
 }));
 

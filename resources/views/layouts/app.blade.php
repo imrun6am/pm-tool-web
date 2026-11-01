@@ -89,6 +89,9 @@
         {{-- ⌘K command palette (role-filtered entries via view composer) --}}
         @include('layouts.command-palette')
 
+        {{-- Quick capture (press C) + keyboard shortcut sheet (press ?) --}}
+        @include('layouts.quick-capture')
+
         {{-- Floating toasts + confirmation modal --}}
         @include('layouts.toasts')
         @include('layouts.confirm')

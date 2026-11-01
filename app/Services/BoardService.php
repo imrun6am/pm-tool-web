@@ -25,14 +25,15 @@ class BoardService
      * status directly; the API adds the label, color, and count around it.
      *
      * `release_id` and `team_id` are ids, or TaskService::NONE for tasks with
-     * none set. Filters combine.
+     * none set. Filters combine, within what `$viewer` may see when given.
      *
      * @param  array{release_id?: int|string|null, team_id?: int|string|null, assignee_id?: ?int}  $filters
      * @return array<string, Collection<int, Task>>
      */
-    public function columns(array $filters = []): array
+    public function columns(array $filters = [], ?User $viewer = null): array
     {
         $tasks = Task::query()
+            ->when($viewer, fn ($q) => $q->visibleTo($viewer))
             ->whereNull('parent_id') // top-level tasks are the cards
             ->with(['release.project', 'team', 'assignee', 'subtasks'])
             ->withCount('comments')
@@ -69,15 +70,20 @@ class BoardService
      * A drag: set the card's status and renumber the target column together, in
      * one transaction, so the board can never be observed half-moved.
      *
+     * Only cards `$viewer` may see are renumbered, so a column order can't be
+     * used to touch another team's tasks.
+     *
      * @param  array<int, int|string>  $orderedIds  the target column's new order
      */
-    public function move(Task $task, string $status, array $orderedIds = []): Task
+    public function move(Task $task, string $status, array $orderedIds = [], ?User $viewer = null): Task
     {
-        DB::transaction(function () use ($task, $status, $orderedIds) {
+        DB::transaction(function () use ($task, $status, $orderedIds, $viewer) {
             $task->update(['status' => $status]);
 
             foreach ($orderedIds as $index => $id) {
-                Task::whereKey($id)->whereNull('parent_id')->update(['position' => $index]);
+                Task::whereKey($id)->whereNull('parent_id')
+                    ->when($viewer, fn ($q) => $q->visibleTo($viewer))
+                    ->update(['position' => $index]);
             }
         });
 

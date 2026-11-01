@@ -22,6 +22,8 @@ class CommentController extends Controller
 
     public function storeForTask(CommentRequest $request, Task $task): RedirectResponse
     {
+        $this->authorize('update', $task);
+
         $task->comments()->create([
             'user_id' => $request->user()->id,
             'body' => $request->validated('body'),

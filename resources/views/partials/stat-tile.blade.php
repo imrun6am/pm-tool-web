@@ -2,19 +2,11 @@
     Reusable KPI stat tile.
     @include('partials.stat-tile', ['label' => 'Projects', 'value' => 12,
              'sub' => 'total', 'icon' => 'folder', 'tone' => 'brand'])
-    `sub`, `icon`, `tone` are optional. tone ∈ brand|emerald|amber|sky|slate|rose
+    `sub`, `icon`, `tone` are optional. tone: any hue, meaning or area in
+    App\Support\Palette (brand, emerald, success, danger, releases…).
 --}}
 @php
-    $tone = $tone ?? 'brand';
-    $palette = [
-        'brand' => 'bg-brand-50 text-brand-600',
-        'emerald' => 'bg-emerald-50 text-emerald-600',
-        'amber' => 'bg-amber-50 text-amber-600',
-        'sky' => 'bg-sky-50 text-sky-600',
-        'slate' => 'bg-slate-100 text-slate-600',
-        'rose' => 'bg-rose-50 text-rose-600',
-    ];
-    $toneClass = $palette[$tone] ?? $palette['brand'];
+    $toneClass = \App\Support\Palette::soft($tone ?? 'brand');
 @endphp
 <div class="card card-pad">
     <div class="flex items-center justify-between gap-2">

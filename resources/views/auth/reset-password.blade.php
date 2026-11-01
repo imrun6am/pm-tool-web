@@ -1,39 +1,42 @@
 <x-guest-layout>
-    <form method="POST" action="{{ route('password.store') }}">
+    <div class="mb-7">
+        <h1 class="text-2xl font-bold tracking-tight text-slate-900">Choose a new password</h1>
+        <p class="mt-1.5 text-sm text-slate-500">At least 8 characters — a longer passphrase is stronger.</p>
+    </div>
+
+    <form method="POST" action="{{ route('password.store') }}" x-data="{ busy: false, show: false }" @submit="busy = true" class="space-y-5">
         @csrf
 
         <!-- Password Reset Token -->
         <input type="hidden" name="token" value="{{ $request->route('token') }}">
 
-        <!-- Email Address -->
         <div>
-            <x-input-label for="email" :value="__('Email')" />
-            <x-text-input id="email" class="block mt-1 w-full" type="email" name="email" :value="old('email', $request->email)" required autofocus autocomplete="username" />
-            <x-input-error :messages="$errors->get('email')" class="mt-2" />
+            <label for="email" class="field-label">{{ __('Email') }}</label>
+            <input id="email" name="email" type="email" value="{{ old('email', $request->email) }}" required autofocus autocomplete="username"
+                   class="field-control mt-1.5 h-11" @error('email') aria-invalid="true" aria-describedby="email-error" @enderror>
+            @error('email')
+                <p id="email-error" class="field-error"><x-icon name="exclamation-circle" variant="outline" class="h-4 w-4 flex-none" />{{ $message }}</p>
+            @enderror
         </div>
 
-        <!-- Password -->
-        <div class="mt-4">
-            <x-input-label for="password" :value="__('Password')" />
-            <x-text-input id="password" class="block mt-1 w-full" type="password" name="password" required autocomplete="new-password" />
-            <x-input-error :messages="$errors->get('password')" class="mt-2" />
-        </div>
+        @foreach ([['password', __('New password')], ['password_confirmation', __('Confirm new password')]] as [$field, $label])
+            <div>
+                <label for="{{ $field }}" class="field-label">{{ $label }}</label>
+                <input id="{{ $field }}" name="{{ $field }}" type="password" :type="show ? 'text' : 'password'" required autocomplete="new-password"
+                       class="field-control mt-1.5 h-11" @error($field) aria-invalid="true" aria-describedby="{{ $field }}-error" @enderror>
+                @error($field)
+                    <p id="{{ $field }}-error" class="field-error"><x-icon name="exclamation-circle" variant="outline" class="h-4 w-4 flex-none" />{{ $message }}</p>
+                @enderror
+            </div>
+        @endforeach
 
-        <!-- Confirm Password -->
-        <div class="mt-4">
-            <x-input-label for="password_confirmation" :value="__('Confirm Password')" />
+        <label class="inline-flex cursor-pointer items-center gap-2">
+            <input type="checkbox" x-model="show" class="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500">
+            <span class="text-sm text-slate-600">Show passwords</span>
+        </label>
 
-            <x-text-input id="password_confirmation" class="block mt-1 w-full"
-                                type="password"
-                                name="password_confirmation" required autocomplete="new-password" />
-
-            <x-input-error :messages="$errors->get('password_confirmation')" class="mt-2" />
-        </div>
-
-        <div class="flex items-center justify-end mt-4">
-            <x-primary-button>
-                {{ __('Reset Password') }}
-            </x-primary-button>
-        </div>
+        <button type="submit" class="btn-primary h-11 w-full justify-center" :disabled="busy">
+            <span x-text="busy ? 'Saving…' : 'Reset password'">{{ __('Reset Password') }}</span>
+        </button>
     </form>
 </x-guest-layout>

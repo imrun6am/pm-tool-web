@@ -31,14 +31,15 @@ class TaskService
     public const NONE = 'none';
 
     /**
-     * The cross-release task query.
+     * The cross-release task query, limited to what `$viewer` may see when given.
      *
      * @param  array<string, mixed>  $filters
      * @return Builder<Task>
      */
-    public function filtered(array $filters = []): Builder
+    public function filtered(array $filters = [], ?User $viewer = null): Builder
     {
         return Task::query()
+            ->when($viewer, fn ($q) => $q->visibleTo($viewer))
             ->with(['release.project', 'team', 'assignee', 'creator'])
             ->withCount(['comments', 'subtasks'])
             ->unless($filters['include_subtasks'] ?? false, fn ($q) => $q->whereNull('parent_id'))
@@ -60,13 +61,14 @@ class TaskService
 
     /**
      * A release's top-level tasks with their subtasks — the shape a release
-     * detail screen draws.
+     * detail screen draws — limited to what `$viewer` may see when given.
      *
      * @return Builder<Task>
      */
-    public function forRelease(Release $release, array $filters = []): Builder
+    public function forRelease(Release $release, array $filters = [], ?User $viewer = null): Builder
     {
         return $release->rootTasks()
+            ->when($viewer, fn ($q) => $q->visibleTo($viewer))
             ->with(['assignee', 'creator', 'subtasks.assignee'])
             ->withCount(['comments', 'subtasks'])
             ->when($filters['assignee_id'] ?? null, fn ($q, $id) => $q->where('assignee_id', $id))
@@ -206,12 +208,13 @@ class TaskService
 
     /**
      * Assignable people for a task: the release team's active members (every
-     * active user when the task has no release) plus any current assignee who
-     * has since left, so nothing renders blank.
+     * active user when the task has no release; only their own teammates for a
+     * developer or QA viewer) plus any current assignee who has since left, so
+     * nothing renders blank.
      *
      * @return Collection<int, User>
      */
-    public function assignableUsers(Task $task): Collection
+    public function assignableUsers(Task $task, ?User $viewer = null): Collection
     {
         $current = collect([$task->assignee])
             ->merge($task->subtasks->map->assignee)
@@ -220,6 +223,10 @@ class TaskService
         $pool = $task->release
             ? $task->release->team->members()->active()
             : User::active();
+
+        if ($viewer?->hasLimitedAccess()) {
+            $pool = $pool->teammatesOf($viewer);
+        }
 
         return $pool->orderBy('name')->get()
             ->concat($current)

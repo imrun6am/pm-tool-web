@@ -2,14 +2,14 @@
 
 namespace App\Services\Board;
 
-use Anthropic\Client;
+use App\Services\Ai\AiGateway;
 use App\Services\Kpi\MissingApiKeyException;
 use RuntimeException;
 
 /**
  * Asks Claude to split a member's morning plan into individual board tasks.
  *
- * One short, non-streaming request with structured JSON output. The plan is
+ * One short request through AiGateway with structured JSON output. The plan is
  * passed as data inside tags; the system prompt says what to do with it.
  */
 class ClaudePlanTaskExtractor implements PlanTaskExtractor
@@ -33,14 +33,12 @@ class ClaudePlanTaskExtractor implements PlanTaskExtractor
         TXT;
 
     public function __construct(
-        private readonly ?string $apiKey,
-        private readonly string $model,
-        private readonly string $effort,
+        private readonly AiGateway $ai,
     ) {}
 
     public function extract(string $plan, ?string $tickets = null, array $existing = []): array
     {
-        if (blank($this->apiKey)) {
+        if (blank(config('services.anthropic.key'))) {
             throw new MissingApiKeyException('ANTHROPIC_API_KEY is not set.');
         }
 
@@ -52,38 +50,9 @@ class ClaudePlanTaskExtractor implements PlanTaskExtractor
             $existing === [] ? '(none)' : implode("\n", array_map(fn (string $t) => '- '.$t, $existing))
         )."\n</existing_tasks>";
 
-        $message = (new Client(apiKey: $this->apiKey))->beta->messages->create(
-            model: $this->model,
-            maxTokens: 16000,
-            system: self::SYSTEM,
-            messages: [['role' => 'user', 'content' => $prompt]],
-            outputConfig: ['effort' => $this->effort, 'format' => ['type' => 'json_schema', 'schema' => self::schema()]],
-            // A policy decline is re-run server-side on the recommended fallback model.
-            fallbacks: 'default',
-            betas: ['server-side-fallback-2026-07-01'],
-            requestOptions: ['timeout' => 60],
-        );
-
-        if ($message->stopReason === 'refusal') {
-            throw new RuntimeException('Claude declined to split this plan.');
-        }
-        if ($message->stopReason === 'max_tokens') {
-            throw new RuntimeException('Claude ran out of output tokens.');
-        }
-
-        // Text after the last fallback block is the answering model's; anything
-        // before it came from a model that declined.
-        $json = '';
-        foreach ($message->content as $block) {
-            if ($block->type === 'fallback') {
-                $json = '';
-            } elseif ($block->type === 'text') {
-                $json .= $block->text;
-            }
-        }
-
-        $out = json_decode($json, true);
-        if (! is_array($out) || ! isset($out['tasks']) || ! is_array($out['tasks'])) {
+        // Through AiGateway: switchable, refusal-safe, and logged on the AI usage page.
+        $out = $this->ai->json('plan_to_board', self::SYSTEM, $prompt, self::schema(), auth()->user(), timeout: 60);
+        if (! isset($out['tasks']) || ! is_array($out['tasks'])) {
             throw new RuntimeException('Claude returned an unreadable response.');
         }
 

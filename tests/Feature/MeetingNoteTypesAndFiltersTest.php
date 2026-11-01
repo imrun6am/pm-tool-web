@@ -136,6 +136,8 @@ class MeetingNoteTypesAndFiltersTest extends TestCase
         $writer = User::factory()->create(['role' => User::ROLE_DEVELOPER]);
         $other = User::factory()->create(['role' => User::ROLE_DEVELOPER]);
         $sitter = User::factory()->create(['role' => User::ROLE_QA]);
+        // Teammates: developers see everyone-notes only from their own team.
+        Team::create(['name' => 'Squad', 'color' => '#0891b2'])->members()->attach([$writer->id, $other->id, $sitter->id]);
 
         $this->note($writer, ['title' => 'Written by writer'], [$sitter->id]);
         $this->note($other, ['title' => 'Written by other'], []);

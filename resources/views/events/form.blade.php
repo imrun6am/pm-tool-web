@@ -29,6 +29,30 @@
             </x-field>
         </div>
 
+        @php $visibility = old('visibility', $event->visibility ?? \App\Models\Event::VISIBILITY_SHARED); @endphp
+        <fieldset>
+            <legend class="field-label">Who can see it</legend>
+            <div class="mt-1.5 grid gap-2 sm:grid-cols-2">
+                @foreach ([
+                    'shared' => ['globe', 'Shared', 'Everyone who can see the calendar.'],
+                    'private' => ['lock-closed', 'Private', 'Only you and the attendees you invite.'],
+                ] as $value => [$icon, $label, $hint])
+                    <label class="flex cursor-pointer items-start gap-2.5 rounded-lg border border-slate-200 p-3 transition-colors hover:border-slate-300 has-[:checked]:border-brand-500 has-[:checked]:bg-brand-50/50 has-[:checked]:ring-1 has-[:checked]:ring-brand-500/30">
+                        <input type="radio" name="visibility" value="{{ $value }}" class="mt-0.5 h-4 w-4 border-slate-300 text-brand-600 focus:ring-brand-500/30" @checked($visibility === $value)>
+                        <span class="min-w-0">
+                            <span class="flex items-center gap-1.5 text-sm font-medium text-slate-800">
+                                <x-icon :name="$icon" variant="outline" class="h-4 w-4 text-slate-500" />{{ $label }}
+                            </span>
+                            <span class="mt-0.5 block text-xs text-slate-500">{{ $hint }}</span>
+                        </span>
+                    </label>
+                @endforeach
+            </div>
+            @error('visibility')
+                <p id="visibility-error" class="field-error"><x-icon name="exclamation-circle" variant="outline" class="h-4 w-4 flex-none" />{{ $message }}</p>
+            @enderror
+        </fieldset>
+
         <x-field label="Description" for="description" optional>
             <textarea id="description" name="description" rows="3" class="field-textarea"
                       placeholder="Agenda, links or anything attendees should prepare." @invalid('description')>{{ old('description', $event->description) }}</textarea>

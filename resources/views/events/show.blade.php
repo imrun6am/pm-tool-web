@@ -2,12 +2,15 @@
     <x-slot name="header">
         <x-page-header :title="$event->title"
                        :breadcrumbs="['Calendar' => route('calendar.index', ['year' => $event->starts_at->year, 'month' => $event->starts_at->month]), $event->title => null]">
-            @can('update', $event)
+            @can('delete', $event)
                 <x-slot name="actions">
-                    <a href="{{ route('events.edit', $event) }}" @click.prevent="$dispatch('open-event-drawer')" class="btn-secondary btn-sm">
-                        <x-icon name="pencil-square" variant="outline" class="h-4 w-4" />Edit
-                    </a>
-                    <form method="POST" action="{{ route('events.destroy', $event) }}" data-confirm="Delete this event?" data-confirm-verb="Delete">
+                    @can('update', $event)
+                        <a href="{{ route('events.edit', $event) }}" @click.prevent="$dispatch('open-event-drawer')" class="btn-secondary btn-sm">
+                            <x-icon name="pencil-square" variant="outline" class="h-4 w-4" />Edit
+                        </a>
+                    @endcan
+                    <form method="POST" action="{{ route('events.destroy', $event) }}"
+                          data-confirm="{{ $event->created_by === auth()->id() ? 'Delete this event?' : 'Delete '.($event->creator?->name ?? 'this user').'’s event for everyone?' }}" data-confirm-verb="Delete">
                         @csrf @method('DELETE')
                         <button class="btn-danger btn-sm">
                             <x-icon name="trash" variant="outline" class="h-4 w-4" />Delete
@@ -20,6 +23,15 @@
             <span class="badge badge-slate">
                 <span class="h-2 w-2 rounded-full" style="background-color: {{ $event->typeColor() }}"></span>{{ $event->typeLabel() }}
             </span>
+            @if ($event->isPrivate())
+                <span class="badge badge-slate" title="Only {{ $event->creator?->name ?? 'the creator' }} and the attendees can see this event">
+                    <x-icon name="lock-closed" variant="outline" class="h-3 w-3" />Private
+                </span>
+            @else
+                <span class="badge badge-info" title="Everyone who can see the calendar can see this event">
+                    <x-icon name="globe" variant="outline" class="h-3 w-3" />Shared
+                </span>
+            @endif
             <span>
                 {{ $event->starts_at->format('l, F j, Y') }}
                 @if ($event->isMultiDay()) – {{ $event->endOrStart()->format('l, F j, Y') }} @endif

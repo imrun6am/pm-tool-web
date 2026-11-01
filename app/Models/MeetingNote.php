@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\LimitsToViewerTeams;
 use App\Models\Concerns\RecordsActivity;
 use App\Support\HtmlSanitizer;
 use Illuminate\Database\Eloquent\Builder;
@@ -22,7 +23,7 @@ use Illuminate\Support\HtmlString;
  */
 class MeetingNote extends Model
 {
-    use RecordsActivity;
+    use LimitsToViewerTeams, RecordsActivity;
 
     public const VISIBILITY_EVERYONE = 'everyone';
 
@@ -156,9 +157,14 @@ class MeetingNote extends Model
     /**
      * Whether the given user may view this note. Everyone-notes are public;
      * attendees-only notes are limited to their attendees, author, and leads.
+     * Developers and QA see everyone-notes only when shared with their teams.
      */
     public function isVisibleTo(User $user): bool
     {
+        if ($user->hasLimitedAccess()) {
+            return static::whereKey($this->getKey())->visibleTo($user)->exists();
+        }
+
         if (! $this->isAttendeesOnly() || $this->created_by === $user->id || $user->isLead()) {
             return true;
         }
@@ -180,7 +186,10 @@ class MeetingNote extends Model
         }
 
         return $query->where(function (Builder $q) use ($user) {
-            $q->where('visibility', self::VISIBILITY_EVERYONE)
+            $q->where(fn (Builder $everyone) => $everyone
+                ->where('visibility', self::VISIBILITY_EVERYONE)
+                // Developers and QA: only everyone-notes shared with their teams.
+                ->when($user->hasLimitedAccess(), fn (Builder $e) => static::whereSharedWithTeams($e, $user, 'created_by', 'author')))
                 ->orWhere('created_by', $user->id)
                 ->orWhereHas('attendees', fn (Builder $a) => $a->whereKey($user->id));
         });

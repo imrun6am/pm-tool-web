@@ -26,6 +26,8 @@
 
     {{-- Right: actions + user menu --}}
     <div class="ml-auto flex flex-none items-center gap-1.5 sm:gap-2">
+        @include('layouts.notification-bell')
+
         <button type="button" @click="$dispatch('toggle-quick-links')"
                 class="btn-ghost btn-icon text-slate-500" title="Quick links" aria-label="Quick links">
             <x-icon name="link" variant="outline" class="h-5 w-5" />

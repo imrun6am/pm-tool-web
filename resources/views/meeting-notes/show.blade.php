@@ -46,6 +46,9 @@
 
                 {{-- Details --}}
                 <aside class="space-y-4">
+                    {{-- Claude: action items → board tasks --}}
+                    @include('ai.panels.meeting-note', ['meetingNote' => $meetingNote])
+
                     <section class="card">
                         <h2 class="card-header card-title">Details</h2>
                         <dl class="divide-y divide-slate-100 text-sm">
@@ -75,7 +78,11 @@
                                 <div class="flex items-center justify-between gap-3 px-5 py-3">
                                     <dt class="text-slate-500">Event</dt>
                                     <dd class="min-w-0 truncate text-right">
-                                        <a href="{{ route('events.show', $meetingNote->event) }}" class="font-medium text-brand-700 hover:underline">{{ $meetingNote->event->title }}</a>
+                                        @if ($meetingNote->event->isVisibleTo(auth()->user()))
+                                            <a href="{{ route('events.show', $meetingNote->event) }}" class="font-medium text-brand-700 hover:underline">{{ $meetingNote->event->title }}</a>
+                                        @else
+                                            <span class="inline-flex items-center gap-1 text-slate-500"><x-icon name="lock-closed" variant="outline" class="h-3.5 w-3.5" />Private event</span>
+                                        @endif
                                     </dd>
                                 </div>
                             @endif

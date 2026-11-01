@@ -3,6 +3,8 @@
 namespace App\Http\Requests;
 
 use App\Models\Event;
+use App\Rules\VisiblePerson;
+use App\Rules\VisibleRelease;
 use App\Services\Calendar\EventImportService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -28,6 +30,7 @@ class ConfirmEventImportRequest extends FormRequest
             'events.*.include' => ['nullable', 'boolean'],
             'events.*.title' => [$only, 'required', 'string', 'max:255'],
             'events.*.type' => [$only, 'required', Rule::in(array_keys(Event::TYPES))],
+            'events.*.visibility' => [$only, 'nullable', Rule::in(array_keys(Event::VISIBILITIES))],
             'events.*.date' => [$only, 'required', 'date_format:Y-m-d'],
             'events.*.all_day' => [$only, 'nullable', 'boolean'],
             'events.*.start_time' => [$only, 'nullable', 'date_format:H:i'],
@@ -35,9 +38,10 @@ class ConfirmEventImportRequest extends FormRequest
             'events.*.end_time' => [$only, 'nullable', 'date_format:H:i'],
             'events.*.location' => [$only, 'nullable', 'string', 'max:255'],
             'events.*.description' => [$only, 'nullable', 'string', 'max:5000'],
-            'events.*.release_id' => [$only, 'nullable', Rule::exists('releases', 'id')],
+            // Developers and QA: only their own teams' releases and people.
+            'events.*.release_id' => [$only, 'nullable', Rule::exists('releases', 'id'), new VisibleRelease($this->user())],
             'events.*.attendees' => [$only, 'nullable', 'array'],
-            'events.*.attendees.*' => [$only, Rule::exists('users', 'id')],
+            'events.*.attendees.*' => [$only, Rule::exists('users', 'id'), new VisiblePerson($this->user())],
         ];
     }
 

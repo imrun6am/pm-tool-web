@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\EnsureApiUserIsActive;
 use App\Http\Middleware\EnsureFullAccess;
+use App\Http\Middleware\EnsureReleaseIsVisible;
 use App\Http\Middleware\EnsureUserCanManageReleases;
 use App\Http\Middleware\EnsureUserCanManageUsers;
 use App\Http\Middleware\EnsureUserIsActive;
@@ -26,6 +27,8 @@ return Application::configure(basePath: dirname(__DIR__))
             'manage-users' => EnsureUserCanManageUsers::class,
             'manage-releases' => EnsureUserCanManageReleases::class,
             'full-access' => EnsureFullAccess::class,
+            // Developers/QA reach only their own teams' releases.
+            'release-visible' => EnsureReleaseIsVisible::class,
             // The API counterpart of EnsureUserIsActive: no session to invalidate,
             // so it revokes the presented token instead of redirecting.
             'active-api' => EnsureApiUserIsActive::class,

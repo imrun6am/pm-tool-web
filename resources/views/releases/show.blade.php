@@ -165,8 +165,8 @@
                         </div>
                     @endif
 
-                    {{-- Tasks --}}
-                    <div class="card">
+                    {{-- Tasks: adding, status changes and deletes update this card in place --}}
+                    <x-live-region id="release-tasks" class="card">
                         <div class="flex items-center justify-between border-b border-slate-100 px-6 py-4">
                             <h3 class="text-sm font-semibold text-slate-700">Tasks ({{ $release->rootTasks->count() }})</h3>
                             <a href="{{ route('board.index', ['release_id' => $release->id]) }}"
@@ -178,17 +178,17 @@
                         <div class="p-5 sm:p-6">
                             @include('partials.tasks-panel', ['release' => $release, 'users' => $users])
                         </div>
-                    </div>
+                    </x-live-region>
 
-                    {{-- Comments --}}
-                    <div class="card">
+                    {{-- Comments: posting, editing and deleting update this card in place --}}
+                    <x-live-region id="release-comments" class="card">
                         <div class="border-b border-slate-100 px-6 py-4">
                             <h3 class="text-sm font-semibold text-slate-700">Comments ({{ $release->comments->count() }})</h3>
                         </div>
                         <div class="p-5 sm:p-6">
                             @include('partials.comments', ['comments' => $release->comments, 'storeUrl' => route('releases.comments.store', $release)])
                         </div>
-                    </div>
+                    </x-live-region>
 
                     {{-- Meeting notes --}}
                     <div class="card">
@@ -280,6 +280,9 @@
 
                 {{-- ============ SIDEBAR ============ --}}
                 <div class="space-y-6 lg:col-span-1">
+
+                    {{-- Claude: risk brief, release notes, catch-up, document insights --}}
+                    @include('ai.panels.release', ['release' => $release])
 
                     {{-- Details (planning metadata — hidden from developers/QA) --}}
                     @unless (auth()->user()->hasLimitedAccess())

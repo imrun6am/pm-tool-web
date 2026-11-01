@@ -29,19 +29,21 @@ class TaskController extends ApiController
      */
     public function index(Request $request): AnonymousResourceCollection
     {
-        return $this->paginate($request, $this->tasks->filtered($this->filters($request)), TaskResource::class);
+        return $this->paginate($request, $this->tasks->filtered($this->filters($request), $request->user()), TaskResource::class);
     }
 
     /** One release's task tree. */
     public function indexForRelease(Request $request, Release $release): AnonymousResourceCollection
     {
-        $query = $this->tasks->forRelease($release, $this->filters($request));
+        $query = $this->tasks->forRelease($release, $this->filters($request), $request->user());
 
         return $this->paginate($request, $query, TaskResource::class);
     }
 
     public function show(Task $task): JsonResponse
     {
+        $this->authorize('view', $task);
+
         $task->load([
             'release.project', 'release.team', 'team', 'assignee', 'creator',
             'parent', 'subtasks.assignee', 'comments.user',
@@ -84,6 +86,8 @@ class TaskController extends ApiController
     /** The lightweight status change, for a checkbox or a context menu. */
     public function updateStatus(Request $request, Task $task): JsonResponse
     {
+        $this->authorize('update', $task);
+
         $data = $request->validate([
             'status' => ['required', Rule::in(array_keys(Task::STATUSES))],
         ]);
@@ -95,6 +99,8 @@ class TaskController extends ApiController
 
     public function destroy(Task $task): JsonResponse
     {
+        $this->authorize('delete', $task);
+
         $wasSubtask = $task->isSubtask();
         $task->delete(); // the model's deleting hook removes subtasks + comments
 

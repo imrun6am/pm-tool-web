@@ -3,21 +3,18 @@
     One cell of a KPI strip. Wrap cells in <div class="stat-strip">…</div>
     (2-up on phones, 4-up on lg; add lg:grid-cols-3 for three cells).
       <x-stat label="Members" :value="4" sub="on this team" icon="user-group" tone="sky" />
-    tone colors the icon; alert switches the whole cell to the warning tone.
+    tone colors the icon — a hue, a meaning (success, warning, danger, info) or
+    an area (releases, calendar…), see App\Support\Palette; alert switches the
+    whole cell to the warning tone.
 --}}
 @php
-    $tones = [
-        'slate' => 'text-slate-500', 'brand' => 'text-brand-600', 'violet' => 'text-violet-600',
-        'sky' => 'text-sky-600', 'emerald' => 'text-emerald-600', 'amber' => 'text-amber-600',
-        'rose' => 'text-rose-600', 'teal' => 'text-teal-600', 'fuchsia' => 'text-fuchsia-600',
-    ];
     $tag = $href ? 'a' : 'div';
 @endphp
 <{{ $tag }} @if ($href) href="{{ $href }}" @endif
     {{ $attributes->class(['stat-cell', 'bg-warning-50/50' => $alert]) }}>
     <p @class(['stat-label', 'text-warning-800' => $alert])>
         @if ($icon)
-            <x-icon :name="$icon" variant="outline" @class(['h-4 w-4 flex-none', $alert ? 'text-warning-600' : ($tones[$tone] ?? $tones['slate'])]) />
+            <x-icon :name="$icon" variant="outline" @class(['h-4 w-4 flex-none', $alert ? 'text-warning-600' : \App\Support\Palette::text($tone)]) />
         @endif
         <span class="truncate">{{ $label }}</span>
     </p>

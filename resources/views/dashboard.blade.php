@@ -41,6 +41,7 @@
 
     <div class="py-6 sm:py-8">
         <div class="app-container space-y-6">
+            @include('partials.onboarding-checklist')
 
             {{-- Filters --}}
             <x-filter-bar :action="route('dashboard')" :active="$hasFilters">
@@ -81,6 +82,20 @@
                     <label><input type="radio" name="group_by" value="project" @checked($filters['group_by'] === 'project')>Project</label>
                 </fieldset>
             </x-filter-bar>
+
+            {{-- Your own open work, for leads who also carry tasks --}}
+            @if ($delivery['mine']['open'] > 0)
+                @php $mine = $delivery['mine']; @endphp
+                <a href="{{ route('board.index') }}" class="card flex flex-wrap items-center gap-x-4 gap-y-1 px-5 py-3 text-sm transition-colors hover:bg-slate-50 sm:px-6">
+                    <span class="flex items-center gap-2 font-medium text-slate-900">
+                        <x-icon name="clipboard-check" variant="outline" class="h-4 w-4 text-brand-600" /> Your work
+                    </span>
+                    <span class="text-slate-600"><span class="tabular font-semibold text-slate-900">{{ $mine['open'] }}</span> open</span>
+                    <span @class(['text-slate-600', 'text-warning-800' => $mine['overdue'] > 0])><span class="tabular font-semibold">{{ $mine['overdue'] }}</span> overdue</span>
+                    <span class="text-slate-600"><span class="tabular font-semibold text-slate-900">{{ $mine['dueSoon'] }}</span> due in the next {{ \App\Services\DeliveryAnalyticsService::DUE_SOON_DAYS }} days</span>
+                    <span class="ml-auto inline-flex items-center gap-1 font-medium text-brand-700">Open board <x-icon name="arrow-right" variant="outline" class="h-4 w-4" /></span>
+                </a>
+            @endif
 
             {{-- ============================ KPI STRIP ============================ --}}
             <div class="stat-strip">
@@ -369,6 +384,8 @@
                     @endif
                 </section>
             </div>
+
+            @include('partials.delivery-health', ['d' => $delivery])
         </div>
     </div>
 </x-app-layout>

@@ -111,6 +111,7 @@
                           busy: false,
                           boxes() { return [...this.$root.querySelectorAll('input[data-include]:not(:disabled)')] },
                           recount() { this.count = this.boxes().filter(b => b.checked).length },
+                          setVisibility(v) { this.$root.querySelectorAll('select[id$=-visibility]').forEach(s => s.value = v) },
                           setAll(on) { this.boxes().forEach(b => { if (b.checked !== on) { b.checked = on; b.dispatchEvent(new Event('change')) } }); this.recount() },
                       }"
                       x-init="$nextTick(() => recount())" @submit="busy = true">
@@ -132,6 +133,13 @@
                             <div class="flex items-center gap-1 text-sm">
                                 <button type="button" class="btn-ghost btn-sm" @click="setAll(true)">Select all</button>
                                 <button type="button" class="btn-ghost btn-sm" @click="setAll(false)">Select none</button>
+                                <span class="mx-1 h-4 w-px bg-slate-200" aria-hidden="true"></span>
+                                <button type="button" class="btn-ghost btn-sm" @click="setVisibility('shared')" title="Make every event visible to everyone">
+                                    <x-icon name="globe" variant="outline" class="h-4 w-4" />All shared
+                                </button>
+                                <button type="button" class="btn-ghost btn-sm" @click="setVisibility('private')" title="Make every event visible only to you and its attendees">
+                                    <x-icon name="lock-closed" variant="outline" class="h-4 w-4" />All private
+                                </button>
                             </div>
                         @endif
                     </div>
@@ -166,6 +174,9 @@
                                     <span class="text-xs tabular text-slate-500">
                                         {{ \Illuminate\Support\Carbon::parse($row['date'])->format('D j M Y') }}@unless ($row['all_day']) · {{ $row['start_time'] }}@endunless
                                     </span>
+                                    @if (($row['visibility'] ?? null) === Event::VISIBILITY_PRIVATE)
+                                        <span class="badge badge-slate"><x-icon name="lock-closed" variant="outline" class="h-3 w-3" />Private</span>
+                                    @endif
                                     <span class="badge badge-success">Added</span>
                                     <a href="{{ route('events.show', $row['event_id']) }}" class="btn-ghost btn-sm">View event</a>
                                 </div>
@@ -188,6 +199,16 @@
                                         @error("$key.title")
                                             <p id="{{ $key }}.title-error" class="field-error"><x-icon name="exclamation-circle" variant="outline" class="h-4 w-4 flex-none" />{{ $message }}</p>
                                         @enderror
+                                    </div>
+
+                                    <div class="w-full sm:w-36">
+                                        <label for="ev-{{ $i }}-visibility" class="sr-only">Who can see it</label>
+                                        <select id="ev-{{ $i }}-visibility" name="{{ "events[$i][visibility]" }}" class="field-select"
+                                                title="Shared: everyone who can see the calendar. Private: only you and the attendees." @invalid("$key.visibility")>
+                                            @foreach (Event::VISIBILITIES as $val => $label)
+                                                <option value="{{ $val }}" @selected(old("$key.visibility", $row['visibility'] ?? Event::VISIBILITY_SHARED) === $val)>{{ $label }}</option>
+                                            @endforeach
+                                        </select>
                                     </div>
 
                                     <div class="w-full sm:w-40">

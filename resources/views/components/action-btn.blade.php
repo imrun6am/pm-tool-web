@@ -2,18 +2,12 @@
 {{--
     Compact 32px icon button for table-row actions. Renders an <a> when :href is
     given, otherwise a form <button>. Always pass a title/aria-label for a11y.
-    Tones map an action's intent to its hover color.
+    `tone` maps the action's intent to its hover color through App\Support\Palette:
+    danger (delete), success (complete/restore), warning (archive), info/brand (edit).
 --}}
 @php
-    $tones = [
-        'slate'   => 'hover:bg-slate-100 hover:text-slate-700',
-        'brand'   => 'hover:bg-brand-50 hover:text-brand-600',
-        'emerald' => 'hover:bg-emerald-50 hover:text-emerald-600',
-        'amber'   => 'hover:bg-amber-50 hover:text-amber-600',
-        'rose'    => 'hover:bg-rose-50 hover:text-rose-600',
-    ];
     $classes = 'inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-400 transition '
-        .($tones[$tone] ?? $tones['slate']);
+        .\App\Support\Palette::hover($tone);
 @endphp
 @if ($href)
     <a href="{{ $href }}" {{ $attributes->merge(['class' => $classes]) }}>

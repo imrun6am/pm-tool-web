@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\LimitsToViewerTeams;
 use App\Models\Concerns\RecordsActivity;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -11,11 +13,31 @@ use Illuminate\Support\Carbon;
 
 class Event extends Model
 {
-    use RecordsActivity;
+    use LimitsToViewerTeams;
+    use RecordsActivity {
+        recordActivity as private writeActivity;
+    }
+
+    /** Seen by everyone the team-scoping rules allow (the default). */
+    public const VISIBILITY_SHARED = 'shared';
+
+    /** Seen only by the creator and the attendees they invited. */
+    public const VISIBILITY_PRIVATE = 'private';
+
+    /** @var array<string, string> */
+    public const VISIBILITIES = [
+        self::VISIBILITY_SHARED => 'Shared',
+        self::VISIBILITY_PRIVATE => 'Private',
+    ];
 
     protected $fillable = [
         'title', 'description', 'type', 'starts_at', 'ends_at', 'all_day',
-        'location', 'release_id', 'created_by',
+        'location', 'release_id', 'created_by', 'visibility',
+    ];
+
+    /** @var array<string, mixed> */
+    protected $attributes = [
+        'visibility' => self::VISIBILITY_SHARED,
     ];
 
     protected function casts(): array
@@ -44,6 +66,55 @@ class Event extends Model
         'deadline' => '#e11d48', // rose
         'other' => '#64748b',    // slate
     ];
+
+    /**
+     * Events the user may see. Everyone sees events they created or attend.
+     * Beyond those, only shared events: all of them for leads and viewers,
+     * and for developers and QA those shared with their teams (see
+     * LimitsToViewerTeams). Nobody else sees a private event — admins included.
+     */
+    public function scopeVisibleTo(Builder $query, User $user): Builder
+    {
+        return $query->where(fn (Builder $q) => $q
+            ->where('created_by', $user->id)
+            ->orWhereHas('attendees', fn (Builder $a) => $a->whereKey($user->id))
+            ->orWhere(fn (Builder $shared) => $shared
+                ->where('visibility', self::VISIBILITY_SHARED)
+                ->when($user->hasLimitedAccess(), fn (Builder $team) => static::whereSharedWithTeams($team, $user, 'created_by', 'creator'))));
+    }
+
+    public function isVisibleTo(User $user): bool
+    {
+        if ($this->created_by === $user->id) {
+            return true;
+        }
+        if (! $this->isPrivate() && ! $user->hasLimitedAccess()) {
+            return true;
+        }
+
+        return static::whereKey($this->getKey())->visibleTo($user)->exists();
+    }
+
+    public function isPrivate(): bool
+    {
+        return $this->visibility === self::VISIBILITY_PRIVATE;
+    }
+
+    public function visibilityLabel(): string
+    {
+        return self::VISIBILITIES[$this->visibility] ?? ucfirst((string) $this->visibility);
+    }
+
+    /**
+     * The activity feed is readable by every lead, so a private event never
+     * writes to it. Entries from while it was shared are left as they were.
+     */
+    public function recordActivity(string $event): void
+    {
+        if (! $this->isPrivate()) {
+            $this->writeActivity($event);
+        }
+    }
 
     public function creator(): BelongsTo
     {

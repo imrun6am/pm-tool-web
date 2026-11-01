@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\TaskRequest;
+use App\Models\Activity;
 use App\Models\Release;
 use App\Models\Task;
 use App\Models\Team;
@@ -36,16 +37,37 @@ class TaskController extends Controller
         return back()->with('success', 'Subtask added.');
     }
 
-    public function show(Task $task): View
+    public function show(Request $request, Task $task): View
     {
+        $this->authorize('view', $task);
+
+        $viewer = $request->user();
+        $limited = $viewer->hasLimitedAccess();
+        $teamIds = $limited ? $viewer->currentTeamIds() : null;
+
         $task->load(['release.project', 'release.team', 'team', 'assignee', 'creator',
             'subtasks.assignee', 'comments.user', 'parent']);
 
         return view('tasks.show', [
             'task' => $task,
-            'users' => $this->tasks->assignableUsers($task),
-            'releases' => Release::orderBy('year', 'desc')->orderBy('name')->get(),
-            'teams' => Team::orderBy('name')->get(),
+            'users' => $this->tasks->assignableUsers($task, $viewer),
+            // Developers and QA pick only among their own teams' releases and
+            // teams, plus the task's current ones so a save never drops them.
+            'releases' => Release::visibleTo($viewer, $task->release_id)
+                ->orderBy('year', 'desc')->orderBy('name')->get(),
+            'teams' => Team::when($limited, fn ($q) => $q->where(fn ($w) => $w
+                ->whereIn('id', $teamIds)->orWhereKey($task->team_id)))
+                ->orderBy('name')->get(),
+            'teamPicker' => ! $limited || $teamIds->count() > 1,
+            // The task's own history. Activity is a planning surface, so it
+            // stays hidden from developers and QA, as on release pages.
+            'activities' => $limited ? collect() : Activity::query()
+                ->where('subject_type', $task->getMorphClass())
+                ->where('subject_id', $task->getKey())
+                ->with('causer')
+                ->latest()
+                ->limit(10)
+                ->get(),
         ]);
     }
 
@@ -58,6 +80,8 @@ class TaskController extends Controller
 
     public function updateStatus(Request $request, Task $task): RedirectResponse
     {
+        $this->authorize('update', $task);
+
         $data = $request->validate([
             'status' => ['required', Rule::in(array_keys(Task::STATUSES))],
         ]);
@@ -69,6 +93,8 @@ class TaskController extends Controller
 
     public function destroy(Task $task): RedirectResponse
     {
+        $this->authorize('delete', $task);
+
         $wasSubtask = $task->isSubtask();
         $task->delete();
 

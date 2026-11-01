@@ -49,3 +49,21 @@
   - release delete unlinking.
 - [x] 5.2 Updated `KanbanBoardTest` (validation) and `TasksheetPlanToBoardTest` (no-release drawer, plus add-to-board without a release with dedupe).
 - [x] 5.3 `php artisan test` and `vendor/bin/pint --test` are green for this change's files.
+
+## 6. Team on Tasks (follow-up)
+
+- [x] 6.1 Migration `2026_11_01_100002_add_team_id_to_tasks_table`: nullable `team_id` FK (`nullOnDelete`), backfilled from the releases. `down()` refuses while unlinked tasks have a team.
+- [x] 6.2 `Task::team()`; `TaskService::teamFor()` (release team, then chosen team, then the assignee's single team); create, update and subtask rules; `Release` `updated` hook resyncs teams.
+- [x] 6.3 `team_id` filter (`none` included) on the board (web and API) and the API task index, through `ReadsTaskFilters::idOrNoneFilter()` and `TaskService::whereIdOrNone()`.
+- [x] 6.4 Board Team filter; quick-add takes the filtered team. Task page Team property (editable only when unlinked). `team_id` and `team` in the API resources and docs.
+- [x] 6.5 Tests: combined filters, the no-team filter, defaults, sync on release team change, and limited roles.
+
+## 7. Team Scoping for Developers and QA (follow-up)
+
+- [x] 7.1 `Task::scopeVisibleTo` / `isVisibleTo`, `User::currentTeamIds` / `scopeTeammatesOf`, `TaskPolicy` (view/update/delete/create with a release).
+- [x] 7.2 Services scope by viewer: `BoardService::columns`/`move`, `TaskService::filtered`/`forRelease`/`assignableUsers`. Release show (web and API) scopes `rootTasks` and `tasks_count`.
+- [x] 7.3 Authorization on web and API task show/update/status/delete/subtasks, task comments and board move. `TaskRequest::authorize` uses the policy.
+- [x] 7.4 `KeepsTasksInViewerTeams` concern (pinned team, own releases, own teammates, multi-team pick) in `TaskRequest` and a new `BoardTaskRequest`.
+- [x] 7.5 Board: Team filter hidden for single-team members; releases, teams and assignees limited; multi-team quick-add team select. Task page: team read-only unless multi-team; release and team pickers keep the current values.
+- [x] 7.6 `Task::saving` keeps a linked task's team equal to its release's.
+- [x] 7.7 `TaskTeamScopingTest`; existing dev/QA tests now put the developer on the release's team.

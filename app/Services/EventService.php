@@ -22,18 +22,26 @@ class EventService
 {
     /** The attributes an event write accepts from a request. */
     private const WRITABLE = [
-        'title', 'description', 'type', 'starts_at', 'ends_at', 'all_day', 'location', 'release_id',
+        'title', 'description', 'type', 'visibility', 'starts_at', 'ends_at', 'all_day', 'location', 'release_id',
     ];
+
+    /** Calendar filter: everything the viewer may see, only their own, or only shared ones. */
+    public const SHOW = ['all' => 'All', 'mine' => 'Mine', 'shared' => 'Shared'];
 
     /**
      * Events overlapping a window, with their relations loaded.
      *
-     * @param  array{release_id?: ?int, type?: ?string}  $filters
+     * Limited to what `$viewer` may see when given (others' private events
+     * are hidden; developers and QA only see their teams' events; see
+     * Event::scopeVisibleTo).
+     *
+     * @param  array{release_id?: ?int, type?: ?string, show?: ?string}  $filters  show: one of SHOW
      * @return Collection<int, Event>
      */
-    public function inWindow(Carbon $from, Carbon $to, array $filters = []): Collection
+    public function inWindow(Carbon $from, Carbon $to, array $filters = [], ?User $viewer = null): Collection
     {
         return Event::query()
+            ->when($viewer, fn ($q) => $q->visibleTo($viewer))
             ->with(['release', 'creator'])
             ->whereDate('starts_at', '<=', $to->toDateString())
             ->where(fn ($q) => $q
@@ -43,6 +51,8 @@ class EventService
                     ->whereDate('starts_at', '>=', $from->toDateString())))
             ->when($filters['release_id'] ?? null, fn ($q, $id) => $q->where('release_id', $id))
             ->when($filters['type'] ?? null, fn ($q, $type) => $q->where('type', $type))
+            ->when(($filters['show'] ?? null) === 'mine' && $viewer, fn ($q) => $q->where('created_by', $viewer->id))
+            ->when(($filters['show'] ?? null) === 'shared', fn ($q) => $q->where('visibility', Event::VISIBILITY_SHARED))
             ->orderBy('starts_at')
             ->get();
     }

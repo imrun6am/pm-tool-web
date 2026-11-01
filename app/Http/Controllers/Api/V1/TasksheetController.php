@@ -8,11 +8,9 @@ use App\Http\Resources\V1\TeamSummaryResource;
 use App\Http\Resources\V1\UserSummaryResource;
 use App\Models\User;
 use App\Services\TasksheetService;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
-use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
 
 /**
@@ -141,36 +139,19 @@ class TasksheetController extends ApiController
     }
 
     /**
-     * The tasksheet as a PDF — a day, a range, or one member. Team-wide is
-     * lead-only; a member may export only their own rows. `feedback` is
-     * included or withheld by the shared service, keyed on the requester.
+     * Retired. This rendered the whole PDF inside the request, which a wide
+     * range could not survive; exports are now queued (TasksheetExportController).
+     * Answering 410 rather than queueing one keeps a GET free of side effects,
+     * so a retried or prefetched request cannot start real work.
      */
-    public function report(Request $request): Response
+    public function report(): JsonResponse
     {
-        $request->validate([
-            'team' => ['nullable', 'integer', 'exists:teams,id'],
-            'member' => ['nullable', 'integer', 'exists:users,id'],
-            'date' => ['nullable', 'date'],
-            'from' => ['nullable', 'date'],
-            'to' => ['nullable', 'date'],
-        ]);
+        $successor = route('api-v1.tasksheet.exports.store');
 
-        $viewer = $request->user();
-        $memberId = $this->filterId($request, 'member');
-
-        abort_unless($viewer->isLead() || $memberId === $viewer->id, 403);
-
-        [$from, $to] = $this->tasksheet->reportRange($request->only(['date', 'from', 'to']));
-
-        $data = $this->tasksheet->reportData(
-            $this->filterId($request, 'team'), $memberId, $from, $to,
-            $this->tasksheet->parseFilters($request->only(['attendance', 'fill', 'leave'])),
-            $viewer,
-        );
-
-        return Pdf::loadView('tasksheet.report', $data)
-            ->setPaper('a4', 'landscape')
-            ->download($this->tasksheet->reportFilename($data));
+        return response()->json([
+            'message' => 'This endpoint has been retired. Create a background export with POST /api/v1/tasksheet/exports, poll it, then download the PDF.',
+            'successor' => ['method' => 'POST', 'url' => $successor],
+        ], 410)->header('Link', '<'.$successor.'>; rel="successor-version"');
     }
 
     /** Save one member's row for one date. */

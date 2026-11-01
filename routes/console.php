@@ -11,3 +11,9 @@ Artisan::command('inspire', function () {
 
 // Expired tasksheet exports and their files (TasksheetExport::prunable()).
 Schedule::command('model:prune', ['--model' => [TasksheetExport::class]])->daily();
+
+// Inbox reminders: tasks due tomorrow, and on their first day overdue.
+Schedule::command('notifications:due-reminders')->dailyAt('08:00');
+
+// Claude standup digests for the previous weekday, ready before standup.
+Schedule::command('ai:standup-digests')->weekdays()->at('08:30');

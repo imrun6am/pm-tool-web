@@ -89,8 +89,13 @@ class Note extends Model
      */
     public function isVisibleTo(User $user): bool
     {
-        if ($this->user_id === $user->id || $this->isShared()) {
+        if ($this->user_id === $user->id) {
             return true;
+        }
+        if ($this->isShared()) {
+            // Developers and QA see shared notes only from their teammates.
+            return ! $user->hasLimitedAccess()
+                || User::whereKey($this->user_id)->teammatesOf($user)->exists();
         }
         if ($this->isSpecific()) {
             return $this->relationLoaded('recipients')
@@ -102,14 +107,18 @@ class Note extends Model
     }
 
     /**
-     * Notes the given user may see: everyone's shared notes, their own, and
-     * "specific" notes shared with them. Other users' private (and specific
-     * notes they were not shared with) are never included.
+     * Notes the given user may see: everyone's shared notes (only teammates'
+     * for developers and QA), their own, and "specific" notes shared with
+     * them. Other users' private (and specific notes they were not shared
+     * with) are never included.
      */
     public function scopeVisibleTo(Builder $query, User $user): Builder
     {
         return $query->where(function (Builder $q) use ($user) {
-            $q->where('visibility', self::VISIBILITY_SHARED)
+            $q->where(fn (Builder $shared) => $shared
+                ->where('visibility', self::VISIBILITY_SHARED)
+                ->when($user->hasLimitedAccess(), fn (Builder $s) => $s
+                    ->whereIn('user_id', User::query()->teammatesOf($user)->select('users.id'))))
                 ->orWhere('user_id', $user->id)
                 ->orWhere(fn (Builder $q) => $q
                     ->where('visibility', self::VISIBILITY_SPECIFIC)

@@ -71,6 +71,9 @@
                         <a href="{{ route('tasksheet.index', ['team' => $team->id]) }}" class="btn-ghost btn-sm">Today</a>
                     </div>
                 </x-filter-bar>
+
+                {{-- Claude: standup digest for this team and day (leads) --}}
+                @include('ai.panels.standup-digest', ['team' => $team, 'day' => $day])
             @endif
 
             @if (! $team)

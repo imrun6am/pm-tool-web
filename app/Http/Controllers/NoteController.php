@@ -38,7 +38,8 @@ class NoteController extends Controller
             'today' => now()->toDateString(),
             // Two different lists on purpose: `users` is the recipient picker's
             // (everyone but you), `authors` is who you could filter by.
-            'users' => User::active()->where('id', '!=', $user->id)->orderBy('name')->get(),
+            // Developers and QA share only with their teammates.
+            'users' => User::active()->visibleTo($user)->where('id', '!=', $user->id)->orderBy('name')->get(),
             'authors' => $this->notes->authorsVisibleTo($user),
         ]);
     }

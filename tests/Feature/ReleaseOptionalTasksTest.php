@@ -78,6 +78,7 @@ class ReleaseOptionalTasksTest extends TestCase
     public function test_api_creates_tasks_without_a_release(): void
     {
         $user = User::factory()->create(['role' => User::ROLE_QA]);
+        $this->team->members()->attach($user); // QA may link only their own team's releases
         Sanctum::actingAs($user);
 
         $this->postJson('/api/v1/tasks', ['title' => 'Standalone', 'status' => 'in_progress', 'phase' => 'qa'])
@@ -278,19 +279,22 @@ class ReleaseOptionalTasksTest extends TestCase
 
     // ── Access ─────────────────────────────────────────────────────────────
 
-    public function test_limited_roles_can_see_and_work_on_unlinked_tasks(): void
+    public function test_team_members_and_viewers_see_an_unlinked_team_task(): void
     {
-        $task = $this->task(null, ['title' => 'Open to everyone']);
+        $task = $this->task(null, ['title' => 'Open to the team', 'team_id' => $this->team->id]);
 
         foreach ([User::ROLE_DEVELOPER, User::ROLE_QA, User::ROLE_VIEWER] as $role) {
             $user = User::factory()->create(['role' => $role]);
+            if ($user->hasLimitedAccess()) {
+                $this->team->members()->attach($user);
+            }
 
             $this->actingAs($user)->get(route('tasks.show', $task))
                 ->assertOk()
-                ->assertSee('Open to everyone')
+                ->assertSee('Open to the team')
                 ->assertSee(route('board.index'), false); // breadcrumb falls back to the board
 
-            $this->actingAs($user)->get(route('board.index'))->assertOk()->assertSee('Open to everyone');
+            $this->actingAs($user)->get(route('board.index'))->assertOk()->assertSee('Open to the team');
 
             Sanctum::actingAs($user);
             $this->getJson("/api/v1/tasks/{$task->id}")->assertOk()->assertJsonPath('data.release', null);

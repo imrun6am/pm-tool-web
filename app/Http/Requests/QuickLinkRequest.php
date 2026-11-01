@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Models\QuickLink;
+use App\Rules\VisibleRelease;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
@@ -21,7 +22,8 @@ class QuickLinkRequest extends FormRequest
             // http/https only — blocks javascript: and friends.
             'url' => ['required', 'string', 'url:http,https', 'max:2048'],
             'visibility' => ['nullable', Rule::in(array_keys(QuickLink::VISIBILITIES))],
-            'release_id' => ['nullable', 'integer', 'exists:releases,id'],
+            'release_id' => ['nullable', 'integer', 'exists:releases,id',
+                new VisibleRelease($this->user(), $this->route('quickLink')?->release_id)],
         ];
     }
 
