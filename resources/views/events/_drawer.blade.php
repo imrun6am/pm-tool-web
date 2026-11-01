@@ -31,9 +31,13 @@
         history.replaceState(history.state, '', url);
      }"
      @open-event-drawer.window="show($event.detail)"
-     @keydown.escape.window="open = false"
-     class="relative z-50">
+     @keydown.escape.window="open = false">
 
+    {{-- Rendered at <body>: the page content is its own stacking context
+         (view-transition-name), so a z-index inside it can't rise above the
+         app header. Teleported content keeps this component's scope and refs. --}}
+    <template x-teleport="body">
+    <div class="relative z-[55]">
     {{-- Backdrop --}}
     <div x-show="open" x-transition.opacity style="display: none;"
          class="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px]" @click="open = false" aria-hidden="true"></div>
@@ -76,4 +80,6 @@
             </div>
         </form>
     </aside>
+    </div>
+    </template>
 </div>
