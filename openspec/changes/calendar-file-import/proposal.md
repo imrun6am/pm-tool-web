@@ -39,3 +39,14 @@ Release plans, agendas, meeting invites and schedules already exist as files. Re
 - **Frontend:** `calendar/imports/index` and `calendar/imports/show`, plus an "Import" button in the calendar header.
 - **External:** one or more Claude calls per non-`.ics` import. The document is sent to Anthropic, and PDFs and images are uploaded to the Files API and deleted after use.
 - **Ops:** the job's timeout is 900 s, so `DB_QUEUE_RETRY_AFTER` must stay above it (it is already 960 for KPI reports). Restart the worker after deploying.
+
+## Addendum: paste text (2026-11-01)
+
+The user asked: "in calender, there should be an option to paste texts to extract dates events along with file upload".
+
+- The import page has two tabs: **Upload a file** and **Paste text**. A paste accepts plain text, email bodies, chat messages and rich text, up to 100,000 characters, with a live count. HTML is converted to text on the server.
+- A paste goes through the same pipeline:
+  - The text is stored as a `.txt` file on the private disk, or as `.ics` when it is iCalendar data, so it takes the deterministic parser path.
+  - It creates the same `EventImport`, queued job, review, history, retry, delete and permissions as an upload.
+- In the history list, a paste shows as "Pasted text" with a short preview.
+- No API changes: the import has no API endpoints yet.

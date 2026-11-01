@@ -26,6 +26,10 @@ class EventImport extends Model
 
     public const STATUS_FAILED = 'failed';
 
+    public const INPUT_FILE = 'file';
+
+    public const INPUT_PASTE = 'paste';
+
     public const SOURCE_ICS = 'ics';
 
     public const SOURCE_CLAUDE = 'claude';
@@ -40,7 +44,7 @@ class EventImport extends Model
     ];
 
     protected $fillable = [
-        'user_id', 'original_name', 'file_path', 'extension', 'mime_type', 'size', 'timezone', 'status', 'source',
+        'user_id', 'input', 'original_name', 'preview', 'file_path', 'extension', 'mime_type', 'size', 'timezone', 'status', 'source',
         'chunks_total', 'chunks_done', 'proposals', 'events_created', 'input_tokens', 'output_tokens', 'error',
         'processed_at', 'confirmed_at',
     ];
@@ -119,8 +123,23 @@ class EventImport extends Model
         return $this->chunks_total > 0 ? (int) floor($this->chunks_done / $this->chunks_total * 100) : 0;
     }
 
+    public function isPasted(): bool
+    {
+        return $this->input === self::INPUT_PASTE;
+    }
+
+    /** The file name, or "Pasted text" for a paste. */
+    public function displayName(): string
+    {
+        return $this->isPasted() ? 'Pasted text' : $this->original_name;
+    }
+
     public function sizeLabel(): string
     {
+        if ($this->isPasted()) {
+            return number_format($this->size).' '.($this->size === 1 ? 'character' : 'characters');
+        }
+
         return $this->size >= 1048576
             ? number_format($this->size / 1048576, 1).' MB'
             : max(1, (int) round($this->size / 1024)).' KB';

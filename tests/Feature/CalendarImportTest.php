@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Http\Requests\EventImportTextRequest;
 use App\Jobs\ExtractCalendarEvents;
 use App\Models\Event;
 use App\Models\EventImport;
@@ -516,5 +517,109 @@ class CalendarImportTest extends TestCase
 
         $this->actingAs($user)->get(route('calendar.index'))->assertOk()->assertSee(route('calendar.imports.index'));
         $this->actingAs($user)->get(route('calendar.imports.index'))->assertOk()->assertSee('No imports yet');
+    }
+
+    public function test_pasted_text_creates_an_import_and_queues_the_job(): void
+    {
+        Queue::fake();
+        $user = User::factory()->create(['role' => User::ROLE_DEVELOPER]);
+        $text = "Hi team,\n\nKick-off is on Monday 9 Nov at 10:00 in Room 4.\nCode freeze: 20 Nov.";
+
+        $response = $this->actingAs($user)->post(route('calendar.imports.text'), ['text' => $text, 'timezone' => 'Asia/Dhaka']);
+
+        $import = EventImport::sole();
+        $response->assertRedirect(route('calendar.imports.show', $import));
+        $this->assertTrue($import->isPasted());
+        $this->assertSame('txt', $import->extension);
+        $this->assertSame('Asia/Dhaka', $import->timezone);
+        $this->assertSame(EventImport::STATUS_PENDING, $import->status);
+        $this->assertSame('Hi team, Kick-off is on Monday 9 Nov at 10:00 in Room 4. Code freeze: 20 Nov.', $import->preview);
+        $this->assertSame($text, Storage::disk('local')->get($import->file_path));
+        Queue::assertPushed(ExtractCalendarEvents::class, fn ($job) => $job->importId === $import->id);
+        $this->assertSame(0, Event::count());
+
+        $this->actingAs($user)->get(route('calendar.imports.index'))
+            ->assertOk()->assertSee('Pasted text')->assertSee('Kick-off is on Monday 9 Nov');
+        $this->actingAs($user)->get(route('calendar.imports.show', $import))
+            ->assertOk()->assertSee('Show pasted text')->assertSee('Code freeze: 20 Nov.');
+    }
+
+    public function test_an_empty_or_oversized_paste_is_rejected(): void
+    {
+        Queue::fake();
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->post(route('calendar.imports.text'), ['text' => '   '])->assertSessionHasErrors('text');
+        $this->actingAs($user)->post(route('calendar.imports.text'), ['text' => '<div><br></div>'])->assertSessionHasErrors('text');
+        $this->actingAs($user)->post(route('calendar.imports.text'), [
+            'text' => str_repeat('a', EventImportTextRequest::MAX_CHARS + 1),
+        ])->assertSessionHasErrors('text');
+
+        $this->assertSame(0, EventImport::count());
+        Queue::assertNothingPushed();
+    }
+
+    public function test_pasted_html_is_read_as_text_by_the_extractor(): void
+    {
+        $user = User::factory()->create();
+        $this->result = [$this->event(['title' => 'Kick-off'])];
+
+        $this->actingAs($user)->post(route('calendar.imports.text'), [
+            'text' => '<html><head><style>p{color:red}</style></head><body><p>Kick-off&nbsp;<b>Mon 9 Nov</b></p>'
+                .'<table><tr><td>Code freeze</td><td>20 Nov</td></tr></table></body></html>',
+        ])->assertRedirect();
+
+        $import = EventImport::sole();
+        $this->assertSame("Kick-off\u{a0}Mon 9 Nov\nCode freeze | 20 Nov", Storage::disk('local')->get($import->file_path));
+
+        ExtractCalendarEvents::dispatchSync($import->id);
+
+        $this->assertSame('text', $this->calls[0]['source']['kind']);
+        $this->assertStringNotContainsString('<', $this->calls[0]['source']['text']);
+        $this->assertSame('Pasted text', $import->fresh()->displayName());
+        $this->assertSame(EventImport::STATUS_NEEDS_REVIEW, $import->fresh()->status);
+    }
+
+    public function test_pasted_ics_uses_the_parser_without_claude(): void
+    {
+        $user = User::factory()->create();
+        $this->result = new RuntimeException('Claude must not be called for pasted .ics data');
+
+        $this->actingAs($user)->post(route('calendar.imports.text'), ['text' => "  BEGIN:VCALENDAR\nBEGIN:VEVENT\nSUMMARY:Design review\\, v2\n"
+            ."DTSTART:20261112T080000Z\nDTEND:20261112T090000Z\nEND:VEVENT\nEND:VCALENDAR\n"])->assertRedirect();
+
+        $import = EventImport::sole();
+        $this->assertSame('ics', $import->extension);
+        $this->assertSame('Calendar: Design review, v2', $import->preview);
+
+        ExtractCalendarEvents::dispatchSync($import->id);
+
+        $import->refresh();
+        $this->assertSame([], $this->calls);
+        $this->assertSame(EventImport::SOURCE_ICS, $import->source);
+        $this->assertSame(['Design review, v2'], collect($import->proposals)->pluck('title')->all());
+    }
+
+    public function test_a_pasted_import_is_private_to_its_author_and_deletes_cleanly(): void
+    {
+        Queue::fake();
+        $owner = User::factory()->create();
+        $other = User::factory()->create(['role' => User::ROLE_TECH_LEAD]);
+
+        $this->actingAs($owner)->post(route('calendar.imports.text'), ['text' => 'Secret offsite on 3 Dec'])->assertRedirect();
+        $import = EventImport::sole();
+
+        $this->actingAs($other)->get(route('calendar.imports.show', $import))->assertForbidden();
+        $this->actingAs($other)->get(route('calendar.imports.index'))->assertOk()->assertDontSee('Secret offsite');
+        $this->actingAs($other)->delete(route('calendar.imports.destroy', $import))->assertForbidden();
+
+        // A failed paste can be retried, and deleting removes the stored text.
+        $import->update(['status' => EventImport::STATUS_FAILED, 'error' => 'Overloaded']);
+        $this->actingAs($owner)->post(route('calendar.imports.retry', $import))->assertRedirect();
+        $this->assertSame(EventImport::STATUS_PENDING, $import->fresh()->status);
+
+        $this->actingAs($owner)->delete(route('calendar.imports.destroy', $import))->assertRedirect(route('calendar.imports.index'));
+        $this->assertSame(0, EventImport::count());
+        Storage::disk('local')->assertMissing($import->file_path);
     }
 }

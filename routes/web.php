@@ -169,6 +169,8 @@ Route::middleware('auth')->group(function () {
     Route::get('calendar/imports', [EventImportController::class, 'index'])->name('calendar.imports.index');
     Route::post('calendar/imports', [EventImportController::class, 'store'])
         ->middleware('throttle:calendar-import')->name('calendar.imports.store');
+    Route::post('calendar/imports/text', [EventImportController::class, 'storeText'])
+        ->middleware('throttle:calendar-import')->name('calendar.imports.text');
     Route::get('calendar/imports/{import}', [EventImportController::class, 'show'])->name('calendar.imports.show');
     Route::get('calendar/imports/{import}/status', [EventImportController::class, 'status'])->name('calendar.imports.status');
     Route::post('calendar/imports/{import}/confirm', [EventImportController::class, 'confirm'])->name('calendar.imports.confirm');

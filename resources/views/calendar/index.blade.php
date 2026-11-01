@@ -10,9 +10,9 @@
                        class="btn-secondary btn-sm btn-icon" title="Next month" aria-label="Next month">›</a>
                     <a href="{{ route('calendar.index', ['show' => $show !== 'all' ? $show : null]) }}" class="btn-ghost btn-sm">Today</a>
                 </div>
-                <a href="{{ route('calendar.imports.index') }}" class="btn-secondary btn-sm" title="Create events from a file">
+                <a href="{{ route('calendar.imports.index') }}" class="btn-secondary btn-sm" title="Create events from a file or pasted text">
                     <x-icon name="sparkles" variant="outline" class="h-4 w-4" />
-                    <span class="max-sm:sr-only">Import from file</span>
+                    <span class="max-sm:sr-only">Import events</span>
                 </a>
                 <a href="{{ route('events.create') }}" @click.prevent="$dispatch('open-event-drawer')" class="btn-primary btn-sm">
                     <x-icon name="plus" variant="outline" class="h-4 w-4" />

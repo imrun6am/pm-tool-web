@@ -58,3 +58,14 @@ Only the uploader and admins SHALL see or delete an import. Only the uploader SH
 #### Scenario: Another user
 - **WHEN** a different non-admin user opens or confirms someone's import
 - **THEN** they receive 403
+
+### Requirement: Paste text to import events
+The import page SHALL offer pasting text as an alternative to uploading a file. The pasted text SHALL be 1 to 100,000 characters after HTML is converted to plain text. It SHALL create an import that goes through the same queued extraction, review, history, retry, delete and permission rules as a file. Pasted iCalendar data SHALL be parsed without Claude. The history SHALL show a paste as "Pasted text" with a short preview.
+
+#### Scenario: Paste an email
+- **WHEN** a user pastes an email body that mentions two meetings and submits
+- **THEN** an import is created and queued, and the history shows "Pasted text" with the email's opening words
+
+#### Scenario: Empty or oversized paste
+- **WHEN** the pasted text is empty, or longer than 100,000 characters
+- **THEN** validation fails and no import is created

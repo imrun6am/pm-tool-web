@@ -77,6 +77,78 @@ class EventImportService
         return $import;
     }
 
+    /**
+     * Import pasted text (an email, chat message, agenda, or iCalendar data).
+     * It is written to the private disk like an upload, so the queued job,
+     * chunking, ICS parser, retry and delete treat it exactly like a file.
+     */
+    public function startFromText(User $user, string $pasted, ?string $timezone): EventImport
+    {
+        $isIcs = self::isIcs($pasted);
+        $text = $isIcs ? str_replace(["\r\n", "\r"], "\n", trim($pasted)) : self::pastedText($pasted);
+        $extension = $isIcs ? 'ics' : 'txt';
+
+        $path = "event-imports/{$user->id}/".Str::uuid().'.'.$extension;
+        Storage::disk('local')->put($path, $text);
+
+        $import = EventImport::create([
+            'user_id' => $user->id,
+            'input' => EventImport::INPUT_PASTE,
+            'original_name' => $isIcs ? 'pasted-calendar.ics' : 'pasted-text.txt',
+            'preview' => self::preview($text, $isIcs),
+            'file_path' => $path,
+            'extension' => $extension,
+            'mime_type' => $isIcs ? 'text/calendar' : 'text/plain',
+            'size' => mb_strlen($text),
+            'timezone' => $timezone ?: config('app.timezone'),
+            'status' => EventImport::STATUS_PENDING,
+        ]);
+
+        ExtractCalendarEvents::dispatch($import->id);
+
+        return $import;
+    }
+
+    public static function isIcs(string $text): bool
+    {
+        return (bool) preg_match('/^\s*BEGIN:VCALENDAR\b/i', $text);
+    }
+
+    /**
+     * Pasted content as plain text. A paste of HTML (an email's source, rich
+     * text that arrived with its markup) keeps its line structure; table
+     * cells become " | " so a schedule table still reads row by row.
+     */
+    public static function pastedText(string $pasted): string
+    {
+        $text = str_replace(["\r\n", "\r"], "\n", $pasted);
+
+        if (preg_match('#<(html|body|div|p|br|span|table|tr|td|li|ul|ol|h[1-6]|a|b|strong|font)\b[^>]*>#i', $text)) {
+            $text = preg_replace('#<(script|style|head)\b[^>]*>.*?</\1>#is', '', $text);
+            $text = preg_replace('#</t[dh]>#i', ' | ', $text);
+            $text = preg_replace('#<br\s*/?>|</(div|p|li|tr|h[1-6]|blockquote|pre|table)>#i', "\n", $text);
+            $text = preg_replace('#<li[^>]*>#i', '- ', $text);
+            $text = html_entity_decode(strip_tags($text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            $text = preg_replace('/[ \t]*\|[ \t]*\n/', "\n", $text);
+        }
+
+        return trim(preg_replace(["/[ \t]+\n/", "/\n{3,}/"], ["\n", "\n\n"], $text));
+    }
+
+    /** One line for the history list: the opening words, or the event titles of pasted iCalendar data. */
+    private static function preview(string $text, bool $isIcs): string
+    {
+        if ($isIcs) {
+            preg_match_all('/^SUMMARY[^:]*:(.+)$/mi', $text, $m);
+            $titles = array_map(fn ($t) => trim(str_replace(['\\,', '\\;'], [',', ';'], $t)), $m[1]);
+            $line = $titles === [] ? 'Calendar data' : 'Calendar: '.implode(', ', $titles);
+        } else {
+            $line = preg_replace('/\s+/', ' ', $text);
+        }
+
+        return mb_strimwidth(trim($line), 0, 160, '…');
+    }
+
     /** Re-queue a failed import; finished chunks are kept, so it resumes. */
     public function retry(EventImport $import): void
     {

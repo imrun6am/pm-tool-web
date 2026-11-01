@@ -14,13 +14,13 @@
 @endphp
 <x-app-layout>
     <x-slot name="header">
-        <x-page-header :title="$import->original_name"
-                       :description="'Uploaded '.$import->created_at->diffForHumans().' · '.$import->sizeLabel().($import->user_id !== auth()->id() ? ' · by '.($import->user?->name ?? 'deleted user') : '')"
-                       :breadcrumbs="['Calendar' => route('calendar.index'), 'Import from file' => route('calendar.imports.index'), $import->original_name => null]">
+        <x-page-header :title="$import->displayName()"
+                       :description="($import->isPasted() ? 'Pasted ' : 'Uploaded ').$import->created_at->diffForHumans().' · '.$import->sizeLabel().($import->user_id !== auth()->id() ? ' · by '.($import->user?->name ?? 'deleted user') : '')"
+                       :breadcrumbs="['Calendar' => route('calendar.index'), 'Import events' => route('calendar.imports.index'), $import->displayName() => null]">
             <x-slot name="actions">
                 <span class="badge {{ $import->statusBadge() }}">{{ $import->statusLabel() }}</span>
                 <form method="POST" action="{{ route('calendar.imports.destroy', $import) }}"
-                      data-confirm="Delete this import and its uploaded file? Events already added stay on the calendar." data-confirm-verb="Delete">
+                      data-confirm="Delete this import and its {{ $import->isPasted() ? 'pasted text' : 'uploaded file' }}? Events already added stay on the calendar." data-confirm-verb="Delete">
                     @csrf @method('DELETE')
                     <button class="btn-ghost btn-sm text-rose-600 hover:bg-rose-50">
                         <x-icon name="trash" class="h-4 w-4" /> Delete
@@ -33,6 +33,19 @@
     <div class="py-6 sm:py-8">
         {{-- Swapped in place when the job finishes (the status card below polls
              progress and asks for the refresh) — the page never reloads. --}}
+        @if ($pastedText !== null)
+            {{-- Outside the poll region, so it stays open while the status updates. --}}
+            <div class="app-container mb-4">
+                <details class="card group">
+                    <summary class="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-medium text-slate-700 hover:text-slate-900">
+                        <x-icon name="clipboard-check" variant="outline" class="h-4 w-4 flex-none text-slate-400" />
+                        <span class="flex-none">Show pasted text</span>
+                        <span class="min-w-0 truncate font-normal text-slate-400 group-open:hidden">— {{ $import->preview }}</span>
+                    </summary>
+                    <pre class="max-h-80 overflow-auto whitespace-pre-wrap border-t border-slate-100 px-4 py-3 font-mono text-xs leading-relaxed text-slate-700">{{ $pastedText }}</pre>
+                </details>
+            </div>
+        @endif
         <x-poll-region id="calendar-import-{{ $import->id }}" class="app-container space-y-4"
                        :running="$import->isRunning()" every="20000">
 
@@ -101,7 +114,7 @@
             @elseif ($rows === [])
                 <div class="card">
                     <x-empty-state icon="calendar" title="No events found"
-                                   description="Nothing in this file had a date that could be turned into an event. Try a clearer copy, or another file.">
+                                   description="{{ $import->isPasted() ? 'Nothing in the pasted text had a date that could be turned into an event. Check it mentions dates, or paste more of it.' : 'Nothing in this file had a date that could be turned into an event. Try a clearer copy, or another file.' }}">
                         <a href="{{ route('calendar.imports.index') }}" class="btn-primary btn-sm">Upload another file</a>
                     </x-empty-state>
                 </div>
@@ -125,7 +138,7 @@
                             <h2 class="text-sm font-semibold text-slate-900">
                                 {{ count($rows) }} {{ Str::plural('event', count($rows)) }} found
                                 <span class="font-normal text-slate-500">
-                                    · {{ $import->source === EventImport::SOURCE_ICS ? 'read directly from the calendar file' : 'found by Claude — check dates and times' }}
+                                    · {{ $import->source === EventImport::SOURCE_ICS ? 'read directly from the calendar '.($import->isPasted() ? 'data' : 'file') : 'found by Claude — check dates and times' }}
                                 </span>
                             </h2>
                             @if ($added->isNotEmpty())

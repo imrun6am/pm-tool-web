@@ -36,3 +36,9 @@ The results are stored with the proposal (`attendee_ids`, `unmatched_attendees`,
 
 - A PDF over Claude's page limit fails with the API's 400 message, recorded on the import.
 - Large text files make several paid calls. Uploads are rate-limited per user (10 per hour).
+
+**Pasted text is stored as a file.** It is not kept in a text column. Storing it as a file means the job, chunking, ICS routing, retry and delete (file clean-up) need no new branch: a paste is just a `.txt` or `.ics` upload that the server wrote. Two small columns serve the history list without reading files:
+- `input`: `file` or `paste`;
+- `preview`: about 160 characters, or the event titles for pasted iCalendar data.
+
+The 100k-character cap keeps a paste to at most three chunks.

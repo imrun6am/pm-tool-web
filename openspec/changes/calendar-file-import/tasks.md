@@ -18,3 +18,10 @@
 
 - [x] 3.1 Feature tests with a fake extractor (upload queues the job, the job stores proposals, chunking, confirm, policy, failure and missing key, ICS without Claude)
 - [x] 3.2 `php artisan test` and `vendor/bin/pint --test` pass
+
+## 4. Paste text (addendum)
+
+- [x] 4.1 `input` + `preview` columns; `EventImportService::startFromText` (HTML → text, ICS detection, store as file)
+- [x] 4.2 `EventImportTextRequest` (1–100k chars) + `POST calendar/imports/text`
+- [x] 4.3 Upload / Paste tabs with live count; history and import page show "Pasted text" + preview
+- [x] 4.4 Tests (queues job, empty/over-limit rejected, HTML stripped, pasted ICS uses parser, privacy, delete cleans up)

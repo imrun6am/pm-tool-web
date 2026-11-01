@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\ConfirmEventImportRequest;
 use App\Http\Requests\EventImportRequest;
+use App\Http\Requests\EventImportTextRequest;
 use App\Models\EventImport;
 use App\Models\Release;
 use App\Models\User;
@@ -11,12 +12,13 @@ use App\Services\Calendar\EventImportService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 /**
- * Calendar "Import from file". Upload queues the extraction and returns at
- * once; the import page polls until the proposals are ready, then the
+ * Calendar "Import events" from a file or pasted text. Either queues the
+ * extraction and returns at once; the import page polls until the proposals are ready, then the
  * uploader reviews and confirms them into events.
  */
 class EventImportController extends Controller
@@ -39,6 +41,14 @@ class EventImportController extends Controller
             ->with('success', 'File uploaded. It is being read in the background.');
     }
 
+    public function storeText(EventImportTextRequest $request): RedirectResponse
+    {
+        $import = $this->imports->startFromText($request->user(), $request->validated('text'), $request->validated('timezone'));
+
+        return redirect()->route('calendar.imports.show', $import)
+            ->with('success', 'Text received. It is being read in the background.');
+    }
+
     public function show(EventImport $import): View
     {
         $this->authorize('view', $import);
@@ -49,6 +59,7 @@ class EventImportController extends Controller
             'users' => User::active()->visibleTo(request()->user())->orderBy('name')->get(['id', 'name', 'email']),
             'releases' => Release::visibleTo(request()->user())->orderByDesc('year')->orderBy('name')->get(['id', 'name', 'year']),
             'canConfirm' => request()->user()->can('confirm', $import),
+            'pastedText' => $import->isPasted() ? Storage::disk('local')->get($import->file_path) : null,
         ]);
     }
 
