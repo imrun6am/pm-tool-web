@@ -4,6 +4,7 @@ import 'trix';
 import './tasksheet-exports';
 import './engagement';
 import './searchable-select';
+import './poll-region';
 import './ai';
 
 window.Alpine = Alpine;

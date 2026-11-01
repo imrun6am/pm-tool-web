@@ -100,10 +100,10 @@
                 </div>
             </div>
 
-            {{-- History --}}
+            {{-- History: updates in place while an import runs (no page reload) --}}
             @php $running = $imports->contains(fn ($i) => $i->isRunning()); @endphp
-            <div class="card overflow-x-auto"
-                 @if ($running) x-data="{ timer: null, init() { this.timer = setTimeout(() => window.location.reload(), 5000) }, destroy() { clearTimeout(this.timer) } }" @endif>
+            <x-poll-region id="calendar-imports" class="card overflow-x-auto" :running="$running" every="3000"
+                           done-message="Import finished — review the events Claude found.">
                 <div class="card-header">
                     <h2 class="card-title">Your imports</h2>
                 </div>
@@ -176,7 +176,7 @@
                         </tbody>
                     </table>
                 @endif
-            </div>
+            </x-poll-region>
             <p class="text-xs text-slate-400">
                 Files are read by Claude and may contain mistakes; check each event before confirming.
                 The queue worker must be running (<code class="font-mono">php artisan queue:work</code>).

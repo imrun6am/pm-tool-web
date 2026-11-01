@@ -31,7 +31,10 @@
     </x-slot>
 
     <div class="py-6 sm:py-8">
-        <div class="app-container space-y-4">
+        {{-- Swapped in place when the job finishes (the status card below polls
+             progress and asks for the refresh) — the page never reloads. --}}
+        <x-poll-region id="calendar-import-{{ $import->id }}" class="app-container space-y-4"
+                       :running="$import->isRunning()" every="20000">
 
             @if ($import->isRunning())
                 {{-- Live status while the job runs --}}
@@ -52,7 +55,7 @@
                                  Object.assign(this, { label: s.label, progress: s.progress, done: s.chunks_done, total: s.chunks_total });
                                  if (! s.running) {
                                      clearInterval(this.timer);
-                                     window.Turbo ? window.Turbo.visit(window.location.href, { action: 'replace' }) : window.location.reload();
+                                     $dispatch('poll-region-now'); // swap in the review form, no reload
                                  }
                              } catch (e) {}
                          },
@@ -318,6 +321,6 @@
                     @endif
                 </form>
             @endif
-        </div>
+        </x-poll-region>
     </div>
 </x-app-layout>

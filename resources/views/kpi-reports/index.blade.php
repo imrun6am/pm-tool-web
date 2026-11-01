@@ -62,20 +62,23 @@
                             @endforeach
                         </select>
                     </x-field>
-                    <button type="submit" class="btn-primary" @disabled($running || $apiKeyMissing)>
-                        <x-icon name="document-text" variant="outline" class="h-4 w-4" />
-                        Generate
-                    </button>
+                    {{-- Refreshed in place by the history's poll region below --}}
+                    <span id="kpi-generate" class="contents">
+                        <button type="submit" class="btn-primary" @disabled($running || $apiKeyMissing)>
+                            <x-icon name="document-text" variant="outline" class="h-4 w-4" />
+                            Generate
+                        </button>
+                    </span>
                 </div>
                 <p class="mt-3 text-xs text-slate-500">
                     Developers and QA only; team leads are not scored. Full-day leave is excluded.
-                    @if ($running) A report is in progress — a new one can start when it finishes. @endif
+                    <span id="kpi-running-note">@if ($running) A report is in progress — a new one can start when it finishes. @endif</span>
                 </p>
             </form>
 
-            {{-- History --}}
-            <div class="card overflow-x-auto"
-                 @if ($running) x-data="{ timer: null, init() { this.timer = setTimeout(() => window.location.reload(), 15000) }, destroy() { clearTimeout(this.timer) } }" @endif>
+            {{-- History: updates in place while a report generates (no page reload) --}}
+            <x-poll-region id="kpi-history" class="card overflow-x-auto" :running="$running" every="5000"
+                           :also="['kpi-generate', 'kpi-running-note']" done-message="KPI report finished.">
                 @if ($reports->isEmpty())
                     <x-empty-state icon="document-text" title="No reports yet"
                                    description="Pick a period and a format above to generate the first KPI review." />
@@ -145,7 +148,7 @@
                         </tbody>
                     </table>
                 @endif
-            </div>
+            </x-poll-region>
             <p class="text-xs text-slate-400">
                 Columns marked “draft” are written by Claude and must be reviewed by the Team Lead before use.
                 The queue worker must be running (<code class="font-mono">php artisan queue:work</code>).
