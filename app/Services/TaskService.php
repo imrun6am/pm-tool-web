@@ -7,6 +7,7 @@ use App\Models\Task;
 use App\Models\User;
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Tasks and subtasks.
@@ -15,13 +16,19 @@ use Illuminate\Support\Collection;
  * the initial status, and nesting stops at one level — a subtask may not have
  * subtasks of its own. `created_by` is stamped only on creation, never on an
  * update, so an edit does not rewrite who filed the work.
+ *
+ * A release is optional. A top-level task may be linked, relinked or unlinked;
+ * a subtask always carries its parent's release (or none) and follows it.
  */
 class TaskService
 {
     /** The attributes a task write accepts from a request. */
-    private const WRITABLE = ['title', 'description', 'status', 'assignee_id', 'due_date', 'phase'];
+    private const WRITABLE = ['release_id', 'team_id', 'title', 'description', 'status', 'assignee_id', 'due_date', 'phase'];
 
     public const DEFAULT_STATUS = 'todo';
+
+    /** The `release_id` / `team_id` filter value that selects tasks with none set. */
+    public const NONE = 'none';
 
     /**
      * The cross-release task query.
@@ -32,10 +39,11 @@ class TaskService
     public function filtered(array $filters = []): Builder
     {
         return Task::query()
-            ->with(['release.project', 'assignee', 'creator'])
+            ->with(['release.project', 'team', 'assignee', 'creator'])
             ->withCount(['comments', 'subtasks'])
             ->unless($filters['include_subtasks'] ?? false, fn ($q) => $q->whereNull('parent_id'))
-            ->when($filters['release_id'] ?? null, fn ($q, $id) => $q->where('release_id', $id))
+            ->when($filters['release_id'] ?? null, fn ($q, $id) => self::whereIdOrNone($q, 'release_id', $id))
+            ->when($filters['team_id'] ?? null, fn ($q, $id) => self::whereIdOrNone($q, 'team_id', $id))
             ->when($filters['assignee_id'] ?? null, fn ($q, $id) => $q->where('assignee_id', $id))
             ->when($filters['parent_id'] ?? null, fn ($q, $id) => $q->where('parent_id', $id))
             ->when($filters['status'] ?? null, fn ($q, $status) => $q->where('status', $status))
@@ -68,15 +76,75 @@ class TaskService
     }
 
     /**
+     * Narrow a task query on `release_id` / `team_id` to one id, or to tasks
+     * with none set for NONE.
+     *
+     * @param  Builder<Task>  $query
+     * @return Builder<Task>
+     */
+    public static function whereIdOrNone(Builder $query, string $column, int|string $value): Builder
+    {
+        return $value === self::NONE
+            ? $query->whereNull($column)
+            : $query->where($column, (int) $value);
+    }
+
+    /**
+     * A top-level task, linked to `release_id` when one is given. Its team is
+     * resolved by teamFor().
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    public function create(array $attributes, User $author): Task
+    {
+        $releaseId = isset($attributes['release_id']) ? (int) $attributes['release_id'] : null;
+
+        return Task::create($this->attributes($attributes, [
+            'release_id' => $releaseId,
+            'team_id' => self::teamFor(
+                $releaseId,
+                isset($attributes['team_id']) ? (int) $attributes['team_id'] : null,
+                isset($attributes['assignee_id']) ? (int) $attributes['assignee_id'] : null,
+            ),
+            'parent_id' => null,
+            'position' => self::nextPosition($releaseId),
+            'created_by' => $author->id,
+        ]));
+    }
+
+    /**
+     * A top-level task pinned to the given release, whatever the request says.
+     *
      * @param  array<string, mixed>  $attributes
      */
     public function createForRelease(Release $release, array $attributes, User $author): Task
     {
-        return $release->tasks()->create($this->attributes($attributes, [
-            'parent_id' => null,
-            'position' => $release->rootTasks()->count(),
-            'created_by' => $author->id,
-        ]));
+        return $this->create(['release_id' => $release->id] + $attributes, $author);
+    }
+
+    /**
+     * A new task's team: its release's team when linked; otherwise the team
+     * asked for, else the assignee's team when they are on exactly one.
+     */
+    public static function teamFor(?int $releaseId, ?int $teamId = null, ?int $assigneeId = null): ?int
+    {
+        if ($releaseId) {
+            return Release::whereKey($releaseId)->value('team_id');
+        }
+
+        if ($teamId || ! $assigneeId) {
+            return $teamId;
+        }
+
+        $teams = User::find($assigneeId)?->teams()->pluck('teams.id') ?? collect();
+
+        return $teams->count() === 1 ? $teams->first() : null;
+    }
+
+    /** The next top-level position among the release's tasks (or the unlinked ones). */
+    public static function nextPosition(?int $releaseId): int
+    {
+        return Task::whereNull('parent_id')->where('release_id', $releaseId)->count();
     }
 
     /**
@@ -91,16 +159,40 @@ class TaskService
 
         return $parent->subtasks()->create($this->attributes($attributes, [
             'release_id' => $parent->release_id,
+            'team_id' => $parent->team_id,
             'parent_id' => $parent->id,
             'position' => $parent->subtasks()->count(),
             'created_by' => $author->id,
         ]));
     }
 
-    /** @param array<string, mixed> $attributes */
+    /**
+     * `release_id` and `team_id` are applied only when present, so a partial
+     * update leaves them alone. A linked task's team is always its release's;
+     * unlinking keeps the team it had. A subtask's release and team are its
+     * parent's and are never set here; a top-level task's subtasks follow it.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
     public function update(Task $task, array $attributes): Task
     {
-        $task->update($this->attributes($attributes));
+        if ($task->isSubtask()) {
+            unset($attributes['release_id'], $attributes['team_id']);
+        }
+
+        $releaseId = array_key_exists('release_id', $attributes) ? $attributes['release_id'] : $task->release_id;
+        if ($releaseId) {
+            $attributes['team_id'] = self::teamFor((int) $releaseId);
+        }
+
+        DB::transaction(function () use ($task, $attributes) {
+            $task->update($this->attributes($attributes));
+
+            if ($task->wasChanged(['release_id', 'team_id'])) {
+                $task->subtasks()->toBase()->update(['release_id' => $task->release_id, 'team_id' => $task->team_id]);
+                $task->unsetRelation('release')->unsetRelation('team');
+            }
+        });
 
         return $task;
     }
@@ -113,8 +205,9 @@ class TaskService
     }
 
     /**
-     * Assignable people for a task: the release team's active members plus any
-     * current assignee who has since left, so nothing renders blank.
+     * Assignable people for a task: the release team's active members (every
+     * active user when the task has no release) plus any current assignee who
+     * has since left, so nothing renders blank.
      *
      * @return Collection<int, User>
      */
@@ -124,7 +217,11 @@ class TaskService
             ->merge($task->subtasks->map->assignee)
             ->filter();
 
-        return $task->release->team->members()->active()->orderBy('name')->get()
+        $pool = $task->release
+            ? $task->release->team->members()->active()
+            : User::active();
+
+        return $pool->orderBy('name')->get()
             ->concat($current)
             ->unique('id')
             ->sortBy('name')

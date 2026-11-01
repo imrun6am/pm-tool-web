@@ -9,22 +9,15 @@ use Illuminate\Contracts\Validation\Validator;
 
 /**
  * Tasksheet "Add to board": the row's own fields plus the release the plan's
- * tasks go into. That release must belong to the row's team and still be open,
- * and there must be a plan to split.
+ * tasks go into, if any. A chosen release must belong to the row's team and
+ * still be open, and there must be a plan to split.
  */
 class TasksheetBoardRequest extends TasksheetEntryRequest
 {
     public function rules(): array
     {
         return parent::rules() + [
-            'board_release_id' => ['required', 'integer', 'exists:releases,id'],
-        ];
-    }
-
-    public function messages(): array
-    {
-        return [
-            'board_release_id.required' => 'Choose the release to add the tasks to.',
+            'board_release_id' => ['nullable', 'integer', 'exists:releases,id'],
         ];
     }
 
@@ -37,8 +30,8 @@ class TasksheetBoardRequest extends TasksheetEntryRequest
                 return;
             }
 
-            $release = Release::find($this->integer('board_release_id'));
-            if ((int) $release->team_id !== $this->integer('team_id') || $release->isComplete()) {
+            $release = $this->filled('board_release_id') ? Release::find($this->integer('board_release_id')) : null;
+            if ($release && ((int) $release->team_id !== $this->integer('team_id') || $release->isComplete())) {
                 $validator->errors()->add('board_release_id', 'Choose an open release of this team.');
             }
 

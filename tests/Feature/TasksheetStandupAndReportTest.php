@@ -3,10 +3,12 @@
 namespace Tests\Feature;
 
 use App\Models\TasksheetEntry;
+use App\Models\TasksheetExport;
 use App\Models\Team;
 use App\Models\User;
 use App\Services\TasksheetService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class TasksheetStandupAndReportTest extends TestCase
@@ -349,8 +351,14 @@ class TasksheetStandupAndReportTest extends TestCase
 
     // -------------------------------------------------------------- reports
 
+    /**
+     * Exports are queued now (TasksheetExportTest covers the queue itself);
+     * the test queue is sync, so each one is finished by the time the request
+     * returns and its file can be downloaded straight away.
+     */
     public function test_lead_downloads_a_pdf_for_a_day_a_range_and_a_member(): void
     {
+        Storage::fake('local');
         $team = $this->team();
         $lead = User::factory()->create(['role' => User::ROLE_ADMIN]);
         $dev = $this->member($team);
@@ -360,11 +368,16 @@ class TasksheetStandupAndReportTest extends TestCase
             ['team' => $team->id, 'date' => '2026-08-03'],
             ['team' => $team->id, 'from' => '2026-08-01', 'to' => '2026-08-31'],
             ['member' => $dev->id, 'from' => '2026-08-01', 'to' => '2026-08-31'],
-        ] as $query) {
-            $response = $this->actingAs($lead)->get(route('tasksheet.report', $query))->assertOk();
+        ] as $input) {
+            $this->actingAs($lead)->post(route('tasksheet.exports.store'), $input)
+                ->assertRedirect(route('tasksheet.exports.index'));
 
+            $export = TasksheetExport::latest('id')->first();
+            $this->assertSame(TasksheetExport::STATUS_READY, $export->status);
+
+            $response = $this->actingAs($lead)->get(route('tasksheet.exports.download', $export))->assertOk();
             $this->assertSame('application/pdf', $response->headers->get('content-type'));
-            $this->assertStringStartsWith('%PDF', $response->getContent());
+            $this->assertStringStartsWith('%PDF', $response->streamedContent());
         }
     }
 
@@ -382,7 +395,33 @@ class TasksheetStandupAndReportTest extends TestCase
             ->assertOk()
             ->assertSee('name="from"', false)
             ->assertSee('name="to"', false)
-            ->assertSee(route('tasksheet.report'), false);
+            ->assertSee(route('tasksheet.exports.store'), false);
+    }
+
+    public function test_the_team_export_is_hidden_from_members_who_may_not_use_it(): void
+    {
+        $team = $this->team();
+        $dev = $this->member($team);
+        $qa = $this->member($team, User::ROLE_QA);
+        $lead = User::factory()->create(['role' => User::ROLE_TEAM_LEAD]);
+
+        // A team-wide export would be refused (TasksheetExportPolicy), so the
+        // control isn't offered — the range inputs are its tell.
+        foreach ([$dev, $qa] as $member) {
+            $this->actingAs($member)
+                ->get(route('tasksheet.index', ['team' => $team->id]))
+                ->assertOk()
+                ->assertDontSee('id="report-from"', false);
+        }
+
+        // Filtered down to their own rows the export is theirs to take.
+        $this->actingAs($dev)
+            ->get(route('tasksheet.index', ['team' => $team->id, 'member' => $dev->id]))
+            ->assertSee('id="report-from"', false);
+
+        $this->actingAs($lead)
+            ->get(route('tasksheet.index', ['team' => $team->id]))
+            ->assertSee('id="report-from"', false);
     }
 
     public function test_a_team_range_export_spans_more_than_the_viewed_day(): void
@@ -404,9 +443,12 @@ class TasksheetStandupAndReportTest extends TestCase
         [$from, $to] = $tasksheet->reportRange(['from' => '2026-08-31', 'to' => '2026-08-01']);
         $this->assertSame(['2026-08-01', '2026-08-31'], [$from, $to]);
 
+        // The old URL hands the range to the exports page instead of rendering.
         $this->actingAs($lead)->get(route('tasksheet.report', [
             'team' => $team->id, 'from' => '2026-08-01', 'to' => '2026-08-31',
-        ]))->assertOk();
+        ]))->assertRedirect(route('tasksheet.exports.index', [
+            'team' => $team->id, 'from' => '2026-08-01', 'to' => '2026-08-31',
+        ]));
     }
 
     public function test_a_member_cannot_pull_a_team_report_but_can_pull_their_own(): void
@@ -417,7 +459,7 @@ class TasksheetStandupAndReportTest extends TestCase
 
         $this->actingAs($dev)->get(route('tasksheet.report', ['team' => $team->id]))->assertForbidden();
         $this->actingAs($dev)->get(route('tasksheet.report', ['member' => $other->id]))->assertForbidden();
-        $this->actingAs($dev)->get(route('tasksheet.report', ['member' => $dev->id]))->assertOk();
+        $this->actingAs($dev)->get(route('tasksheet.report', ['member' => $dev->id]))->assertRedirect();
     }
 
     /**
@@ -453,9 +495,9 @@ class TasksheetStandupAndReportTest extends TestCase
         $this->assertStringContainsString('Needs to speak up more', $leadHtml);
         $this->assertStringContainsString('Feedback', $leadHtml);
 
-        // Both may fetch this URL; only what it contains differs.
-        $this->actingAs($dev)->get(route('tasksheet.report', ['member' => $dev->id, 'date' => $today]))->assertOk();
-        $this->actingAs($lead)->get(route('tasksheet.report', ['member' => $dev->id, 'date' => $today]))->assertOk();
+        // Both may request this export; only what it contains differs.
+        $this->actingAs($dev)->get(route('tasksheet.report', ['member' => $dev->id, 'date' => $today]))->assertRedirect();
+        $this->actingAs($lead)->get(route('tasksheet.report', ['member' => $dev->id, 'date' => $today]))->assertRedirect();
     }
 
     public function test_the_report_honours_the_active_filters(): void

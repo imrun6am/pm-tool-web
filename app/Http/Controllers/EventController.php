@@ -15,17 +15,17 @@ class EventController extends Controller
 {
     public function __construct(private readonly EventService $events) {}
 
-    public function create(): View
+    /** Creating happens in the calendar's drawer; this URL just opens it. */
+    public function create(): RedirectResponse
     {
         $date = request('date');
-        $start = $date ? Carbon::parse($date)->setTime(9, 0) : now()->addHour()->startOfHour();
+        $day = is_string($date) && strtotime($date) ? Carbon::parse($date) : null;
 
-        return view('events.create', [
-            'event' => new Event(['type' => 'meeting', 'starts_at' => $start]),
-            'releases' => Release::orderBy('year', 'desc')->orderBy('name')->get(),
-            'users' => User::active()->orderBy('name')->get(),
-            'selectedAttendees' => [],
-        ]);
+        return redirect()->route('calendar.index', array_filter([
+            'year' => $day?->year,
+            'month' => $day?->month,
+            'new' => $day?->toDateString() ?? 1,
+        ]));
     }
 
     public function store(EventRequest $request): RedirectResponse
@@ -36,7 +36,10 @@ class EventController extends Controller
             $request->user(),
         );
 
-        return redirect()->route('events.show', $event)->with('success', 'Event created.');
+        // Back to the month it landed in, so the new event is right there.
+        return redirect()
+            ->route('calendar.index', ['year' => $event->starts_at->year, 'month' => $event->starts_at->month])
+            ->with('success', 'Event created.');
     }
 
     public function show(Event $event): View
@@ -47,19 +50,23 @@ class EventController extends Controller
         $event->setRelation('meetingNotes', $event->meetingNotes()
             ->with('author')->visibleTo(request()->user())->get());
 
-        return view('events.show', compact('event'));
-    }
-
-    public function edit(Event $event): View
-    {
-        $this->authorize('update', $event);
-
-        return view('events.edit', [
-            'event' => $event,
+        // Editing happens in a drawer on this page, for those who may edit.
+        $form = request()->user()->can('update', $event) ? [
             'releases' => Release::orderBy('year', 'desc')->orderBy('name')->get(),
             'users' => User::active()->orderBy('name')->get(),
             'selectedAttendees' => $event->attendees->pluck('id')->all(),
-        ]);
+            'openEdit' => request()->boolean('edit'),
+        ] : [];
+
+        return view('events.show', ['event' => $event, ...$form]);
+    }
+
+    /** Editing happens in the event page's drawer; this URL just opens it. */
+    public function edit(Event $event): RedirectResponse
+    {
+        $this->authorize('update', $event);
+
+        return redirect()->route('events.show', [$event, 'edit' => 1]);
     }
 
     public function update(EventRequest $request, Event $event): RedirectResponse

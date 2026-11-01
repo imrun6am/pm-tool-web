@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Controllers\Concerns\ReadsTaskFilters;
 use App\Http\Requests\TaskRequest;
 use App\Http\Resources\V1\TaskResource;
 use App\Models\Release;
@@ -18,6 +19,8 @@ use Illuminate\Validation\Rule;
  */
 class TaskController extends ApiController
 {
+    use ReadsTaskFilters;
+
     public function __construct(private readonly TaskService $tasks) {}
 
     /**
@@ -40,14 +43,23 @@ class TaskController extends ApiController
     public function show(Task $task): JsonResponse
     {
         $task->load([
-            'release.project', 'release.team', 'assignee', 'creator',
+            'release.project', 'release.team', 'team', 'assignee', 'creator',
             'parent', 'subtasks.assignee', 'comments.user',
         ])->loadCount(['comments', 'subtasks']);
 
         return $this->ok(new TaskResource($task));
     }
 
-    public function store(TaskRequest $request, Release $release): JsonResponse
+    /** A top-level task with an optional `release_id`. */
+    public function store(TaskRequest $request): JsonResponse
+    {
+        $task = $this->tasks->create($request->validated(), $request->user());
+
+        return $this->created($this->hydrate($task), 'Task added.');
+    }
+
+    /** A top-level task in this release (any `release_id` in the body is ignored). */
+    public function storeForRelease(TaskRequest $request, Release $release): JsonResponse
     {
         $task = $this->tasks->createForRelease($release, $request->validated(), $request->user());
 
@@ -94,7 +106,8 @@ class TaskController extends ApiController
     {
         return [
             'include_subtasks' => $request->boolean('include_subtasks'),
-            'release_id' => $this->filterId($request, 'release_id'),
+            'release_id' => $this->idOrNoneFilter($request, 'release_id'),
+            'team_id' => $this->idOrNoneFilter($request, 'team_id'),
             'assignee_id' => $this->filterId($request, 'assignee_id'),
             'parent_id' => $this->filterId($request, 'parent_id'),
             'status' => $request->input('status'),
@@ -108,7 +121,7 @@ class TaskController extends ApiController
     private function hydrate(Task $task): TaskResource
     {
         return new TaskResource(
-            $task->load(['assignee', 'creator', 'subtasks.assignee', 'release'])
+            $task->load(['assignee', 'creator', 'subtasks.assignee', 'release', 'team'])
                 ->loadCount(['comments', 'subtasks'])
         );
     }

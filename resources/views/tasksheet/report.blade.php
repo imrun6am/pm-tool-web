@@ -5,7 +5,16 @@
 
     `feedback` renders only when $includeFeedback — which the controller derives
     from the *requesting* user, never from whose rows these are.
+
+    A background export renders this once per chunk: only part 1 carries the
+    header ($showHeader), and $totalRows / $generatedAt describe the whole
+    export rather than the chunk.
 --}}
+@php
+    $showHeader ??= true;
+    $totalRows ??= $rows->count();
+    $generatedAt ??= now();
+@endphp
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -32,14 +41,16 @@
     </style>
 </head>
 <body>
-    <h1>Tasksheet report</h1>
-    <div class="meta">
-        @if ($member)<strong>{{ $member->name }}</strong> ·@endif
-        @if ($team){{ $team->name }} ·@endif
-        {{ $from === $to ? \Illuminate\Support\Carbon::parse($from)->format('D, M j, Y') : \Illuminate\Support\Carbon::parse($from)->format('M j, Y').' – '.\Illuminate\Support\Carbon::parse($to)->format('M j, Y') }}
-        · {{ $rows->count() }} {{ \Illuminate\Support\Str::plural('row', $rows->count()) }}
-        · generated {{ now()->format('M j, Y H:i') }} by {{ $generatedBy->name }}
-    </div>
+    @if ($showHeader)
+        <h1>Tasksheet report</h1>
+        <div class="meta">
+            @if ($member)<strong>{{ $member->name }}</strong> ·@endif
+            @if ($team){{ $team->name }} ·@endif
+            {{ $from === $to ? \Illuminate\Support\Carbon::parse($from)->format('D, M j, Y') : \Illuminate\Support\Carbon::parse($from)->format('M j, Y').' – '.\Illuminate\Support\Carbon::parse($to)->format('M j, Y') }}
+            · {{ $totalRows }} {{ \Illuminate\Support\Str::plural('row', $totalRows) }}
+            · generated {{ $generatedAt->format('M j, Y H:i') }} by {{ $generatedBy?->name ?? 'a former user' }}
+        </div>
+    @endif
 
     @if ($rows->isEmpty())
         <div class="empty">No tasksheet rows for this selection.</div>

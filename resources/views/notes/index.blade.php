@@ -14,7 +14,8 @@
 
     <div class="py-6 sm:py-8">
         <div class="app-container">
-            <div class="space-y-6">
+            {{-- Adding, editing and deleting notes update this region in place. --}}
+            <x-live-region id="notes" class="space-y-6">
 
                 {{-- Filters: author + a date range (a legacy single `date` stays supported) --}}
                 <x-filter-bar :action="route('notes.index')" :active="$hasFilters" :count="$notes->total()" noun="note">
@@ -51,7 +52,7 @@
                         <x-icon name="pencil-square" variant="outline" class="h-5 w-5 text-slate-400" />
                     </button>
 
-                    <form x-show="open" x-cloak method="POST" action="{{ route('notes.store') }}" class="p-4 sm:p-5"
+                    <form x-show="open" x-cloak method="POST" action="{{ route('notes.store') }}" data-turbo-action="advance" class="p-4 sm:p-5"
                           x-data="{ vis: '{{ old('visibility', 'private') }}' }">
                         @csrf
                         <div class="mb-3 flex items-center gap-3">
@@ -139,7 +140,7 @@
 
                     <div>{{ $notes->links() }}</div>
                 @endif
-            </div>
+            </x-live-region>
         </div>
     </div>
 </x-app-layout>

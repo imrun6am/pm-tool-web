@@ -2,7 +2,9 @@
     use App\Models\Task;
     use App\Models\Release;
 
-    $crumbs = [$task->release->name => route('releases.show', $task->release)];
+    $crumbs = $task->release
+        ? [$task->release->name => route('releases.show', $task->release)]
+        : ['Board' => route('board.index')];
     if ($task->isSubtask() && $task->parent) {
         $crumbs[$task->parent->title] = route('tasks.show', $task->parent);
     }
@@ -19,6 +21,11 @@
             @endif
             @if ($task->phaseLabel())
                 <span class="badge badge-violet">{{ $task->phaseLabel() }}</span>
+            @endif
+            @if ($task->release)
+                <a href="{{ route('releases.show', $task->release) }}" class="flex items-center gap-1.5 hover:text-brand-700">
+                    <x-icon name="rocket" variant="outline" class="h-4 w-4 text-slate-400" />{{ $task->release->name }}
+                </a>
             @endif
             <span class="flex items-center gap-1.5">
                 @if ($task->assignee)
@@ -77,6 +84,23 @@
                     <section class="card">
                         <h2 class="card-header card-title">Properties</h2>
                         <div class="divide-y divide-slate-100 text-sm">
+                            {{-- Release: optional on a task; a subtask follows its parent --}}
+                            <div class="grid grid-cols-[6rem_minmax(0,1fr)] items-center gap-3 px-5 py-2.5">
+                                @if ($task->isSubtask())
+                                    <span class="text-slate-500">Release</span>
+                                    <span class="min-w-0 truncate text-slate-700" title="A subtask follows its parent task’s release">
+                                        {{ $task->release?->name ?? 'No release' }}
+                                    </span>
+                                @else
+                                    <label for="task-release" class="text-slate-500">Release</label>
+                                    <select id="task-release" name="release_id" form="task-form" @invalid('release_id') class="field-select field-sm !mt-0">
+                                        <option value="">No release</option>
+                                        @foreach ($releases as $r)
+                                            <option value="{{ $r->id }}" @selected((int) old('release_id', $task->release_id) === $r->id)>{{ $r->name }}</option>
+                                        @endforeach
+                                    </select>
+                                @endif
+                            </div>
                             <div class="grid grid-cols-[6rem_minmax(0,1fr)] items-center gap-3 px-5 py-2.5">
                                 <label for="task-status" class="text-slate-500">Status</label>
                                 <select id="task-status" name="status" form="task-form" @invalid('status') class="field-select field-sm !mt-0">
@@ -108,7 +132,7 @@
                                     @endforeach
                                 </select>
                             </div>
-                            @foreach (['status', 'assignee_id', 'due_date', 'phase'] as $field)
+                            @foreach (['release_id', 'status', 'assignee_id', 'due_date', 'phase'] as $field)
                                 @error($field)
                                     <p id="{{ $field }}-error" class="field-error !mt-0 px-5 py-2.5">
                                         <x-icon name="exclamation-circle" variant="outline" class="h-4 w-4 flex-none" />{{ $message }}

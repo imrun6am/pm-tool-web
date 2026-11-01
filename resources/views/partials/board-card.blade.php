@@ -3,24 +3,28 @@
     use App\Models\Task;
 
     // Requires $task (release.project, assignee, subtasks loaded; comments_count) and $statuses.
+    // The release is optional; an unlinked card gets no chip and a neutral stripe.
     $progress = $task->subtaskProgress();
     $isDone = in_array($task->status, Task::DONE_STATUSES, true);
     $overdue = $task->due_date && ! $isDone && $task->due_date->lt(today());
     $dueToday = $task->due_date && ! $isDone && $task->due_date->isToday();
-    $projectColor = $task->release->project->color ?? '#94a3b8';
+    $projectColor = $task->release?->project->color ?? '#94a3b8';
 @endphp
 <article class="board-card group" draggable="true" data-task-id="{{ $task->id }}">
     {{-- Project color stripe --}}
     <span class="absolute inset-y-0 left-0 w-1" style="background-color: {{ $projectColor }}" aria-hidden="true"></span>
 
     <div class="flex items-center justify-between gap-2">
-        <a href="{{ route('releases.show', $task->release) }}" draggable="false"
-           class="flex min-w-0 items-center gap-1 text-[11px] font-medium text-slate-500 hover:text-brand-700">
-            <x-icon name="rocket" variant="outline" class="h-3 w-3 flex-none" />
-            <span class="truncate">{{ $task->release->name }}</span>
-        </a>
+        {{-- Release chip only when the task is linked to one --}}
+        @if ($task->release)
+            <a href="{{ route('releases.show', $task->release) }}" draggable="false"
+               class="flex min-w-0 items-center gap-1 text-[11px] font-medium text-slate-500 hover:text-brand-700">
+                <x-icon name="rocket" variant="outline" class="h-3 w-3 flex-none" />
+                <span class="truncate">{{ $task->release->name }}</span>
+            </a>
+        @endif
         <label for="move-{{ $task->id }}" class="sr-only">Move “{{ $task->title }}” to</label>
-        <select id="move-{{ $task->id }}" class="board-move flex-none" draggable="false">
+        <select id="move-{{ $task->id }}" class="board-move ml-auto flex-none" draggable="false">
             @foreach ($statuses as $value => $label)
                 <option value="{{ $value }}" @selected($task->status === $value)>{{ $label }}</option>
             @endforeach

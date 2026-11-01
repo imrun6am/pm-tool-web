@@ -45,6 +45,7 @@
             verb: 'Confirm',
             tone: 'danger',
             onConfirm: null,
+            onSubmit: null,
             get icon() { return this.tone === 'danger' ? DANGER_ICON : QUESTION_ICON; },
             get iconWrap() { return this.tone === 'danger' ? 'bg-rose-100 text-rose-600' : 'bg-brand-100 text-brand-600'; },
             get confirmClass() {
@@ -54,12 +55,27 @@
             },
             boot() {
                 // Intercept any form marked with data-confirm before it submits.
-                document.addEventListener('submit', (e) => {
+                // Once confirmed it re-submits via requestSubmit() so Turbo
+                // handles it like any other form; the flag lets that one through.
+                this.onSubmit = (e) => {
                     const form = e.target;
                     if (!(form instanceof HTMLFormElement) || !form.hasAttribute('data-confirm')) return;
+                    if (form.confirmed) {
+                        form.confirmed = false;
+                        return;
+                    }
                     e.preventDefault();
-                    this.request(form.dataset, () => HTMLFormElement.prototype.submit.call(form));
-                }, true);
+                    this.request(form.dataset, () => {
+                        if (!form.requestSubmit) return HTMLFormElement.prototype.submit.call(form);
+                        form.confirmed = true;
+                        form.requestSubmit();
+                    });
+                };
+                document.addEventListener('submit', this.onSubmit, true);
+            },
+            // Soft navigation swaps <body>; drop the old document listener.
+            destroy() {
+                document.removeEventListener('submit', this.onSubmit, true);
             },
             request(data, onConfirm) {
                 this.message = data.confirm || 'This action cannot be undone.';

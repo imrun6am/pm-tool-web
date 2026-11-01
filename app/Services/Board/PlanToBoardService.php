@@ -6,14 +6,15 @@ use App\Models\Release;
 use App\Models\Task;
 use App\Models\TasksheetEntry;
 use App\Models\User;
+use App\Services\TaskService;
 use Illuminate\Support\Facades\DB;
 
 /**
  * Tasksheet "Add to board": turns a row's morning plan into To Do cards on
- * the board, assigned to the row's member. Work the member already has in the
- * release (any status, matched by meaning through Claude and by exact title
- * here) or repeated within the batch is skipped, so editing the plan and
- * pressing again only ever adds the new items.
+ * the board, assigned to the row's member, in the chosen release or in none.
+ * Work the member already has there (any status, matched by meaning through
+ * Claude and by exact title here) or repeated within the batch is skipped, so
+ * editing the plan and pressing again only ever adds the new items.
  */
 class PlanToBoardService
 {
@@ -25,11 +26,12 @@ class PlanToBoardService
     /**
      * @return array{created: list<Task>, skipped: int}
      */
-    public function addPlanTasks(TasksheetEntry $entry, Release $release, User $actor): array
+    public function addPlanTasks(TasksheetEntry $entry, ?Release $release, User $actor): array
     {
-        // Everything the member already has in this release — done and archived
-        // included — so editing the plan and pressing again only adds new work.
-        $existing = $release->tasks()
+        // Everything the member already has in this release (or unlinked) — done
+        // and archived included — so pressing again only adds new work.
+        $existing = Task::query()
+            ->where('release_id', $release?->id)
             ->whereNull('parent_id')
             ->where('assignee_id', $entry->user_id)
             ->latest('id')
@@ -58,10 +60,12 @@ class PlanToBoardService
         }
 
         $created = DB::transaction(function () use ($fresh, $release, $entry, $actor) {
-            $position = $release->rootTasks()->count();
+            $position = TaskService::nextPosition($release?->id);
             $created = [];
             foreach ($fresh as $task) {
-                $created[] = $release->tasks()->create([
+                $created[] = Task::create([
+                    'release_id' => $release?->id,
+                    'team_id' => $entry->team_id,
                     'title' => $task['title'],
                     'description' => $task['description'],
                     'status' => 'todo',

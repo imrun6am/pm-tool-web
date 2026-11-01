@@ -75,7 +75,7 @@
 
             {{-- History --}}
             <div class="card overflow-x-auto"
-                 @if ($running) x-data x-init="setTimeout(() => window.location.reload(), 15000)" @endif>
+                 @if ($running) x-data="{ timer: null, init() { this.timer = setTimeout(() => window.location.reload(), 15000) }, destroy() { clearTimeout(this.timer) } }" @endif>
                 @if ($reports->isEmpty())
                     <x-empty-state icon="document-text" title="No reports yet"
                                    description="Pick a period and a format above to generate the first KPI review." />
@@ -128,7 +128,7 @@
                                     <td class="px-4 py-3">
                                         <div class="flex items-center justify-end gap-1">
                                             @if ($report->isCompleted())
-                                                <a href="{{ route('kpi-reports.download', $report) }}" class="btn-secondary btn-sm">Download</a>
+                                                <a href="{{ route('kpi-reports.download', $report) }}" data-turbo="false" class="btn-secondary btn-sm">Download</a>
                                             @endif
                                             <form method="POST" action="{{ route('kpi-reports.destroy', $report) }}"
                                                   onsubmit="return confirm('{{ $report->isRunning() ? 'Cancel and delete this report?' : 'Delete this report?' }}')">

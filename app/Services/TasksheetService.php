@@ -244,17 +244,41 @@ class TasksheetService
      */
     public function reportRows(?int $teamId, ?int $memberId, string $from, string $to, array $filters = []): Collection
     {
-        $query = TasksheetEntry::with(['member', 'team'])
+        return $this->reportQuery($teamId, $memberId, $from, $to, $filters)
+            ->with(['member', 'team'])
+            ->orderBy('date')
+            ->orderBy('user_id')
+            ->get();
+    }
+
+    /**
+     * The report's rows as an unordered query, with no eager loads. Shared by
+     * reportRows() and the background export, which counts and slices it
+     * rather than loading it whole, so the two cannot select different rows.
+     *
+     * @param  array{attendance?: ?string, fill?: ?string, leave?: ?string, member?: ?int}  $filters
+     * @return Builder<TasksheetEntry>
+     */
+    public function reportQuery(?int $teamId, ?int $memberId, string $from, string $to, array $filters = []): Builder
+    {
+        $query = TasksheetEntry::query()
             ->when($teamId, fn ($q, $id) => $q->where('team_id', $id))
             ->when($memberId, fn ($q, $id) => $q->where('user_id', $id))
             ->whereDate('date', '>=', $from)
-            ->whereDate('date', '<=', $to)
-            ->orderBy('date')
-            ->orderBy('user_id');
+            ->whereDate('date', '<=', $to);
 
         return $this->applyHistoryFilters($query, $filters + [
             'attendance' => null, 'fill' => null, 'leave' => null, 'member' => null,
-        ])->get();
+        ]);
+    }
+
+    /**
+     * Whether a report requested by this user carries the lead-only feedback
+     * column. One predicate for the inline report and the background export.
+     */
+    public function includesFeedbackFor(User $viewer): bool
+    {
+        return $viewer->isLead();
     }
 
     /**
@@ -298,7 +322,7 @@ class TasksheetService
             'member' => $memberId ? User::withTrashed()->find($memberId) : null,
             'from' => $from,
             'to' => $to,
-            'includeFeedback' => $viewer->isLead(),
+            'includeFeedback' => $this->includesFeedbackFor($viewer),
             'generatedBy' => $viewer,
         ];
     }

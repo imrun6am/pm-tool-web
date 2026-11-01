@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Controllers\Concerns\ReadsTaskFilters;
 use App\Http\Requests\Api\V1\MoveTaskRequest;
 use App\Http\Resources\V1\TaskResource;
 use App\Models\Release;
@@ -20,15 +21,19 @@ use Illuminate\Validation\Rule;
  */
 class BoardController extends ApiController
 {
+    use ReadsTaskFilters;
+
     public function __construct(private readonly BoardService $board) {}
 
     public function index(Request $request): JsonResponse
     {
-        $releaseId = $this->filterId($request, 'release_id');
+        $releaseId = $this->idOrNoneFilter($request, 'release_id');
+        $teamId = $this->idOrNoneFilter($request, 'team_id');
         $assigneeId = $this->filterId($request, 'assignee_id');
 
         $grouped = $this->board->columns([
             'release_id' => $releaseId,
+            'team_id' => $teamId,
             'assignee_id' => $assigneeId,
         ]);
 
@@ -49,29 +54,35 @@ class BoardController extends ApiController
             'columns' => $columns,
             'filters' => [
                 'release_id' => $releaseId,
+                'team_id' => $teamId,
                 'assignee_id' => $assigneeId,
             ],
         ]);
     }
 
-    /** Quick-add straight onto a column. */
+    /**
+     * Quick-add straight onto a column. `release_id` and `team_id` are
+     * optional; a linked card takes its release's team.
+     */
     public function storeTask(Request $request): JsonResponse
     {
         $data = $request->validate([
-            'release_id' => ['required', Rule::exists('releases', 'id')],
+            'release_id' => ['nullable', Rule::exists('releases', 'id')],
+            'team_id' => ['nullable', Rule::exists('teams', 'id')],
             'title' => ['required', 'string', 'max:255'],
             'status' => ['required', Rule::in(array_keys(Task::STATUSES))],
         ]);
 
         $task = $this->board->quickAdd(
-            Release::findOrFail($data['release_id']),
+            isset($data['release_id']) ? Release::findOrFail($data['release_id']) : null,
             $data['title'],
             $data['status'],
             $request->user(),
+            isset($data['team_id']) ? (int) $data['team_id'] : null,
         );
 
         return $this->created(
-            new TaskResource($task->load(['release.project', 'assignee'])->loadCount('comments')),
+            new TaskResource($task->load(['release.project', 'team', 'assignee'])->loadCount('comments')),
             'Task added to the board.'
         );
     }
@@ -86,7 +97,7 @@ class BoardController extends ApiController
         );
 
         return $this->ok(
-            new TaskResource($task->fresh()->load(['release.project', 'assignee'])->loadCount('comments')),
+            new TaskResource($task->fresh()->load(['release.project', 'team', 'assignee'])->loadCount('comments')),
             'Card moved.'
         );
     }

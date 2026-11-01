@@ -59,15 +59,23 @@ class Release extends Model
 
     protected static function booted(): void
     {
+        // A linked task's team is its release's, so it moves with the release.
+        static::updated(function (Release $release) {
+            if ($release->wasChanged('team_id')) {
+                $release->tasks()->toBase()->update(['team_id' => $release->team_id]);
+            }
+        });
+
         static::deleting(function (Release $release) {
             // Stored files must be cleaned explicitly (DB cascade bypasses Eloquent).
             foreach ($release->documents as $document) {
                 Storage::disk('local')->delete($document->path);
             }
 
-            // Delete root tasks via Eloquent so their (and subtasks') polymorphic
-            // comments are cleaned up; then remove the release's own comments.
-            $release->rootTasks()->get()->each->delete();
+            // Tasks outlive their release: unlink them (the FK's nullOnDelete
+            // does the same) so they stay on the board. Then remove the
+            // release's own comments.
+            $release->tasks()->toBase()->update(['release_id' => null]);
             $release->comments()->delete();
         });
     }

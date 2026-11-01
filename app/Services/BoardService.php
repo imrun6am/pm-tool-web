@@ -24,16 +24,20 @@ class BoardService
      * Returns `[status => Collection<Task>]` so the Blade view can index by
      * status directly; the API adds the label, color, and count around it.
      *
-     * @param  array{release_id?: ?int, assignee_id?: ?int}  $filters
+     * `release_id` and `team_id` are ids, or TaskService::NONE for tasks with
+     * none set. Filters combine.
+     *
+     * @param  array{release_id?: int|string|null, team_id?: int|string|null, assignee_id?: ?int}  $filters
      * @return array<string, Collection<int, Task>>
      */
     public function columns(array $filters = []): array
     {
         $tasks = Task::query()
             ->whereNull('parent_id') // top-level tasks are the cards
-            ->with(['release.project', 'assignee', 'subtasks'])
+            ->with(['release.project', 'team', 'assignee', 'subtasks'])
             ->withCount('comments')
-            ->when($filters['release_id'] ?? null, fn ($q, $id) => $q->where('release_id', $id))
+            ->when($filters['release_id'] ?? null, fn ($q, $id) => TaskService::whereIdOrNone($q, 'release_id', $id))
+            ->when($filters['team_id'] ?? null, fn ($q, $id) => TaskService::whereIdOrNone($q, 'team_id', $id))
             ->when($filters['assignee_id'] ?? null, fn ($q, $id) => $q->where('assignee_id', $id))
             ->orderBy('position')
             ->orderBy('id')
@@ -44,15 +48,20 @@ class BoardService
             ->all();
     }
 
-    /** Quick-add straight onto a column. */
-    public function quickAdd(Release $release, string $title, string $status, User $author): Task
+    /**
+     * Quick-add straight onto a column, linked to a release or to none. A
+     * linked card takes the release's team; an unlinked one the given team.
+     */
+    public function quickAdd(?Release $release, string $title, string $status, User $author, ?int $teamId = null): Task
     {
-        return $release->tasks()->create([
+        return Task::create([
+            'release_id' => $release?->id,
+            'team_id' => $release ? $release->team_id : $teamId,
             'title' => $title,
             'status' => $status,
             'parent_id' => null,
             'created_by' => $author->id,
-            'position' => $release->rootTasks()->count(),
+            'position' => TaskService::nextPosition($release?->id),
         ]);
     }
 

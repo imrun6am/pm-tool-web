@@ -262,13 +262,36 @@ class TasksheetPlanToBoardTest extends TestCase
             ->assertSee('Future release');
     }
 
-    public function test_drawer_explains_when_the_team_has_no_open_release(): void
+    public function test_drawer_offers_no_release_when_the_team_has_no_open_release(): void
     {
         $this->release->update(['completed_at' => now()]);
 
         $this->actingAs($this->dev)->get(route('tasksheet.index', ['team' => $this->team->id]))
             ->assertOk()
-            ->assertSee('Add to board needs an open release for Core.')
-            ->assertDontSee('name="board_release_id"', false);
+            ->assertSee('name="board_release_id"', false)
+            ->assertSee('<option value="" selected>No release</option>', false)
+            ->assertDontSee('Checkout v2.5');
+    }
+
+    public function test_plan_can_go_to_the_board_without_a_release(): void
+    {
+        $this->fakeClaude([['title' => 'Fix coupon rounding', 'description' => null]]);
+        // Same title, but in a release: not a duplicate of unlinked work.
+        $this->release->tasks()->create(['title' => 'Fix coupon rounding', 'status' => 'todo', 'assignee_id' => $this->dev->id]);
+
+        $this->actingAs($this->dev)->put(route('tasksheet.entries.board'), $this->payload(['board_release_id' => '']))
+            ->assertSessionHasNoErrors()
+            ->assertSessionHas('success', 'Tasksheet saved. Added 1 task to the board for Devin Dev.');
+
+        $task = Task::whereNull('release_id')->sole();
+        $this->assertSame('Fix coupon rounding', $task->title);
+        $this->assertSame($this->dev->id, $task->assignee_id);
+        $this->assertSame([], $this->sent['existing']);
+
+        // Pressing again dedupes against the member's unlinked tasks.
+        $this->actingAs($this->dev)->put(route('tasksheet.entries.board'), $this->payload(['board_release_id' => '']))
+            ->assertSessionHas('success', 'Tasksheet saved. Those tasks are already on the board for Devin Dev.');
+        $this->assertSame(['Fix coupon rounding'], $this->sent['existing']);
+        $this->assertSame(1, Task::whereNull('release_id')->count());
     }
 }

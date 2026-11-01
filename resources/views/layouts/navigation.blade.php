@@ -55,7 +55,7 @@
                 <x-dropdown-link :href="route('profile.edit')" class="flex items-center gap-2.5">
                     <x-icon name="user" class="h-4 w-4 text-slate-400" />{{ __('Profile') }}
                 </x-dropdown-link>
-                <form method="POST" action="{{ route('logout') }}">
+                <form method="POST" action="{{ route('logout') }}" data-turbo="false">
                     @csrf
                     <x-dropdown-link :href="route('logout')" onclick="event.preventDefault(); this.closest('form').submit();" class="flex items-center gap-2.5">
                         <x-icon name="logout" class="h-4 w-4 text-slate-400" />{{ __('Log Out') }}

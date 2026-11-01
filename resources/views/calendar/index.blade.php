@@ -10,7 +10,11 @@
                        class="btn-secondary btn-sm btn-icon" title="Next month" aria-label="Next month">›</a>
                     <a href="{{ route('calendar.index') }}" class="btn-ghost btn-sm">Today</a>
                 </div>
-                <a href="{{ route('events.create') }}" class="btn-primary btn-sm">
+                <a href="{{ route('calendar.imports.index') }}" class="btn-secondary btn-sm" title="Create events from a file">
+                    <x-icon name="sparkles" variant="outline" class="h-4 w-4" />
+                    <span class="max-sm:sr-only">Import from file</span>
+                </a>
+                <a href="{{ route('events.create') }}" @click.prevent="$dispatch('open-event-drawer')" class="btn-primary btn-sm">
                     <x-icon name="plus" variant="outline" class="h-4 w-4" />
                     <span class="max-sm:sr-only">New event</span>
                 </a>
@@ -34,8 +38,8 @@
                         <div class="grid grid-cols-7 divide-x divide-slate-200">
                             @foreach ($week as $day)
                                 <div role="button" tabindex="0"
-                                     onclick="location.href='{{ route('events.create', ['date' => $day['date']->toDateString()]) }}'"
-                                     onkeydown="if(event.key==='Enter'){location.href='{{ route('events.create', ['date' => $day['date']->toDateString()]) }}'}"
+                                     @click="$dispatch('open-event-drawer', { date: '{{ $day['date']->toDateString() }}' })"
+                                     @keydown.enter.self="$dispatch('open-event-drawer', { date: '{{ $day['date']->toDateString() }}' })"
                                      class="group relative min-h-[7.5rem] cursor-pointer p-1.5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500/60
                                             {{ $day['isToday'] ? 'bg-brand-50 hover:bg-brand-100/60' : ($day['inMonth'] ? 'bg-white hover:bg-brand-50/40' : 'bg-slate-50/60 hover:bg-slate-100/70') }}"
                                      @if ($day['isToday']) aria-current="date" @endif>
@@ -80,4 +84,6 @@
             </div>
         </div>
     </div>
+
+    @include('events._drawer', ['event' => $newEvent, 'selectedAttendees' => [], 'autoOpen' => $openNewEvent])
 </x-app-layout>

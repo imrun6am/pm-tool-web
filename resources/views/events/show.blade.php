@@ -4,7 +4,7 @@
                        :breadcrumbs="['Calendar' => route('calendar.index', ['year' => $event->starts_at->year, 'month' => $event->starts_at->month]), $event->title => null]">
             @can('update', $event)
                 <x-slot name="actions">
-                    <a href="{{ route('events.edit', $event) }}" class="btn-secondary btn-sm">
+                    <a href="{{ route('events.edit', $event) }}" @click.prevent="$dispatch('open-event-drawer')" class="btn-secondary btn-sm">
                         <x-icon name="pencil-square" variant="outline" class="h-4 w-4" />Edit
                     </a>
                     <form method="POST" action="{{ route('events.destroy', $event) }}" data-confirm="Delete this event?" data-confirm-verb="Delete">
@@ -142,4 +142,8 @@
             </div>
         </div>
     </div>
+
+    @can('update', $event)
+        @include('events._drawer', ['autoOpen' => $openEdit])
+    @endcan
 </x-app-layout>

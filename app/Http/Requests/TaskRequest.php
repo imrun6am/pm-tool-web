@@ -18,6 +18,11 @@ class TaskRequest extends FormRequest
     public function rules(): array
     {
         return [
+            // Optional link to a release; ignored where the route fixes it (a
+            // release's task panel) or the parent does (a subtask).
+            'release_id' => ['nullable', 'integer', Rule::exists('releases', 'id')],
+            // Optional team; a linked task always takes its release's team.
+            'team_id' => ['nullable', 'integer', Rule::exists('teams', 'id')],
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:5000'],
             'status' => ['nullable', Rule::in(array_keys(Task::STATUSES))],
@@ -30,13 +35,13 @@ class TaskRequest extends FormRequest
     /**
      * Assignees are team-wise: they must belong to the release's owning team.
      * Keeping a task's unchanged assignee is allowed even if that person has
-     * since left the team.
+     * since left the team. A task with no release may go to anyone.
      */
     private function assigneeOnTeam(string $attribute, mixed $value, \Closure $fail): void
     {
         /** @var Task|null $task */
         $task = $this->route('task');
-        $release = $this->route('release') ?? $task?->release;
+        $release = $this->route('release') ?? $this->targetRelease($task);
 
         if (! $release || $value === null) {
             return;
@@ -50,5 +55,24 @@ class TaskRequest extends FormRequest
         if (! $isMember) {
             $fail('The assignee must be a member of the release’s team.');
         }
+    }
+
+    /**
+     * The release the task will belong to. A subtask (new, where the routed
+     * task is the parent, or existing) carries its parent's; otherwise it is
+     * the one the request links (none for `release_id: null`), else the task's
+     * current one.
+     */
+    private function targetRelease(?Task $task): ?Release
+    {
+        if ($task && ($this->routeIs('*subtasks.store') || $task->isSubtask())) {
+            return $task->release;
+        }
+
+        if ($task && ! $this->has('release_id')) {
+            return $task->release;
+        }
+
+        return $this->filled('release_id') ? Release::find($this->integer('release_id')) : null;
     }
 }

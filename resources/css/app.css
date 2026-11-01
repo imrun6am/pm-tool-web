@@ -508,3 +508,47 @@ trix-toolbar:has(+ trix-editor[aria-invalid="true"]) {
 trix-editor:empty:not(:focus)::before {
     @apply text-slate-400;
 }
+
+/* ---------------------------------------------------------------------------
+   Soft navigation (Turbo Drive) — top progress bar + page crossfade.
+   The bar's element and base rules come from Turbo; this only re-skins it.
+--------------------------------------------------------------------------- */
+.turbo-progress-bar {
+    height: 2.5px;
+    background: linear-gradient(90deg, theme('colors.brand.600'), theme('colors.brand.400'));
+    box-shadow: 0 0 10px theme('colors.brand.500 / 45%'), 0 0 4px theme('colors.brand.500 / 35%');
+    border-radius: 0 9999px 9999px 0;
+}
+
+/* Turbo wraps each render in a view transition (meta view-transition): a
+   quick crossfade of the page. Unchanged pixels (top bar, canvas) blend to
+   themselves, so only the content visibly changes; the sidebar is its own
+   layer so it never dims while its active item moves. */
+.sidebar {
+    view-transition-name: app-sidebar;
+}
+::view-transition-group(*),
+::view-transition-old(*),
+::view-transition-new(*) {
+    animation-duration: 150ms;
+    animation-timing-function: ease-out;
+}
+/* In-page action regions (<x-live-region>): block-level, and dimmed while
+   an action is in flight (after a beat, so quick ones don't flicker). */
+turbo-frame {
+    display: block;
+}
+.live-region {
+    transition: opacity 150ms ease-out;
+}
+.live-region[busy] {
+    opacity: 0.6;
+    transition-delay: 120ms;
+}
+@media (prefers-reduced-motion: reduce) {
+    ::view-transition-group(*),
+    ::view-transition-old(*),
+    ::view-transition-new(*) {
+        animation: none !important;
+    }
+}

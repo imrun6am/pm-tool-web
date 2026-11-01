@@ -48,7 +48,7 @@
                 <div class="flex items-center gap-2">
                     <form method="POST" action="{{ route('tasks.status', $task) }}">
                         @csrf @method('PATCH')
-                        <select name="status" onchange="this.form.submit()" class="field-control h-8 w-auto py-1 pr-8 text-xs">
+                        <select name="status" onchange="this.form.requestSubmit()" class="field-control h-8 w-auto py-1 pr-8 text-xs">
                             @foreach (Task::STATUSES as $val => $label)
                                 <option value="{{ $val }}" @selected($task->status === $val)>{{ $label }}</option>
                             @endforeach

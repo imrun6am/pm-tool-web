@@ -5,14 +5,13 @@ namespace App\Http\Controllers;
 use App\Http\Requests\TasksheetBoardRequest;
 use App\Http\Requests\TasksheetEntryRequest;
 use App\Models\Release;
+use App\Models\TasksheetExport;
 use App\Models\User;
 use App\Services\Board\PlanToBoardService;
 use App\Services\Kpi\MissingApiKeyException;
 use App\Services\TasksheetService;
-use Barryvdh\DomPDF\Facade\Pdf;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Http\Response;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Illuminate\View\View;
@@ -108,33 +107,22 @@ class TasksheetController extends Controller
     }
 
     /**
-     * A tasksheet PDF for a day, a range, or one member.
+     * The old inline PDF URL, still linked from KPI review spreadsheets.
      *
-     * Team-wide is lead-only; a member may export only their own rows — the
-     * same rule the per-user page applies. Crucially, whether `feedback` is
-     * included is decided from the **requesting user**, not from whose rows
-     * these are: it is the lead's private note *about* a member, and the export
-     * must not become the read path the screen already denies them.
+     * Rendering here is what took workers down on wide ranges, so it now
+     * applies the same rule as before — team-wide is lead-only, a member may
+     * export only their own rows — and hands the selection to the exports
+     * page prefilled. A GET never creates the export itself.
      */
-    public function report(Request $request): Response
+    public function report(Request $request): RedirectResponse
     {
-        $viewer = $request->user();
-        $teamId = $request->filled('team') ? $request->integer('team') : null;
         $memberId = $request->filled('member') ? $request->integer('member') : null;
+        $this->authorize('create', [TasksheetExport::class, $memberId]);
 
-        abort_unless($viewer->isLead() || $memberId === $viewer->id, 403);
-
-        [$from, $to] = $this->tasksheet->reportRange($request->only(['date', 'from', 'to']));
-
-        $data = $this->tasksheet->reportData(
-            $teamId, $memberId, $from, $to,
-            $this->tasksheet->parseFilters($request->only(['attendance', 'fill', 'leave'])),
-            $viewer,
-        );
-
-        return Pdf::loadView('tasksheet.report', $data)
-            ->setPaper('a4', 'landscape')
-            ->download($this->tasksheet->reportFilename($data));
+        return redirect()->route('tasksheet.exports.index', array_filter(
+            $request->only(TasksheetExportController::INPUT),
+            fn ($value) => filled($value),
+        ));
     }
 
     /**
@@ -203,7 +191,8 @@ class TasksheetController extends Controller
         ]);
 
         try {
-            $result = $board->addPlanTasks($entry, Release::findOrFail($data['board_release_id']), $request->user());
+            $release = isset($data['board_release_id']) ? Release::findOrFail($data['board_release_id']) : null;
+            $result = $board->addPlanTasks($entry, $release, $request->user());
         } catch (MissingApiKeyException) {
             return $back->with('error', 'Tasksheet saved, but no tasks were added: Claude isn’t configured (ANTHROPIC_API_KEY).');
         } catch (Throwable $e) {

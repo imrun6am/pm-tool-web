@@ -25,6 +25,7 @@ class TaskSummaryResource extends JsonResource
             'is_subtask' => $this->isSubtask(),
             'parent_id' => $this->parent_id,
             'release_id' => $this->release_id,
+            'team_id' => $this->team_id,
             'due_date' => $this->due_date?->toDateString(),
             'position' => $this->position,
             'assignee' => new UserSummaryResource($this->whenLoaded('assignee')),

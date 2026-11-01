@@ -7,6 +7,8 @@ use App\Services\Ai\ClaudeTextEnhancer;
 use App\Services\Ai\TextEnhancer;
 use App\Services\Board\ClaudePlanTaskExtractor;
 use App\Services\Board\PlanTaskExtractor;
+use App\Services\Calendar\ClaudeEventExtractor;
+use App\Services\Calendar\EventExtractor;
 use App\Services\Kpi\ClaudeKpiAnalyzer;
 use App\Services\Kpi\KpiAnalyzer;
 use App\Services\QuickLinkService;
@@ -18,6 +20,7 @@ use Illuminate\Support\Facades\Blade;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\View;
+use Illuminate\Support\Facades\Vite;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -44,6 +47,12 @@ class AppServiceProvider extends ServiceProvider
             config('services.anthropic.enhance_model'),
             config('services.anthropic.enhance_effort'),
         ));
+
+        $this->app->bind(EventExtractor::class, fn () => new ClaudeEventExtractor(
+            config('services.anthropic.key'),
+            config('services.anthropic.calendar_import_model'),
+            config('services.anthropic.calendar_import_effort'),
+        ));
     }
 
     /**
@@ -56,6 +65,12 @@ class AppServiceProvider extends ServiceProvider
         Gate::define('manage-competencies', fn (User $user) => $user->canManageCompetencies());
 
         $this->configureRateLimiting();
+
+        // Soft navigation keeps one JS runtime across pages; when a deploy
+        // changes the built assets, Turbo sees the tracked tags differ and
+        // does a full reload instead of mixing old and new bundles.
+        Vite::useScriptTagAttributes(['data-turbo-track' => 'reload']);
+        Vite::useStyleTagAttributes(['data-turbo-track' => 'reload']);
 
         // The quick-links drawer renders on every page; a composer supplies its
         // data so individual controllers never have to. The visible-links query
@@ -105,6 +120,9 @@ class AppServiceProvider extends ServiceProvider
 
         // "Enhance with Claude": each click is a paid model call.
         RateLimiter::for('ai-enhance', fn (Request $request) => Limit::perMinute(10)->by('user:'.$request->user()?->id));
+
+        // Calendar "Import from file": each upload can mean several paid model calls.
+        RateLimiter::for('calendar-import', fn (Request $request) => Limit::perHour(20)->by('user:'.$request->user()?->id));
 
         RateLimiter::for('login', fn (Request $request) => [
             Limit::perMinute(5)->by(mb_strtolower((string) $request->input('email')).'|'.$request->ip()),

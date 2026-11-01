@@ -6,6 +6,10 @@
     ])->filter(fn ($t) => filled($t['message']))->values();
 @endphp
 
+{{-- The same flashes as data: when an in-page action replaces only a live
+     region, resources/js/app.js reads this block from the response. --}}
+<script type="application/json" id="flash-toasts">@json($initialToasts)</script>
+
 <div x-data="toaster(@js($initialToasts))" x-init="boot()"
      class="pointer-events-none fixed inset-x-0 top-3 z-[70] flex flex-col items-center gap-2.5 px-3 sm:inset-x-auto sm:right-5 sm:top-5 sm:items-end sm:px-0">
     <template x-for="t in toasts" :key="t.id">
@@ -48,9 +52,16 @@
 
         return {
             toasts: [],
+            onToast: null,
             boot() {
                 (initial || []).forEach((t) => this.push(t.type, t.message));
-                window.addEventListener('toast', (e) => this.push(e.detail.type || 'info', e.detail.message));
+                this.onToast = (e) => this.push(e.detail.type || 'info', e.detail.message);
+                window.addEventListener('toast', this.onToast);
+            },
+            // Soft navigation swaps <body>; the old toaster must stop listening.
+            destroy() {
+                window.removeEventListener('toast', this.onToast);
+                this.toasts.forEach((t) => clearTimeout(t.timer));
             },
             push(type, message) {
                 if (!message) return;

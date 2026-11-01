@@ -13,7 +13,8 @@
     </x-slot>
 
     <div class="py-6 sm:py-8">
-        <div class="app-container space-y-4">
+        {{-- Activating, deactivating and deleting users update this region in place. --}}
+        <x-live-region id="users" class="app-container space-y-4">
             {{-- Compact overview (whole directory, independent of filters) --}}
             @if ($stats['total'] > 0)
                 @php
@@ -156,6 +157,6 @@
                     ])
                 </div>
             @endif
-        </div>
+        </x-live-region>
     </div>
 </x-app-layout>

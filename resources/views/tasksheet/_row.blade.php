@@ -17,11 +17,12 @@
     $fieldCount = count(TasksheetEntry::TASK_FIELDS);
     $idp = 'ts-'.$rowUser->id; // unique per row on the page
 
-    // "Add to board": the team's open releases (ordered by start). Default to the
-    // one running on this day, else the next upcoming one, else the most recent.
+    // "Add to board": the team's open releases (ordered by start), or none. Default
+    // to the one running on this day, else the next upcoming one, else the most
+    // recent, else no release.
     $boardReleases = $boardReleases ?? collect();
-    $defaultRelease = $isOldRow && old('board_release_id')
-        ? (int) old('board_release_id')
+    $defaultRelease = $isOldRow
+        ? (old('board_release_id') ? (int) old('board_release_id') : null)
         : ($boardReleases->first(fn ($r) => $day->between($r->start_date, $r->end_date))
             ?? $boardReleases->first(fn ($r) => $r->start_date->gt($day))
             ?? $boardReleases->last())?->id;
@@ -80,7 +81,7 @@
                     <input type="hidden" name="user_id" value="{{ $rowUser->id }}">
                     <input type="hidden" name="date" value="{{ $day->toDateString() }}">
                     <input type="hidden" name="attended" value="0">
-                    <input type="checkbox" name="attended" value="1" onchange="this.form.submit()"
+                    <input type="checkbox" name="attended" value="1" onchange="this.form.requestSubmit()"
                            @checked($entry?->attendedStandup())
                            title="{{ $entry?->isStandupUnmarked() ?? true ? 'Not yet marked' : ($entry->attendedStandup() ? 'Attended standup' : 'Did not attend standup') }}"
                            aria-label="Standup attendance for {{ $rowUser->name }}"
@@ -272,33 +273,26 @@
                                 {{-- Footer --}}
                                 <footer class="space-y-3 border-t border-slate-200 bg-slate-50/80 px-6 py-4">
                                     {{-- Add to board: Claude splits the plan into To Do cards for this member --}}
-                                    @if ($boardReleases->isNotEmpty())
-                                        <div class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-white px-3 py-2 ring-1 ring-inset ring-violet-200">
-                                            <x-icon name="sparkles" variant="outline" class="h-4 w-4 flex-none text-violet-600" />
-                                            <label for="{{ $idp }}-board-release" class="text-xs font-medium text-slate-700">Board release</label>
-                                            <select id="{{ $idp }}-board-release" name="board_release_id"
-                                                    class="field-control field-sm w-auto min-w-0 flex-1 pr-8 sm:max-w-[15rem]" @invalid('board_release_id')>
-                                                @foreach ($boardReleases as $r)
-                                                    <option value="{{ $r->id }}" @selected($defaultRelease === $r->id)>{{ $r->name }}</option>
-                                                @endforeach
-                                            </select>
-                                            <span class="w-full text-[11px] leading-snug text-slate-500 sm:w-auto sm:flex-1">
-                                                Claude splits the plan into tasks assigned to {{ Str::before($rowUser->name, ' ') ?: $rowUser->name }}.
-                                            </span>
-                                        </div>
-                                    @else
-                                        <p class="flex items-center gap-2 text-xs text-slate-500">
-                                            <x-icon name="sparkles" variant="outline" class="h-4 w-4 flex-none text-slate-400" />
-                                            Add to board needs an open release for {{ $team->name }}.
-                                        </p>
-                                    @endif
+                                    <div class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-white px-3 py-2 ring-1 ring-inset ring-violet-200">
+                                        <x-icon name="sparkles" variant="outline" class="h-4 w-4 flex-none text-violet-600" />
+                                        <label for="{{ $idp }}-board-release" class="text-xs font-medium text-slate-700">Board release</label>
+                                        <select id="{{ $idp }}-board-release" name="board_release_id"
+                                                class="field-control field-sm w-auto min-w-0 flex-1 pr-8 sm:max-w-[15rem]" @invalid('board_release_id')>
+                                            <option value="" @selected($defaultRelease === null)>No release</option>
+                                            @foreach ($boardReleases as $r)
+                                                <option value="{{ $r->id }}" @selected($defaultRelease === $r->id)>{{ $r->name }}</option>
+                                            @endforeach
+                                        </select>
+                                        <span class="w-full text-[11px] leading-snug text-slate-500 sm:w-auto sm:flex-1">
+                                            Claude splits the plan into tasks assigned to {{ Str::before($rowUser->name, ' ') ?: $rowUser->name }}.
+                                        </span>
+                                    </div>
 
                                     <div class="flex flex-wrap items-center justify-end gap-2">
                                         <button type="button" @click="editing = false" class="btn-ghost mr-auto sm:mr-0">Cancel</button>
                                         <button type="submit" formaction="{{ route('tasksheet.entries.board') }}" data-action="board"
                                                 class="btn border border-violet-700/30 bg-gradient-to-b from-violet-500 to-fuchsia-600 text-white shadow-btn hover:from-violet-600 hover:to-fuchsia-700 focus-visible:ring-violet-500/60"
-                                                @disabled($boardReleases->isEmpty())
-                                                :disabled="@js($boardReleases->isEmpty()) || busy !== null || @js(TasksheetEntry::FULL_DAY_LEAVE_TYPES).includes(leave)"
+                                                :disabled="busy !== null || @js(TasksheetEntry::FULL_DAY_LEAVE_TYPES).includes(leave)"
                                                 :title="@js(TasksheetEntry::FULL_DAY_LEAVE_TYPES).includes(leave) ? 'A full-day leave has no tasks to add' : 'Save the row and add its plan to the board'">
                                             <svg x-show="busy === 'board'" x-cloak class="h-4 w-4 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                                                 <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-opacity=".3" stroke-width="3" />

@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\TaskRequest;
 use App\Models\Release;
 use App\Models\Task;
+use App\Models\Team;
 use App\Services\TaskService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -37,12 +38,14 @@ class TaskController extends Controller
 
     public function show(Task $task): View
     {
-        $task->load(['release.project', 'release.team', 'assignee', 'creator',
+        $task->load(['release.project', 'release.team', 'team', 'assignee', 'creator',
             'subtasks.assignee', 'comments.user', 'parent']);
 
         return view('tasks.show', [
             'task' => $task,
             'users' => $this->tasks->assignableUsers($task),
+            'releases' => Release::orderBy('year', 'desc')->orderBy('name')->get(),
+            'teams' => Team::orderBy('name')->get(),
         ]);
     }
 

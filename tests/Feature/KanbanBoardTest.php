@@ -118,9 +118,12 @@ class KanbanBoardTest extends TestCase
 
     public function test_board_add_task_validates(): void
     {
+        // The release is optional, but an unknown one is still rejected.
         $this->actingAs(User::factory()->create())
-            ->post(route('board.tasks.store'), ['title' => '', 'status' => 'nope'])
+            ->post(route('board.tasks.store'), ['title' => '', 'status' => 'nope', 'release_id' => 999])
             ->assertSessionHasErrors(['release_id', 'title', 'status']);
+
+        $this->assertSame(0, Task::count());
     }
 
     public function test_filter_by_release(): void

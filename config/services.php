@@ -39,6 +39,9 @@ return [
         // "Enhance with Claude" on notes and meeting notes.
         'enhance_model' => env('ENHANCE_MODEL', 'claude-sonnet-5-5'),
         'enhance_effort' => env('ENHANCE_EFFORT', 'low'),
+        // Calendar "Import from file": extracts events from uploaded documents.
+        'calendar_import_model' => env('CALENDAR_IMPORT_MODEL', 'claude-opus-5-5'),
+        'calendar_import_effort' => env('CALENDAR_IMPORT_EFFORT', 'medium'),
     ],
 
     'slack' => [

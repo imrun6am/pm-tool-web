@@ -13,7 +13,7 @@ class Task extends Model
     use RecordsActivity;
 
     protected $fillable = [
-        'release_id', 'parent_id', 'title', 'description', 'status',
+        'release_id', 'team_id', 'parent_id', 'title', 'description', 'status',
         'assignee_id', 'created_by', 'due_date', 'phase', 'position',
     ];
 
@@ -60,6 +60,12 @@ class Task extends Model
     public function release(): BelongsTo
     {
         return $this->belongsTo(Release::class);
+    }
+
+    /** The owning team: the release's team when linked, else optional. */
+    public function team(): BelongsTo
+    {
+        return $this->belongsTo(Team::class);
     }
 
     public function parent(): BelongsTo

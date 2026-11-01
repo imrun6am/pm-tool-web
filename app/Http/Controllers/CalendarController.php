@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Event;
+use App\Models\Release;
+use App\Models\User;
 use App\Services\EventService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -20,6 +22,10 @@ class CalendarController extends Controller
         $first = Carbon::create($year, $month, 1)->startOfDay();
         [$gridStart, $gridEnd] = $this->events->monthWindow($year, $month);
 
+        // `new` (a date, or 1) is the create deep link: open the drawer on load.
+        $new = $request->query('new');
+        $newDate = is_string($new) && strtotime($new) ? Carbon::parse($new) : null;
+
         $byDate = $this->events->groupByDate(
             $this->events->inWindow($gridStart, $gridEnd),
             $gridStart,
@@ -32,6 +38,14 @@ class CalendarController extends Controller
             'prev' => $first->copy()->subMonthNoOverflow(),
             'next' => $first->copy()->addMonthNoOverflow(),
             'today' => now(),
+            // The "New event" drawer.
+            'newEvent' => new Event([
+                'type' => 'meeting',
+                'starts_at' => $newDate ? $newDate->setTime(9, 0) : now()->addHour()->startOfHour(),
+            ]),
+            'openNewEvent' => $new !== null,
+            'releases' => Release::orderBy('year', 'desc')->orderBy('name')->get(),
+            'users' => User::active()->orderBy('name')->get(),
         ]);
     }
 

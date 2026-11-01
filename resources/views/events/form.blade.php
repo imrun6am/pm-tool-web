@@ -1,8 +1,11 @@
 @php
     $fmt = fn ($dt) => $dt ? \Illuminate\Support\Carbon::parse($dt)->format('Y-m-d\TH:i') : '';
 @endphp
-<div class="card card-pad">
-    <x-form-section title="Details" description="What the event is, and the release it belongs to, if any.">
+{{-- Event fields, stacked for the narrow drawer (events/_drawer). --}}
+<div class="space-y-7">
+    <section class="space-y-5">
+        <h3 class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Details</h3>
+
         <x-field label="Title" for="title">
             <input id="title" name="title" type="text" value="{{ old('title', $event->title) }}" required
                    placeholder="e.g. Sprint planning" class="field-input" @invalid('title')>
@@ -30,9 +33,14 @@
             <textarea id="description" name="description" rows="3" class="field-textarea"
                       placeholder="Agenda, links or anything attendees should prepare." @invalid('description')>{{ old('description', $event->description) }}</textarea>
         </x-field>
-    </x-form-section>
+    </section>
 
-    <x-form-section title="When and where" description="For all-day events the time is ignored — the event covers the whole day(s).">
+    <section class="space-y-5 border-t border-slate-100 pt-6">
+        <div>
+            <h3 class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">When and where</h3>
+            <p class="mt-1 text-xs text-slate-500">For all-day events the time is ignored — the event covers the whole day(s).</p>
+        </div>
+
         <div class="grid gap-5 sm:grid-cols-2">
             <x-field label="Starts" for="starts_at">
                 <input id="starts_at" name="starts_at" type="datetime-local" value="{{ old('starts_at', $fmt($event->starts_at)) }}" required
@@ -51,11 +59,16 @@
 
         <x-field label="Location" for="location" optional>
             <input id="location" name="location" type="text" value="{{ old('location', $event->location) }}"
-                   placeholder="Room 4 / Zoom" class="field-input sm:max-w-md" @invalid('location')>
+                   placeholder="Room 4 / Zoom" class="field-input" @invalid('location')>
         </x-field>
-    </x-form-section>
+    </section>
 
-    <x-form-section title="Attendees" description="Who should be there. They’ll see the event on their calendar.">
+    <section class="space-y-5 border-t border-slate-100 pt-6">
+        <div>
+            <h3 class="text-[11px] font-semibold uppercase tracking-wider text-slate-500">Attendees</h3>
+            <p class="mt-1 text-xs text-slate-500">Who should be there. They’ll see the event on their calendar.</p>
+        </div>
+
         <x-field label="Attendees" name="attendees" optional>
             <div class="mt-1.5">
                 <x-multi-select
@@ -65,5 +78,5 @@
                     placeholder="Add attendees…" />
             </div>
         </x-field>
-    </x-form-section>
+    </section>
 </div>

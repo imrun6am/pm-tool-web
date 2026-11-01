@@ -42,6 +42,7 @@
                 <label for="release_id" class="filter-label">Release</label>
                 <select id="release_id" name="release_id" class="filter-select max-w-[14rem]">
                     <option value="">All releases</option>
+                    <option value="none" @selected($filters['release_id'] === 'none')>No release</option>
                     @foreach ($releases as $r)
                         <option value="{{ $r->id }}" @selected($filters['release_id'] === $r->id)>{{ $r->name }}</option>
                     @endforeach
@@ -153,9 +154,9 @@
                                     @if ($release)
                                         <input type="hidden" name="release_id" value="{{ $release->id }}">
                                     @else
-                                        <label for="new-card-release-{{ $status }}" class="sr-only">Release</label>
-                                        <select id="new-card-release-{{ $status }}" name="release_id" required class="field-control field-sm">
-                                            <option value="">Select release…</option>
+                                        <label for="new-card-release-{{ $status }}" class="sr-only">Release (optional)</label>
+                                        <select id="new-card-release-{{ $status }}" name="release_id" class="field-control field-sm">
+                                            <option value="">No release</option>
                                             @foreach ($releases as $r)
                                                 <option value="{{ $r->id }}">{{ $r->name }}</option>
                                             @endforeach

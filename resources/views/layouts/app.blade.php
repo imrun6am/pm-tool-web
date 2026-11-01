@@ -4,6 +4,13 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="csrf-token" content="{{ csrf_token() }}">
+        {{-- Soft navigation (Turbo Drive): no snapshot cache, so back/forward
+             re-fetch clean HTML instead of re-booting Alpine over a cloned
+             DOM; renders crossfade where view transitions are supported. --}}
+        <meta name="turbo-cache-control" content="no-cache">
+        <meta name="view-transition" content="same-origin">
+        {{-- An action that redirects back to the same page keeps its scroll. --}}
+        <meta name="turbo-refresh-scroll" content="preserve">
 
         <title>{{ config('app.name', 'PM Tool') }}</title>
 

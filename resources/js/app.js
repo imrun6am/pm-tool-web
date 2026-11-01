@@ -1,7 +1,119 @@
 import Alpine from 'alpinejs';
+import * as Turbo from '@hotwired/turbo';
 import 'trix';
+import './tasksheet-exports';
 
 window.Alpine = Alpine;
+
+/*
+ * Soft navigation (Turbo Drive): same-origin links and forms fetch the next
+ * page and swap <body> in place, so there's no blank flash between pages.
+ * Alpine's mutation observer boots the new body's components, but it only
+ * tears down removed nodes it initialized itself — never <body> — so the old
+ * body is destroyed explicitly once it's swapped out (running destroy()
+ * hooks and x-on .window/.document cleanups). Any component that adds a
+ * listener to window/document/a media query must remove it in destroy().
+ * Declare the field that holds the teardown in the component's data: an
+ * undeclared property set from a nested component lands on the outermost
+ * scope (appShell), where sibling instances would overwrite each other's.
+ * Opt a link or form out with data-turbo="false" (downloads, logout).
+ */
+Turbo.config.drive.progressBarDelay = 0;
+
+let outgoingBody = null;
+
+document.addEventListener('turbo:before-render', () => {
+    outgoingBody = document.body;
+    // `scroll-behavior: smooth` on <html> would animate Turbo's jump to the
+    // top (or its back/forward restore); switch it off for the swap.
+    document.documentElement.style.scrollBehavior = 'auto';
+});
+document.addEventListener('turbo:render', () => {
+    if (outgoingBody && outgoingBody !== document.body) Alpine.destroyTree(outgoingBody);
+    outgoingBody = null;
+});
+document.addEventListener('turbo:load', () => {
+    revealInvalid(document);
+    requestAnimationFrame(() => document.documentElement.style.removeProperty('scroll-behavior'));
+});
+
+// After a failed submit (same-page refreshes keep scroll), bring the first
+// invalid field (marked by @invalid) into view so the error isn't off-screen.
+function revealInvalid(root) {
+    const field = root.querySelector('[aria-invalid="true"]');
+    if (!field) return;
+    field.scrollIntoView({ block: 'nearest' });
+    field.focus({ preventScroll: true });
+}
+
+/*
+ * In-page actions (<x-live-region>, a Turbo Frame with target="_top"): any
+ * non-GET form inside a region submits in the background and only that
+ * region is replaced, cut from the page the action redirects back to — so
+ * controllers keep plain back()->with(...) responses. Links and GET filters
+ * inside it still navigate the whole page. A form can opt out with
+ * data-turbo-frame="_top".
+ */
+document.addEventListener('submit', (e) => {
+    const form = e.target;
+    if (!(form instanceof HTMLFormElement) || form.method === 'get' || form.dataset.turboFrame) return;
+    const region = form.closest('turbo-frame[data-live-region]');
+    if (region) form.dataset.turboFrame = region.id;
+}, true);
+
+// Turbo only drives the top progress bar for whole-page visits; run it for
+// region submissions too.
+let regionPending = false;
+const progressBar = () => Turbo.session.adapter.progressBar;
+const settleRegion = () => {
+    if (!regionPending) return;
+    regionPending = false;
+    progressBar().setValue(1);
+    progressBar().hide();
+};
+document.addEventListener('turbo:submit-start', (e) => {
+    const target = e.target.dataset.turboFrame;
+    if (!target || target === '_top') return;
+    regionPending = true;
+    progressBar().setValue(0);
+    progressBar().show();
+});
+document.addEventListener('turbo:submit-end', (e) => {
+    if (!e.detail.success) settleRegion();
+});
+
+// Tear down the region's Alpine components before its content is replaced
+// (a region outside any x-data root would otherwise leak them).
+document.addEventListener('turbo:before-frame-render', (e) => {
+    const render = e.detail.render;
+    e.detail.render = async (current, next) => {
+        [...current.children].forEach((el) => Alpine.destroyTree(el));
+        await render(current, next);
+    };
+});
+
+// The toaster lives outside the region, so raise the response's flash toasts
+// (layouts/toasts renders them as #flash-toasts) by hand.
+document.addEventListener('turbo:frame-render', async (e) => {
+    settleRegion();
+    revealInvalid(e.target);
+    const html = await e.detail.fetchResponse.responseHTML;
+    if (!html) return;
+    const payload = new DOMParser().parseFromString(html, 'text/html').getElementById('flash-toasts');
+    try {
+        JSON.parse(payload?.textContent || '[]').forEach((t) => window.dispatchEvent(new CustomEvent('toast', { detail: t })));
+    } catch (err) {
+        // Malformed payload — the region still updated; skip the toasts.
+    }
+});
+
+// The action redirected to a page without this region (e.g. a delete that
+// lands on an index): show that page as a normal soft visit instead.
+document.addEventListener('turbo:frame-missing', (e) => {
+    e.preventDefault();
+    settleRegion();
+    e.detail.visit(e.detail.response);
+});
 
 const SIDEBAR_KEY = 'rp.sidebar';
 const desktop = window.matchMedia('(min-width: 1024px)');
@@ -16,15 +128,24 @@ Alpine.data('appShell', () => ({
     collapsed: document.documentElement.dataset.sidebar === 'collapsed',
     modKey: /Mac|iPhone|iPad/.test(navigator.platform) ? '⌘' : 'Ctrl',
     tip: { show: false, text: '', top: 0 },
+    stopListening: null,
 
     init() {
         this.$watch('mobileOpen', (open) => {
             document.documentElement.classList.toggle('overflow-hidden', open);
             this.$nextTick(() => (open ? this.$refs.sidebarClose : this.$refs.menuButton)?.focus());
         });
+        const listeners = new AbortController();
         desktop.addEventListener('change', (e) => {
             if (e.matches) this.mobileOpen = false;
-        });
+        }, { signal: listeners.signal });
+        this.stopListening = () => listeners.abort();
+    },
+
+    destroy() {
+        this.stopListening?.();
+        // Navigating from the open mobile drawer must not leave the page scroll-locked.
+        document.documentElement.classList.remove('overflow-hidden');
     },
 
     closeMobile() {
@@ -111,7 +232,7 @@ Alpine.data('commandPalette', (entries = []) => ({
 
     go(position = this.active) {
         const entry = this.entries[this.results[position]];
-        if (entry) window.location.assign(entry.url);
+        if (entry) Turbo.visit(entry.url);
     },
 }));
 
@@ -169,6 +290,7 @@ Alpine.data('filterBar', () => ({
  */
 Alpine.data('settingsNav', (ids = []) => ({
     active: ids[0] ?? null,
+    stopListening: null,
 
     init() {
         const fromHash = location.hash.slice(1);
@@ -187,10 +309,20 @@ Alpine.data('settingsNav', (ids = []) => ({
         });
 
         // The last section may never reach the middle band on tall screens.
+        const listeners = new AbortController();
         window.addEventListener('scroll', () => {
             const atBottom = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4;
             if (atBottom && ids.length) this.active = ids[ids.length - 1];
-        }, { passive: true });
+        }, { passive: true, signal: listeners.signal });
+
+        this.stopListening = () => {
+            observer.disconnect();
+            listeners.abort();
+        };
+    },
+
+    destroy() {
+        this.stopListening?.();
     },
 }));
 
@@ -205,6 +337,7 @@ Alpine.data('aiEnhance', ({ input, kind, url, titleField = null, typeField = nul
     empty: true,
     error: '',
     previous: null,
+    stopListening: null,
 
     editor() {
         return document.querySelector(`trix-editor[input="${input}"]`);
@@ -216,9 +349,15 @@ Alpine.data('aiEnhance', ({ input, kind, url, titleField = null, typeField = nul
             const el = this.editor();
             this.empty = !el?.editor || el.editor.getDocument().toString().trim() === '';
         };
-        document.addEventListener('trix-initialize', sync);
-        document.addEventListener('trix-change', sync);
+        const listeners = new AbortController();
+        document.addEventListener('trix-initialize', sync, { signal: listeners.signal });
+        document.addEventListener('trix-change', sync, { signal: listeners.signal });
+        this.stopListening = () => listeners.abort();
         this.$nextTick(() => sync());
+    },
+
+    destroy() {
+        this.stopListening?.();
     },
 
     field(id) {

@@ -204,7 +204,7 @@ with 422.
 | `GET`    | `/releases/{id}/documents/{doc}`              | any — streams the file |
 | `DELETE` | `/releases/{id}/documents/{doc}`              | manage-releases  |
 | `GET`    | `/releases/{id}/tasks`                        | any              |
-| `POST`   | `/releases/{id}/tasks`                        | any              |
+| `POST`   | `/releases/{id}/tasks`                        | any — always linked to this release |
 | `GET`    | `/releases/{id}/comments`                     | any              |
 | `POST`   | `/releases/{id}/comments`                     | any              |
 
@@ -237,13 +237,14 @@ serialized, so there is no public URL to leak.
 | Method            | Path                                                     |
 | ----------------- | -------------------------------------------------------- |
 | `GET`             | `/tasks` — `?release_id=&assignee_id=&status=&phase=&overdue=1&include_subtasks=1` |
+| `POST`            | `/tasks` — top-level task; `release_id` optional         |
 | `GET/PUT/DELETE`  | `/tasks/{id}`                                            |
 | `PATCH`           | `/tasks/{id}/status`                                     |
 | `POST`            | `/tasks/{id}/subtasks` — one level only; 422 on a subtask |
 | `GET/POST`        | `/tasks/{id}/comments`                                   |
 | `PUT/DELETE`      | `/comments/{id}` — author or lead                        |
-| `GET`             | `/board` — every status column, even when empty          |
-| `POST`            | `/board/tasks`                                           |
+| `GET`             | `/board` — every status column, even when empty; `?release_id=&assignee_id=` |
+| `POST`            | `/board/tasks` — `{ title, status, release_id? }`        |
 | `PATCH`           | `/board/tasks/{id}` — `{ status, ordered_ids[] }`, atomic |
 | `GET`             | `/events` — `?year=&month=` or `?from=&to=`; returns `events_by_date` |
 | `POST`            | `/events`                                                |
@@ -255,6 +256,20 @@ serialized, so there is no public URL to leak.
 | `GET/POST`        | `/quick-links` — returns `{ mine, shared }`              |
 | `PUT/DELETE`      | `/quick-links/{id}` — **author only**                    |
 | `POST`            | `/quick-links/{id}/pin` — toggles; **anyone who can see it** |
+
+**Tasks without a release.** A release is optional, and `release_id` and `release` are `null`
+on an unlinked task.
+
+- **Creating:** `POST /tasks` and `POST /board/tasks` take an optional `release_id`.
+- **Linking:** `PUT /tasks/{id}` links a task with `release_id: <id>` and unlinks it with
+  `release_id: null`. Leaving the key out keeps the current link.
+- **Subtasks:** a subtask always has its parent's release; its own `release_id` is ignored, and it
+  follows the parent when the parent's release changes.
+- **Filtering:** `?release_id=none` on `GET /tasks` and `GET /board` selects unlinked tasks.
+- **Assignees:** on a linked task, the assignee must be a member of the release's team. On an
+  unlinked task, any user may be assigned.
+- **Deleting a release:** its tasks stay, unlinked.
+
 
 Rich-text bodies (notes, meeting notes, tasksheet fields) are sanitized on write; the value you
 read back is safe to render. A body with no visible text is rejected as empty.

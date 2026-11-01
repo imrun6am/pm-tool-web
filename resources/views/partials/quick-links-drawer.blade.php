@@ -4,7 +4,7 @@
 @endphp
 {{-- Quick-links slide-over, opened from the top bar's Quick links button
      (dispatches `toggle-quick-links`). --}}
-<div x-data="{ open: {{ session('quick-links-open') ? 'true' : 'false' }}, adding: {{ $errors->hasAny(['label', 'url', 'visibility', 'release_id']) ? 'true' : 'false' }} }"
+<div x-data="{ open: {{ session('quick-links-open') ? 'true' : 'false' }} }"
      @toggle-quick-links.window="open = !open"
      @keydown.escape.window="open = false"
      class="relative z-50">
@@ -32,7 +32,11 @@
             </button>
         </div>
 
-        <div class="flex-1 space-y-6 overflow-y-auto px-5 py-5">
+        {{-- Adding, editing, pinning and deleting links update this region in
+             place, so the drawer stays open. The add form's state lives inside
+             it: closed again after a save, still open on a validation error. --}}
+        <x-live-region id="quick-links" class="flex-1 overflow-y-auto">
+        <div class="space-y-6 px-5 py-5" x-data="{ adding: {{ $errors->hasAny(['label', 'url', 'visibility', 'release_id']) ? 'true' : 'false' }} }">
             {{-- Add button on top; the form expands beneath it --}}
             <button type="button" x-show="!adding" @click="adding = true"
                     class="btn-primary btn-sm w-full justify-center">
@@ -245,5 +249,6 @@
                 </section>
             @endunless
         </div>
+        </x-live-region>
     </aside>
 </div>

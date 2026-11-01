@@ -9,7 +9,7 @@ use Illuminate\Database\Eloquent\Relations\MorphTo;
 class Activity extends Model
 {
     protected $fillable = [
-        'log_name', 'description', 'event', 'subject_type', 'subject_id', 'causer_id', 'properties',
+        'log_name', 'description', 'event', 'subject_type', 'subject_id', 'causer_id', 'release_id', 'properties',
     ];
 
     protected function casts(): array

@@ -1,7 +1,9 @@
 <x-app-layout>
     <x-slot name="header">
         <x-page-header title="Tasksheet" :description="$day->format('l, M j, Y').($isToday ? ' · Today' : '')">
-            @if ($team)
+            {{-- Only offered when the export would be allowed (TasksheetExportPolicy):
+                 leads, or a member filtered down to their own rows. --}}
+            @if ($team && auth()->user()->can('create', [\App\Models\TasksheetExport::class, $filters['member']]))
                 <x-slot name="actions">
                     {{-- Export: defaults to the viewed day, but the range is editable
                          here — the sheet itself is always one day, so this is the
@@ -12,10 +14,12 @@
                             <x-icon name="chevron-down" class="ml-1 h-3 w-3" />
                         </button>
 
-                        <form method="GET" action="{{ route('tasksheet.report') }}" x-show="open" x-transition style="display: none;"
+                        {{-- Queues a background export, then lands on the exports list. --}}
+                        <form method="POST" action="{{ route('tasksheet.exports.store') }}" data-turbo="false" x-show="open" x-transition style="display: none;"
                               class="absolute right-0 z-20 mt-2 w-64 space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-lg">
+                            @csrf
                             <input type="hidden" name="team" value="{{ $team->id }}">
-                            {{-- The filters in effect travel with the download. --}}
+                            {{-- The filters in effect travel with the export. --}}
                             @foreach (['attendance', 'fill', 'leave', 'member'] as $key)
                                 @if ($filters[$key])
                                     <input type="hidden" name="{{ $key }}" value="{{ $filters[$key] }}">
@@ -34,7 +38,8 @@
                             </div>
 
                             <p class="text-[11px] text-slate-400">Defaults to this day. A reversed range is swapped, not rejected.</p>
-                            <button class="btn-primary btn-sm w-full justify-center">Download</button>
+                            <button class="btn-primary btn-sm w-full justify-center">Generate PDF</button>
+                            <a href="{{ route('tasksheet.exports.index') }}" class="block text-center text-xs font-medium text-brand-700 hover:underline">View my exports</a>
                         </form>
                     </div>
                 </x-slot>

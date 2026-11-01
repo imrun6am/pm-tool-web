@@ -9,7 +9,10 @@
         <x-page-header :title="'Tasksheet — '.$member->name" :description="$memberMeta"
                        :breadcrumbs="['Tasksheet' => route('tasksheet.index'), $member->name => null]">
             <x-slot name="actions">
-                <a href="{{ route('tasksheet.report', array_filter([
+                {{-- Queues a background export of this history, filters included. --}}
+                <form method="POST" action="{{ route('tasksheet.exports.store') }}" data-turbo="false">
+                    @csrf
+                    @foreach (array_filter([
                         'member' => $member->id,
                         'team' => $teamFilter,
                         'from' => $from,
@@ -17,7 +20,11 @@
                         'attendance' => $filters['attendance'],
                         'fill' => $filters['fill'],
                         'leave' => $filters['leave'],
-                    ])) }}" class="btn-secondary btn-sm">Export PDF</a>
+                    ]) as $key => $value)
+                        <input type="hidden" name="{{ $key }}" value="{{ $value }}">
+                    @endforeach
+                    <button class="btn-secondary btn-sm">Export PDF</button>
+                </form>
             </x-slot>
         </x-page-header>
     </x-slot>

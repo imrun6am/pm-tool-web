@@ -25,7 +25,7 @@
 
             {{-- Separate form — never nest inside the update form. --}}
             <form id="delete-release" method="POST" action="{{ route('releases.destroy', $release) }}" class="hidden"
-                  data-confirm="Delete this release, its phases, documents and off-days? This can't be undone." data-confirm-verb="Delete">
+                  data-confirm="Delete this release, its phases, documents and off-days? Its tasks stay on the board with no release. This can't be undone." data-confirm-verb="Delete">
                 @csrf @method('DELETE')
             </form>
         </div>

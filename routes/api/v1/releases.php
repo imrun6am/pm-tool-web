@@ -76,7 +76,7 @@ Route::post('releases/{release}/documents', [ReleaseDocumentController::class, '
     ->name('releases.documents.store');
 
 Route::get('releases/{release}/tasks', [TaskController::class, 'indexForRelease'])->name('releases.tasks.index');
-Route::post('releases/{release}/tasks', [TaskController::class, 'store'])->name('releases.tasks.store');
+Route::post('releases/{release}/tasks', [TaskController::class, 'storeForRelease'])->name('releases.tasks.store');
 
 Route::get('releases/{release}/comments', [CommentController::class, 'indexForRelease'])
     ->name('releases.comments.index');

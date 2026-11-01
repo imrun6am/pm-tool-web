@@ -23,6 +23,7 @@ class TaskResource extends JsonResource
         return [
             'id' => $this->id,
             'release_id' => $this->release_id,
+            'team_id' => $this->team_id,
             'parent_id' => $this->parent_id,
             'title' => $this->title,
             'description' => $this->description,
@@ -40,6 +41,7 @@ class TaskResource extends JsonResource
             'assignee' => new UserSummaryResource($this->whenLoaded('assignee')),
             'created_by' => new UserSummaryResource($this->whenLoaded('creator')),
             'release' => new ReleaseSummaryResource($this->whenLoaded('release')),
+            'team' => new TeamSummaryResource($this->whenLoaded('team')),
             'parent' => new TaskSummaryResource($this->whenLoaded('parent')),
             'subtasks' => TaskSummaryResource::collection($this->whenLoaded('subtasks')),
             'comments' => CommentResource::collection($this->whenLoaded('comments')),

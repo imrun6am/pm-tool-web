@@ -15,7 +15,8 @@
     </x-slot>
 
     <div class="py-6 sm:py-8">
-        <div class="app-container">
+        {{-- Activating, deactivating and deleting competencies update this region in place. --}}
+        <x-live-region id="competencies" class="app-container">
             <div class="card overflow-x-auto">
                 <table class="min-w-full divide-y divide-slate-200 text-sm">
                     <thead class="bg-slate-50">
@@ -56,7 +57,7 @@
                                             <button class="btn-ghost btn-sm">{{ $competency->active ? 'Deactivate' : 'Activate' }}</button>
                                         </form>
                                         <form method="POST" action="{{ route('performance.competencies.destroy', $competency) }}"
-                                              onsubmit="return confirm('Delete this competency? This cannot be undone.')">
+                                              data-confirm="Delete this competency? This cannot be undone." data-confirm-verb="Delete">
                                             @csrf @method('DELETE')
                                             <button class="btn-ghost btn-sm !px-2 text-rose-600 hover:bg-rose-50" aria-label="Delete"><x-icon name="trash" class="h-4 w-4" /></button>
                                         </form>
@@ -70,6 +71,6 @@
                 </table>
             </div>
             <p class="mt-3 text-xs text-slate-400">A competency with recorded ratings can’t be deleted — deactivate it to retire it while keeping its history.</p>
-        </div>
+        </x-live-region>
     </div>
 </x-app-layout>

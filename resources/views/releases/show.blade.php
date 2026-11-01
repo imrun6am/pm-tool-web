@@ -469,7 +469,7 @@
                                 @foreach ($release->documents as $document)
                                     <li class="flex items-center justify-between gap-2 px-5 py-3">
                                         <div class="min-w-0">
-                                            <a href="{{ route('releases.documents.download', [$release, $document]) }}" class="block truncate text-sm font-medium text-slate-800 hover:text-brand-600">{{ $document->original_name }}</a>
+                                            <a href="{{ route('releases.documents.download', [$release, $document]) }}" data-turbo="false" class="block truncate text-sm font-medium text-slate-800 hover:text-brand-600">{{ $document->original_name }}</a>
                                             <p class="text-xs text-slate-400">{{ $document->humanSize() }} · {{ $document->created_at->format('M j, Y') }}</p>
                                         </div>
                                         @if (auth()->user()->canManageReleases())

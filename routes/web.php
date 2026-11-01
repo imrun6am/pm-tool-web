@@ -7,6 +7,7 @@ use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EventController;
+use App\Http\Controllers\EventImportController;
 use App\Http\Controllers\KpiReportController;
 use App\Http\Controllers\MeetingNoteController;
 use App\Http\Controllers\NoteController;
@@ -21,6 +22,7 @@ use App\Http\Controllers\ReleaseDocumentController;
 use App\Http\Controllers\ReleaseOffDayController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TasksheetController;
+use App\Http\Controllers\TasksheetExportController;
 use App\Http\Controllers\TeamController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
@@ -157,6 +159,16 @@ Route::middleware('auth')->group(function () {
     Route::put('events/{event}', [EventController::class, 'update'])->name('events.update');
     Route::delete('events/{event}', [EventController::class, 'destroy'])->name('events.destroy');
 
+    // Calendar "Import from file" (any user uploads; uploader/admin sees, uploader confirms)
+    Route::get('calendar/imports', [EventImportController::class, 'index'])->name('calendar.imports.index');
+    Route::post('calendar/imports', [EventImportController::class, 'store'])
+        ->middleware('throttle:calendar-import')->name('calendar.imports.store');
+    Route::get('calendar/imports/{import}', [EventImportController::class, 'show'])->name('calendar.imports.show');
+    Route::get('calendar/imports/{import}/status', [EventImportController::class, 'status'])->name('calendar.imports.status');
+    Route::post('calendar/imports/{import}/confirm', [EventImportController::class, 'confirm'])->name('calendar.imports.confirm');
+    Route::post('calendar/imports/{import}/retry', [EventImportController::class, 'retry'])->name('calendar.imports.retry');
+    Route::delete('calendar/imports/{import}', [EventImportController::class, 'destroy'])->name('calendar.imports.destroy');
+
     // Daily notes (private / shared)
     Route::get('notes', [NoteController::class, 'index'])->name('notes.index');
     Route::post('notes', [NoteController::class, 'store'])->name('notes.store');
@@ -184,6 +196,13 @@ Route::middleware('auth')->group(function () {
     Route::put('tasksheet/entries/board', [TasksheetController::class, 'addToBoard'])->name('tasksheet.entries.board');
     Route::post('tasksheet/standup', [TasksheetController::class, 'verifyStandup'])->name('tasksheet.standup');
     Route::get('tasksheet/report.pdf', [TasksheetController::class, 'report'])->name('tasksheet.report');
+    // Background PDF exports (private to the requester; see TasksheetExportPolicy)
+    Route::get('tasksheet/exports', [TasksheetExportController::class, 'index'])->name('tasksheet.exports.index');
+    Route::post('tasksheet/exports', [TasksheetExportController::class, 'store'])->name('tasksheet.exports.store');
+    Route::get('tasksheet/exports/status', [TasksheetExportController::class, 'status'])->name('tasksheet.exports.status');
+    Route::get('tasksheet/exports/{export}/download', [TasksheetExportController::class, 'download'])->name('tasksheet.exports.download');
+    Route::post('tasksheet/exports/{export}/retry', [TasksheetExportController::class, 'retry'])->name('tasksheet.exports.retry');
+    Route::delete('tasksheet/exports/{export}', [TasksheetExportController::class, 'destroy'])->name('tasksheet.exports.destroy');
     Route::get('tasksheet/users/{member}', [TasksheetController::class, 'user'])
         ->name('tasksheet.user')
         ->withTrashed(); // history pages must resolve deleted users too
