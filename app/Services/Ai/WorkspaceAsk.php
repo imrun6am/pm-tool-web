@@ -5,8 +5,10 @@ namespace App\Services\Ai;
 use App\Models\Event;
 use App\Models\MeetingNote;
 use App\Models\Note;
+use App\Models\Project;
 use App\Models\Release;
 use App\Models\Task;
+use App\Models\Team;
 use App\Models\User;
 use App\Services\Board\PlanToBoardService;
 use Illuminate\Database\Eloquent\Builder;
@@ -31,7 +33,7 @@ class WorkspaceAsk
     private const SYSTEM = <<<'TXT'
         You answer questions about a software team's workspace (releases, tasks, meeting notes, daily notes, calendar events) for the person asking.
 
-        You get the asker, today's date, and the records the asker is allowed to see in <records>, each with a reference like [T12] (task), [R3] (release), [M5] (meeting note), [N7] (note), [E2] (event).
+        You get the asker, today's date, and the records the asker is allowed to see in <records>, each with a reference like [T12] (task), [R3] (release), [M5] (meeting note), [N7] (note), [E2] (event), [G4] (team), [P2] (project).
 
         Rules:
         - Answer only from the records. If they do not contain the answer, say so plainly and suggest where to look; never invent tasks, people, dates or numbers.
@@ -98,13 +100,25 @@ class WorkspaceAsk
         };
         $excerpt = fn (?string $html, int $len = 600) => mb_strimwidth(preg_replace('/\s+/', ' ', PlanToBoardService::plainText((string) $html)), 0, $len, '…');
 
+        // A team or project named in the question ("what's the update of team X?")
+        // pulls in its releases and recent work, not just records mentioning the word.
+        $teams = $match(Team::query()
+            ->when($user->hasLimitedAccess(), fn ($q) => $q->whereIn('id', $user->currentTeamIds()))
+            ->with(['teamLead:id,name'])->withCount('members'), ['name'])->limit(3)->get();
+        $projects = $user->hasLimitedAccess() ? collect() : $match(Project::query(), ['name'])->limit(3)->get();
+
         $tasks = $match(Task::visibleTo($user)->with(['release:id,name', 'assignee:id,name']), ['title', 'description'])
             ->latest('updated_at')->limit(25)->get()
+            ->merge($teams->isEmpty() ? collect() : Task::visibleTo($user)->with(['release:id,name', 'assignee:id,name'])
+                ->whereIn('team_id', $teams->pluck('id'))->whereNull('parent_id')->counted()->latest('updated_at')->limit(30)->get())
             ->merge(Task::visibleTo($user)->with(['release:id,name', 'assignee:id,name'])
                 ->where('assignee_id', $user->id)->whereNotIn('status', Task::DONE_STATUSES)->orderBy('due_date')->limit(10)->get())
             ->unique('id');
 
         $releases = $match(Release::visibleTo($user)->with(['project:id,name', 'team:id,name']), ['name', 'description'])->limit(10)->get()
+            ->merge(($teams->isEmpty() && $projects->isEmpty()) ? collect() : Release::visibleTo($user)->with(['project:id,name', 'team:id,name'])
+                ->where(fn ($q) => $q->whereIn('team_id', $teams->pluck('id'))->orWhereIn('project_id', $projects->pluck('id')))
+                ->latest('start_date')->limit(10)->get())
             ->merge(Release::visibleTo($user)->with(['project:id,name', 'team:id,name'])->whereNull('completed_at')->orderBy('end_date')->limit(10)->get())
             ->unique('id');
         $counts = Task::counted()->whereIn('release_id', $releases->pluck('id'))
@@ -112,12 +126,26 @@ class WorkspaceAsk
             ->groupBy('release_id')->get()->keyBy('release_id');
 
         $meetings = $match(MeetingNote::visibleTo($user), ['title', 'body'])->latest('meeting_date')->limit(8)->get();
-        $notes = $match(Note::visibleTo($user)->with('user:id,name'), ['body'])->latest('date')->limit(8)->get();
+        $notes = $match(Note::visibleTo($user)->with('author:id,name'), ['body'])->latest('date')->limit(8)->get();
         $events = $match(Event::visibleTo($user), ['title', 'description'])->orderByDesc('starts_at')->limit(10)->get()
             ->merge(Event::visibleTo($user)->whereBetween('starts_at', [now()->startOfDay(), now()->addDays(14)])->orderBy('starts_at')->limit(10)->get())
             ->unique('id');
 
+        $teamStatus = Task::counted()->whereNull('parent_id')->whereIn('team_id', $teams->pluck('id'))
+            ->selectRaw('team_id, status, count(*) as n')->groupBy('team_id', 'status')->get()->groupBy('team_id');
+
         return collect()
+            ->concat($teams->map(fn (Team $t) => [
+                'ref' => "G{$t->id}", 'kind' => 'Team', 'title' => $t->name,
+                'url' => $user->hasLimitedAccess() ? route('board.index', ['team_id' => $t->id]) : route('teams.show', $t),
+                'text' => sprintf('Team %s; lead %s; %d members; tasks by status: %s.',
+                    $t->name, $t->teamLead?->name ?? 'none', $t->members_count,
+                    collect($teamStatus->get($t->id, []))->map(fn ($r) => (Task::STATUSES[$r->status] ?? $r->status).' '.$r->n)->implode(', ') ?: 'none'),
+            ]))
+            ->concat($projects->map(fn (Project $p) => [
+                'ref' => "P{$p->id}", 'kind' => 'Project', 'title' => $p->name, 'url' => route('projects.show', $p),
+                'text' => "Project {$p->name}".($p->archived_at ? ' (archived)' : '').(filled($p->description) ? ': '.$excerpt($p->description, 300) : '.'),
+            ]))
             ->concat($releases->map(fn (Release $r) => [
                 'ref' => "R{$r->id}", 'kind' => 'Release', 'title' => $r->name, 'url' => route('releases.show', $r),
                 'text' => sprintf('%s (project %s, team %s), %s – %s, %s; tasks done %d of %d.%s',
@@ -138,8 +166,8 @@ class WorkspaceAsk
                 'text' => "{$m->title} ({$m->meeting_date?->toDateString()}): ".$excerpt($m->body, 900),
             ]))
             ->concat($notes->map(fn (Note $n) => [
-                'ref' => "N{$n->id}", 'kind' => 'Daily note', 'title' => 'Note by '.($n->user?->name ?? 'someone'), 'url' => route('notes.index'),
-                'text' => ($n->user?->name ?? 'Someone').' on '.$n->date?->toDateString().': '.$excerpt($n->body, 600),
+                'ref' => "N{$n->id}", 'kind' => 'Daily note', 'title' => 'Note by '.($n->author?->name ?? 'someone'), 'url' => route('notes.index'),
+                'text' => ($n->author?->name ?? 'Someone').' on '.$n->date?->toDateString().': '.$excerpt($n->body, 600),
             ]))
             ->concat($events->map(fn (Event $e) => [
                 'ref' => "E{$e->id}", 'kind' => 'Event', 'title' => $e->title, 'url' => route('events.show', $e),
@@ -153,7 +181,7 @@ class WorkspaceAsk
     public static function render(string $answer, Collection $byRef): string
     {
         $html = e(trim($answer));
-        $html = preg_replace_callback('/\[([TRMNE]\d+)\]/', function ($m) use ($byRef) {
+        $html = preg_replace_callback('/\[([TRMNEGP]\d+)\]/', function ($m) use ($byRef) {
             $r = $byRef->get($m[1]);
 
             return $r

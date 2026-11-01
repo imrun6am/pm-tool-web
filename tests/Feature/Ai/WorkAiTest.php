@@ -4,6 +4,7 @@ namespace Tests\Feature\Ai;
 
 use App\Models\Event;
 use App\Models\MeetingNote;
+use App\Models\Note;
 use App\Models\Task;
 use App\Models\User;
 
@@ -145,6 +146,41 @@ class WorkAiTest extends AiTestCase
         $this->assertStringNotContainsString('T999999', $out['html']); // unknown refs are dropped
         $this->assertSame(["T{$mine->id}"], array_column($out['sources'], 'ref'));
         $this->assertStringContainsString('<ul>', $out['html']);
+    }
+
+    public function test_asking_about_a_team_by_name_brings_in_its_work_and_notes(): void
+    {
+        $lead = $this->user(User::ROLE_ADMIN);
+        $this->team->update(['name' => 'Stackmart']);
+        $release = $this->release();
+        Task::create(['release_id' => $release->id, 'title' => 'Payment retries', 'status' => 'in_progress']);
+        Task::create(['team_id' => $this->team->id, 'title' => 'Old idea', 'status' => 'archive']); // never counted
+        Note::create(['user_id' => $lead->id, 'date' => today(), 'body' => '<div>Stackmart demo went well</div>', 'visibility' => 'shared']);
+
+        $this->claude->respondUsing(fn () => ['answer' => "Stackmart is busy [G{$this->team->id}].", 'citations' => ["G{$this->team->id}"], 'follow_ups' => []]);
+
+        $out = $this->actingAs($lead)->postJson(route('ai.ask'), ['question' => 'what is the update of team stackmart?'])->assertOk()->json();
+
+        $prompt = $this->claude->prompt();
+        $this->assertStringContainsString('Team Stackmart', $prompt);
+        $this->assertStringContainsString('Payment retries', $prompt);
+        $this->assertStringContainsString('Checkout v2.4', $prompt);
+        $this->assertStringContainsString('demo went well', $prompt);
+        $this->assertStringNotContainsString('Old idea', $prompt);
+        $this->assertStringContainsString(route('teams.show', $this->team), $out['html']);
+    }
+
+    public function test_developers_cannot_ask_about_another_teams_work(): void
+    {
+        $this->otherTeam->update(['name' => 'Stackmart']);
+        Task::create(['team_id' => $this->otherTeam->id, 'title' => 'Secret roadmap', 'status' => 'todo']);
+        $this->claude->respondUsing(fn () => ['answer' => 'Nothing.', 'citations' => [], 'follow_ups' => []]);
+
+        $this->actingAs($this->user(User::ROLE_DEVELOPER, $this->team))
+            ->postJson(route('ai.ask'), ['question' => 'update of team stackmart?'])->assertOk();
+
+        $this->assertStringNotContainsString('Stackmart', $this->claude->prompt());
+        $this->assertStringNotContainsString('Secret roadmap', $this->claude->prompt());
     }
 
     public function test_ask_page_renders_for_every_role(): void
