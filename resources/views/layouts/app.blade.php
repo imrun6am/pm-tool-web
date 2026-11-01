@@ -58,7 +58,7 @@
                 {{-- Page sub-header --}}
                 @isset($header)
                     <header @class([
-                        'border-b border-slate-200 bg-white',
+                        'app-page-header',
                         'lg:flex-none' => $fullHeight,
                         'sticky top-16 z-30 shadow-sm' => $stickyHeader,
                     ])>
@@ -75,7 +75,7 @@
 
                 {{-- Page content --}}
                 <main @class([
-                    'flex-1',
+                    'app-content flex-1',
                     'lg:flex lg:min-h-0 lg:flex-col lg:overflow-hidden' => $fullHeight,
                 ])>
                     {{ $slot }}
@@ -91,6 +91,9 @@
 
         {{-- Quick capture (press C) + keyboard shortcut sheet (press ?) --}}
         @include('layouts.quick-capture')
+
+        {{-- Colour dots for team/project dropdowns --}}
+        @include('layouts.select-swatches')
 
         {{-- Floating toasts + confirmation modal --}}
         @include('layouts.toasts')

@@ -54,7 +54,9 @@
                 <div class="stat-strip">
                     <x-stat label="Team average" :value="$outOfFive"
                             :sub="$avg !== null ? ScoreColor::pct($avg).'% · '.ScoreColor::label($avg) : 'Not yet evaluated'"
-                            icon="chart-bar" :tone="ScoreColor::tone($avg)" />
+                            icon="chart-bar" :tone="ScoreColor::tone($avg)">
+                        <div class="mt-2">@include('partials.delta', ['change' => $o['averageChange']['change'], 'versus' => 'last week'])</div>
+                    </x-stat>
                     <x-stat label="Evaluation coverage" :value="$covPct !== null ? $covPct.'%' : '—'"
                             :sub="$o['coverage']['covered'].' of '.$o['coverage']['expected'].' ratings'"
                             icon="clipboard-check" :tone="($covPct ?? 0) >= 80 ? 'emerald' : (($covPct ?? 0) >= 40 ? 'amber' : 'slate')" />
@@ -104,6 +106,10 @@
                                         <div class="hidden h-2 w-32 flex-none overflow-hidden rounded-full bg-slate-100 sm:block">
                                             <div class="h-full rounded-full" style="width: {{ $row['overall'] !== null ? round($row['overall'] / 5 * 100) : 0 }}%; background-color: {{ ScoreColor::hex($row['overall']) }}"></div>
                                         </div>
+                                        @if ($row['vsTeam'] !== null)
+                                            <span class="hidden w-20 flex-none text-right text-[11px] tabular md:block {{ $row['vsTeam'] >= 0 ? 'text-success-700' : 'text-slate-500' }}"
+                                                  title="Against the team average">{{ $row['vsTeam'] >= 0 ? '+' : '−' }}{{ ScoreColor::fmt(abs($row['vsTeam'])) }} vs team</span>
+                                        @endif
                                         <span class="w-16 flex-none text-right">@include('partials.perf-score', ['value' => $row['overall']])</span>
                                     </li>
                                 @endforeach
@@ -194,6 +200,8 @@
                         </div>
                     </div>
                 </div>
+
+                @include('performance._team_depth')
             @endif
         </div>
     </div>

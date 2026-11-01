@@ -6,6 +6,7 @@
         'center' => '60%', 'caption' => 'done', 'label' => 'My tasks by status',
     ])
     Uses r=15.9155 so the circumference is 100 and dash lengths are percentages.
+    A segment may carry an `href`: its legend row becomes a drill-down link.
 --}}
 @php
     $segments = array_values($segments ?? []);
@@ -36,10 +37,14 @@
     </div>
     <ul class="min-w-[9rem] flex-1 space-y-1.5">
         @foreach ($segments as $segment)
-            <li class="flex items-center gap-2 text-sm">
-                <span class="h-2.5 w-2.5 flex-none rounded-full" style="background-color: {{ $segment['color'] }}"></span>
-                <span class="truncate text-slate-600">{{ $segment['label'] }}</span>
-                <span class="tabular ml-auto font-semibold text-slate-900">{{ $segment['value'] }}</span>
+            <li>
+                {{-- a segment with an `href` makes its legend row a drill-down link --}}
+                <{{ ! empty($segment['href']) ? 'a' : 'span' }} @if (! empty($segment['href'])) href="{{ $segment['href'] }}" @endif
+                    @class(['flex items-center gap-2 text-sm', 'rounded -mx-1 px-1 hover:bg-slate-50' => ! empty($segment['href'])])>
+                    <span class="h-2.5 w-2.5 flex-none rounded-full" style="background-color: {{ $segment['color'] }}"></span>
+                    <span class="truncate text-slate-600">{{ $segment['label'] }}</span>
+                    <span class="tabular ml-auto font-semibold text-slate-900">{{ $segment['value'] }}</span>
+                </{{ ! empty($segment['href']) ? 'a' : 'span' }}>
             </li>
         @endforeach
     </ul>

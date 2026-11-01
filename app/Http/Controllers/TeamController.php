@@ -16,10 +16,15 @@ class TeamController extends Controller
 {
     public function __construct(private readonly TeamService $teams) {}
 
-    public function index(): View
+    public function index(Request $request): View
     {
+        $filters = TeamService::directoryFilters($request->query());
+
         return view('teams.index', [
-            'teams' => $this->teams->filtered()->get(),
+            'teams' => $this->teams->directory($filters)->get(),
+            'filters' => $filters,
+            'sorts' => TeamService::SORTS,
+            'overview' => $this->teams->overview(),
         ]);
     }
 
@@ -39,15 +44,25 @@ class TeamController extends Controller
             ->with('success', "Team “{$team->name}” created.");
     }
 
-    public function show(Team $team, OverlapChecker $overlap): View
+    public function show(Request $request, Team $team, OverlapChecker $overlap): View
     {
-        $team->load(['releases.project', 'releases.team', 'members', 'teamLead']);
-        $releases = $team->releases->sortBy('start_date')->values();
+        $viewer = $request->user();
+        $team->load(['members' => fn ($q) => $q->orderBy('name'), 'teamLead']);
+        $releases = $this->teams->releasesFor($team);
 
         return view('teams.show', [
             'team' => $team,
             'releases' => $releases,
             'conflicts' => $overlap->flagConflicts($releases),
+            'tasks' => $this->teams->taskSummary($team),
+            'formerMembers' => $this->teams->formerMembers($team),
+            // Activity is a planning surface: never for developers and QA.
+            'activities' => $viewer->hasLimitedAccess() ? collect() : $this->teams->recentActivity($team),
+            // Tasksheet and standup health are for the leadership tier only.
+            'health' => $viewer->isLead() ? [
+                'tasksheet' => $this->teams->tasksheetFill($team),
+                'standup' => $this->teams->standupAttendance($team),
+            ] : null,
             'assignableUsers' => $this->teams->assignableUsers($team),
             'leadCandidates' => $this->teams->leadCandidates(),
         ]);
@@ -58,6 +73,7 @@ class TeamController extends Controller
         return view('teams.edit', [
             'team' => $team,
             'users' => $this->teams->leadCandidates(),
+            'deletable' => $this->teams->isDeletable($team),
         ]);
     }
 

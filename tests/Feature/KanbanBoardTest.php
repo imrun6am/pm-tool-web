@@ -101,8 +101,10 @@ class KanbanBoardTest extends TestCase
     public function test_user_can_add_a_task_from_the_board(): void
     {
         $release = $this->release();
+        $qa = User::factory()->create(['role' => User::ROLE_QA]);
+        $release->team->members()->attach($qa); // QA files work into their own team's release
 
-        $this->actingAs(User::factory()->create(['role' => User::ROLE_QA]))
+        $this->actingAs($qa)
             ->post(route('board.tasks.store'), [
                 'release_id' => $release->id,
                 'title' => 'Card from board',

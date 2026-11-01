@@ -4,7 +4,10 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 
-/** An admin's on/off override for one Claude feature (see config/ai.php). */
+/**
+ * An admin's overrides for one Claude feature (see config/ai.php): on/off,
+ * model and effort. A null column keeps the config default.
+ */
 class AiFeatureSetting extends Model
 {
     protected $primaryKey = 'feature';
@@ -13,7 +16,7 @@ class AiFeatureSetting extends Model
 
     protected $keyType = 'string';
 
-    protected $fillable = ['feature', 'enabled', 'updated_by'];
+    protected $fillable = ['feature', 'enabled', 'model', 'effort', 'updated_by'];
 
     protected function casts(): array
     {

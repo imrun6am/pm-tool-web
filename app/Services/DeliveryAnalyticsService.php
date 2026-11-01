@@ -2,7 +2,6 @@
 
 namespace App\Services;
 
-use App\Models\Activity;
 use App\Models\Release;
 use App\Models\Task;
 use App\Models\TasksheetEntry;
@@ -26,10 +25,8 @@ use Illuminate\Support\Facades\DB;
  * and the timeline above them describe the same slice. Archived tasks are
  * never counted (Task::UNCOUNTED_STATUSES); "open" means not Done/Archive.
  *
- * Throughput and cycle time are read from the RecordsActivity audit trail,
- * as on the member dashboard: completed = the last move into Done, started =
- * the first move to In Progress, reworked = ever sent to Recheck. Done tasks
- * with no logged transition fall back to `updated_at` for counts only.
+ * Throughput, cycle time and rework come from TaskCompletions (the audit
+ * trail's status history).
  *
  * Every number comes from an aggregate query or a bounded list (completions
  * in the trend window, capped task lists), about a dozen queries in all,
@@ -38,6 +35,8 @@ use Illuminate\Support\Facades\DB;
  */
 class DeliveryAnalyticsService
 {
+    public function __construct(private readonly TaskCompletions $completions) {}
+
     public const TREND_WEEKS = 12;
 
     /** The rolling KPI window, compared with the one before it. */
@@ -104,7 +103,7 @@ class DeliveryAnalyticsService
 
         $thisWeek = $today->copy()->startOfWeek();
         $trendStart = $thisWeek->copy()->subWeeks(self::TREND_WEEKS - 1);
-        $completions = $this->completions($tasks, $trendStart->copy()->min($window['previousStart']));
+        $completions = $this->completions->since($tasks, $trendStart->copy()->min($window['previousStart']));
 
         $releases = $teamIds === null
             ? $timelineReleases
@@ -162,59 +161,6 @@ class DeliveryAnalyticsService
     }
 
     /**
-     * Done tasks in scope completed since `$from`, with their moments.
-     *
-     * @param  \Closure(): Builder  $tasks
-     * @return Collection<int, array{completedAt: Carbon, startedAt: ?Carbon, reworked: bool, estimated: bool, dueDate: ?Carbon}>
-     */
-    private function completions(\Closure $tasks, Carbon $from): Collection
-    {
-        // A task completed since $from was necessarily saved since then, so
-        // updated_at bounds the candidate set without reading old history.
-        $done = fn (): Builder => $tasks()->where('status', 'done')->where('updated_at', '>=', $from);
-
-        $candidates = $done()->get(['id', 'due_date', 'created_at', 'updated_at']);
-
-        $history = Activity::query()
-            ->where('subject_type', (new Task)->getMorphClass())
-            ->whereIn('subject_id', $done()->select('id'))
-            ->whereIn('event', ['created', 'updated'])
-            ->whereNotNull('properties->attributes->status')
-            ->orderBy('created_at')
-            ->orderBy('id')
-            ->get(['id', 'subject_id', 'event', 'properties', 'created_at'])
-            ->groupBy('subject_id');
-
-        return $candidates->map(function (Task $task) use ($history) {
-            $startedAt = $completedAt = null;
-            $reworked = false;
-
-            foreach ($history->get($task->id, []) as $activity) {
-                $new = $activity->properties['attributes']['status'] ?? null;
-                $old = $activity->event === 'created' ? null : ($activity->properties['old']['status'] ?? null);
-
-                if ($new === 'in_progress' && $startedAt === null) {
-                    $startedAt = $activity->created_at;
-                }
-                if ($new === 'recheck') {
-                    $reworked = true;
-                }
-                if ($new === 'done' && ! in_array($old, Task::DONE_STATUSES, true)) {
-                    $completedAt = $activity->created_at;
-                }
-            }
-
-            return [
-                'completedAt' => $completedAt ?? $task->updated_at,
-                'startedAt' => $startedAt && $completedAt && $startedAt->lte($completedAt) ? $startedAt : null,
-                'reworked' => $reworked,
-                'estimated' => $completedAt === null,
-                'dueDate' => $task->due_date,
-            ];
-        })->filter(fn (array $c) => $c['completedAt']->gte($from))->values();
-    }
-
-    /**
      * @param  Collection<int, array<string, mixed>>  $completions
      * @param  array<string, mixed>  $window
      * @return array<string, array{current: int|float|null, previous: int|float|null, change: int|float|null}>
@@ -224,12 +170,10 @@ class DeliveryAnalyticsService
         $stats = function (Carbon $from, Carbon $to) use ($completions) {
             $done = $completions->filter(fn (array $c) => $c['completedAt']->betweenIncluded($from, $to));
             $dated = $done->filter(fn (array $c) => $c['dueDate'] !== null);
-            $cycles = $done->filter(fn (array $c) => $c['startedAt'] !== null)
-                ->map(fn (array $c) => $c['startedAt']->diffInSeconds($c['completedAt']) / 86400);
 
             return [
                 'throughput' => $done->count(),
-                'cycleDays' => $cycles->isEmpty() ? null : round($cycles->avg(), 1),
+                'cycleDays' => TaskCompletions::avgCycleDays($done),
                 'onTimeRate' => Metric::pct(
                     $dated->filter(fn (array $c) => $c['completedAt']->toDateString() <= $c['dueDate']->toDateString())->count(),
                     $dated->count()

@@ -124,6 +124,60 @@ class Release extends Model
         return $this->completed_at !== null;
     }
 
+    /** Where the release stands in time: completed, upcoming, active, or overdue (window over, not completed). */
+    public const STATES = [
+        'active' => 'In progress',
+        'upcoming' => 'Upcoming',
+        'overdue' => 'Past window',
+        'completed' => 'Completed',
+    ];
+
+    public function state(): string
+    {
+        return match (true) {
+            $this->isComplete() => 'completed',
+            today()->lt($this->start_date) => 'upcoming',
+            today()->gt($this->end_date) => 'overdue',
+            default => 'active',
+        };
+    }
+
+    public function stateLabel(): string
+    {
+        return self::STATES[$this->state()];
+    }
+
+    /** How far through its window the release is today, 0–100. */
+    public function elapsedPercent(): int
+    {
+        if ($this->isComplete() || today()->gt($this->end_date)) {
+            return 100;
+        }
+        if (today()->lt($this->start_date)) {
+            return 0;
+        }
+
+        return (int) round($this->start_date->diffInDays(today()) / max($this->durationInDays(), 1) * 100);
+    }
+
+    /**
+     * Adds `tasks_total` and `tasks_done` counts. Archived tasks never take
+     * part (Task::scopeCounted); subtasks do, as in the project roll-ups.
+     */
+    public function scopeWithTaskProgress(Builder $query): Builder
+    {
+        return $query->withCount([
+            'tasks as tasks_total' => fn (Builder $q) => $q->counted(),
+            'tasks as tasks_done' => fn (Builder $q) => $q->counted()->where('status', 'done'),
+        ]);
+    }
+
+    /** @return array{done: int, total: int} — needs scopeWithTaskProgress() */
+    public function taskProgress(): array
+    {
+        return ['done' => (int) ($this->tasks_done ?? 0), 'total' => (int) ($this->tasks_total ?? 0)];
+    }
+
     public function scopeOngoing(Builder $query): Builder
     {
         return $query->whereNull('completed_at');

@@ -66,9 +66,23 @@
 
             {{-- Features --}}
             <section class="card" aria-labelledby="ai-features">
-                <div class="card-header">
-                    <h2 id="ai-features" class="card-title">Features</h2>
-                    <p class="card-subtitle">A feature that is switched off disappears from every page until it is switched back on.</p>
+                <div class="card-header flex flex-wrap items-end justify-between gap-3">
+                    <div>
+                        <h2 id="ai-features" class="card-title">Features</h2>
+                        <p class="card-subtitle">Pick each feature’s model and effort. A feature that is switched off disappears from every page until it is switched back on.</p>
+                    </div>
+                    <form method="POST" action="{{ route('ai.features.configure-all') }}" class="flex items-center gap-2">
+                        @csrf
+                        @method('PUT')
+                        <label for="all-model" class="text-xs font-medium text-slate-600">Use for all</label>
+                        <select id="all-model" name="model" class="field-select field-sm !mt-0 w-auto">
+                            <option value="">Defaults ({{ Str::before(config('ai.models.'.config('ai.default_model')) ?? config('ai.default_model'), ' —') }})</option>
+                            @foreach (config('ai.models') as $id => $label)
+                                <option value="{{ $id }}">{{ $label }}</option>
+                            @endforeach
+                        </select>
+                        <button type="submit" class="btn btn-secondary btn-sm">Apply</button>
+                    </form>
                 </div>
                 <div class="table-wrap">
                     <table class="table-base">
@@ -90,12 +104,38 @@
                                         <p class="font-medium text-slate-900">{{ $f['label'] }}</p>
                                         <p class="text-xs text-slate-500">{{ $f['description'] }}</p>
                                     </td>
-                                    <td class="whitespace-nowrap font-mono text-xs text-slate-600">{{ $f['model'] }} · {{ $f['effort'] }}</td>
-                                    <td class="text-right tabular-nums">{{ number_format($f['calls']) }}</td>
-                                    <td @class(['text-right tabular-nums', 'text-danger-600' => $f['failures'] > 0])>{{ $f['failures'] }}</td>
-                                    <td class="text-right tabular-nums text-slate-600">{{ $f['avg_seconds'] !== null ? $f['avg_seconds'].' s' : '—' }}</td>
-                                    <td class="text-right tabular-nums">{{ $money($f['cost']) }}</td>
+                                    <td>
+                                        <form method="POST" action="{{ route('ai.features.configure', $f['key']) }}" class="flex items-center gap-1.5"
+                                              x-data="{ dirty: false }" @change="dirty = true">
+                                            @csrf
+                                            @method('PUT')
+                                            <label for="model-{{ $f['key'] }}" class="sr-only">Model for {{ $f['label'] }}</label>
+                                            <select id="model-{{ $f['key'] }}" name="model" class="field-select field-sm !mt-0 w-auto">
+                                                @foreach ($features->modelsFor($f['key']) as $id => $label)
+                                                    <option value="{{ $id }}" @selected($f['model'] === $id)>{{ Str::before($label, ' —') }}</option>
+                                                @endforeach
+                                            </select>
+                                            <label for="effort-{{ $f['key'] }}" class="sr-only">Effort for {{ $f['label'] }}</label>
+                                            <select id="effort-{{ $f['key'] }}" name="effort" class="field-select field-sm !mt-0 w-auto">
+                                                @foreach (config('ai.efforts') as $id => $label)
+                                                    <option value="{{ $id }}" @selected($f['effort'] === $id)>{{ $label }}</option>
+                                                @endforeach
+                                            </select>
+                                            <button type="submit" x-show="dirty" x-cloak class="btn btn-primary btn-sm">Save</button>
+                                        </form>
+                                    </td>
+                                    @if ($f['tracked'])
+                                        <td class="text-right tabular-nums">{{ number_format($f['calls']) }}</td>
+                                        <td @class(['text-right tabular-nums', 'text-danger-600' => $f['failures'] > 0])>{{ $f['failures'] }}</td>
+                                        <td class="text-right tabular-nums text-slate-600">{{ $f['avg_seconds'] !== null ? $f['avg_seconds'].' s' : '—' }}</td>
+                                        <td class="text-right tabular-nums">{{ $money($f['cost']) }}</td>
+                                    @else
+                                        <td colspan="4" class="text-right text-xs text-slate-500">Usage not logged for this feature yet</td>
+                                    @endif
                                     <td class="text-right">
+                                        @unless ($f['tracked'])
+                                            <span class="text-xs text-slate-400" title="This feature has its own on/off rules">—</span>
+                                        @else
                                         <form method="POST" action="{{ route('ai.features.toggle', $f['key']) }}">
                                             @csrf
                                             <input type="hidden" name="enabled" value="{{ $f['enabled'] ? 0 : 1 }}">
@@ -107,6 +147,7 @@
                                                               'translate-x-5' => $f['enabled'], 'translate-x-0.5' => ! $f['enabled']])></span>
                                             </button>
                                         </form>
+                                        @endunless
                                     </td>
                                 </tr>
                             @endforeach

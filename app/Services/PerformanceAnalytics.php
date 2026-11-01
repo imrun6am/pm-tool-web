@@ -8,9 +8,11 @@ use App\Models\Task;
 use App\Models\TasksheetEntry;
 use App\Models\Team;
 use App\Models\User;
+use App\Support\Metric;
 use App\Support\PerformancePeriod;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Computes performance analytics for a member or a team over a weekly window.
@@ -21,9 +23,24 @@ use Illuminate\Support\Collection;
  * drags the number down. Objective panels (tasksheet, board) are computed
  * separately and never fold into the rating score. Every average guards an
  * empty denominator and returns null rather than dividing by zero.
+ *
+ * The objective record (tasksheet habits, finished work, cycle time, rework,
+ * overdue) sits beside the ratings as context over a rolling RECORD_WEEKS
+ * window. Archived tasks are never counted. Everything here is lead-only:
+ * the routes are behind `lead`, and team leads are scoped to their teams.
  */
 class PerformanceAnalytics
 {
+    public function __construct(private readonly TaskCompletions $completions) {}
+
+    private ?Collection $activeCompetencies = null;
+
+    /** Weeks of objective record shown beside the ratings. */
+    public const RECORD_WEEKS = 4;
+
+    /** A competency averaging at least this is a strength; below it, room to grow. */
+    public const STRENGTH_THRESHOLD = 3.5;
+
     /** How many weeks of history to chart in trends. */
     public const TREND_WEEKS = 8;
 
@@ -83,10 +100,25 @@ class PerformanceAnalytics
             ];
         })->values();
 
+        $overall = $this->weightedAverage($currentRep, $competencies);
+        $previousOverall = count($overallTrend) >= 2 ? $overallTrend[count($overallTrend) - 2]['value'] : null;
+        [$strengths, $growth] = $this->strengthsAndGrowth($competencyRows);
+        [$recordFrom, $recordTo] = $this->recordWindow($week);
+        $span = $recordFrom->diffInDays($recordTo) + 1;
+
         return [
             'week' => $week,
             'weekLabel' => PerformancePeriod::weekLabel($weekDate),
-            'overall' => $this->weightedAverage($currentRep, $competencies),
+            'overallChange' => Metric::compare($overall, $previousOverall),
+            'strengths' => $strengths,
+            'growthAreas' => $growth,
+            'notes' => $this->notes($scores),
+            'recordWindow' => ['start' => $recordFrom, 'end' => $recordTo, 'weeks' => self::RECORD_WEEKS],
+            'record' => $this->compareRecords(
+                $this->objectiveRecords($team, collect([$member->id]), $recordFrom, $recordTo)[$member->id],
+                $this->objectiveRecords($team, collect([$member->id]), $recordFrom->copy()->subDays($span), $recordFrom->copy()->subSecond())[$member->id],
+            ),
+            'overall' => $overall,
             'categories' => $this->categoryAverages($currentRep, $competencies),
             'competencies' => $competencyRows,
             'ratedCount' => count($currentRep),
@@ -159,6 +191,19 @@ class PerformanceAnalytics
         }
 
         $rated = collect($rows)->filter(fn ($r) => $r['overall'] !== null);
+        $teamAverage = $rated->isNotEmpty() ? round($rated->avg('overall'), 2) : null;
+        $previousRated = collect($rows)->filter(fn ($r) => $r['prevOverall'] !== null);
+        $previousAverage = $previousRated->isNotEmpty() ? round($previousRated->avg('prevOverall'), 2) : null;
+
+        // Each member against the team average — a lead's comparison within
+        // their own team, never shown outside the lead-only pages.
+        foreach ($rows as $i => $row) {
+            $rows[$i]['vsTeam'] = $row['overall'] !== null && $teamAverage !== null
+                ? round($row['overall'] - $teamAverage, 2) : null;
+        }
+
+        [$recordFrom, $recordTo] = $this->recordWindow($week);
+        $records = $this->objectiveRecords($team, $memberIds, $recordFrom, $recordTo);
         $leaderboard = collect($rows)->sortBy([
             fn ($a, $b) => ($a['overall'] === null) <=> ($b['overall'] === null),
             fn ($a, $b) => ($b['overall'] ?? 0) <=> ($a['overall'] ?? 0),
@@ -175,7 +220,13 @@ class PerformanceAnalytics
             'members' => $members,
             'rows' => $rows,
             'leaderboard' => $leaderboard,
-            'teamAverage' => $rated->isNotEmpty() ? round($rated->avg('overall'), 2) : null,
+            'teamAverage' => $teamAverage,
+            'averageChange' => Metric::compare($teamAverage, $previousAverage),
+            'competencyTrends' => $this->competencyTrends($members, $scoresByUser, $weeks),
+            'distribution' => $this->distribution($scores, $week),
+            'recordWindow' => ['start' => $recordFrom, 'end' => $recordTo, 'weeks' => self::RECORD_WEEKS],
+            'records' => $records,
+            'recordTotals' => $this->recordTotals($records),
             'topPerformer' => $leaderboard->first(fn ($r) => $r['overall'] !== null),
             'categoryAverages' => $this->teamCategoryAverages($rows),
             'coverage' => [
@@ -192,14 +243,269 @@ class PerformanceAnalytics
         ];
     }
 
+    // ---- deeper analysis -----------------------------------------------------
+
+    /**
+     * The rolling window behind the objective record: RECORD_WEEKS weeks
+     * ending with the selected week, never past today.
+     *
+     * @return array{0: Carbon, 1: Carbon}
+     */
+    private function recordWindow(array $week): array
+    {
+        $to = $week['end']->copy()->endOfDay()->min(Carbon::now());
+
+        return [$week['start']->copy()->subWeeks(self::RECORD_WEEKS - 1)->startOfDay(), $to];
+    }
+
+    /**
+     * Team average per competency per week, so a lead sees which skill is
+     * moving rather than one blended line.
+     *
+     * @return list<array{competency: PerformanceCompetency, points: list<array{label: string, value: ?float}>, current: ?float, previous: ?float, change: ?float}>
+     */
+    private function competencyTrends(Collection $members, Collection $scoresByUser, array $weeks): array
+    {
+        $applicable = $this->activeCompetencies()
+            ->filter(fn (PerformanceCompetency $c) => $members->contains(fn (User $m) => $c->appliesToRole($m->role)))
+            ->values();
+
+        // Representative scores per member per week, computed once.
+        $repByWeek = [];
+        foreach ($weeks as $i => $w) {
+            foreach ($members as $member) {
+                $repByWeek[$i][$member->id] = $this->repScores($this->scoresInWeek($scoresByUser->get($member->id, collect()), $w));
+            }
+        }
+
+        return $applicable->map(function (PerformanceCompetency $c) use ($weeks, $repByWeek) {
+            $points = [];
+            foreach ($weeks as $i => $w) {
+                $values = collect($repByWeek[$i] ?? [])->map(fn (array $rep) => $rep[$c->id] ?? null)->filter(fn ($v) => $v !== null);
+                $points[] = ['label' => $w['label'], 'value' => $values->isNotEmpty() ? round($values->avg(), 2) : null];
+            }
+            $current = end($points)['value'];
+            $previous = $points[count($points) - 2]['value'] ?? null;
+
+            return [
+                'competency' => $c,
+                'points' => $points,
+                ...Metric::compare($current, $previous),
+            ];
+        })->all();
+    }
+
+    /**
+     * How the week's raw 1–5 ratings are spread.
+     *
+     * @return array{total: int, counts: array<int, int>, pct: array<int, ?int>}
+     */
+    private function distribution(Collection $scores, array $week): array
+    {
+        $inWeek = $this->scoresInWeek($scores, $week);
+        $counts = [];
+        foreach (array_keys(PerformanceScore::SCALE) as $value) {
+            $counts[$value] = $inWeek->where('score', $value)->count();
+        }
+
+        return [
+            'total' => $inWeek->count(),
+            'counts' => $counts,
+            'pct' => array_map(fn (int $n) => Metric::pct($n, $inWeek->count()), $counts),
+        ];
+    }
+
+    /**
+     * A member's competencies split by their own 8-week averages: what they
+     * do well, and where the data suggests room to grow. Relative to the
+     * member, never ranked against colleagues.
+     *
+     * @return array{0: list<array<string, mixed>>, 1: list<array<string, mixed>>}
+     */
+    private function strengthsAndGrowth(Collection $competencyRows): array
+    {
+        $averaged = $competencyRows->map(function (array $row) {
+            $values = collect($row['trend'])->filter(fn ($v) => $v !== null)->values();
+            if ($values->isEmpty()) {
+                return null;
+            }
+
+            return [
+                'competency' => $row['competency'],
+                'average' => round($values->avg(), 2),
+                'weeksRated' => $values->count(),
+                // Direction across the window: last rated week against the first.
+                'direction' => $values->count() >= 2 ? round($values->last() - $values->first(), 2) : null,
+            ];
+        })->filter()->values();
+
+        return [
+            $averaged->filter(fn ($c) => $c['average'] >= self::STRENGTH_THRESHOLD)->sortByDesc('average')->take(3)->values()->all(),
+            $averaged->filter(fn ($c) => $c['average'] < self::STRENGTH_THRESHOLD)->sortBy('average')->take(3)->values()->all(),
+        ];
+    }
+
+    /** @return list<array<string, mixed>> */
+    private function notes(Collection $scores): array
+    {
+        return $scores->filter(fn (PerformanceScore $s) => filled($s->note))
+            ->sortByDesc(fn (PerformanceScore $s) => [$s->period_start->timestamp, $s->updated_at?->timestamp])
+            ->take(10)
+            ->map(fn (PerformanceScore $s) => [
+                'competency' => $s->competency?->name ?? '—',
+                'score' => $s->score,
+                'period' => $s->period_type === PerformanceCompetency::CADENCE_WEEKLY
+                    ? 'Week of '.$s->period_start->format('M j')
+                    : $s->period_start->format('M j, Y'),
+                'evaluator' => $s->evaluator?->name,
+                'note' => $s->note,
+            ])->values()->all();
+    }
+
+    /**
+     * The objective record per member over a window: tasksheet habits on this
+     * team, and the work they finished (tasks of this team or of no team).
+     * A fixed number of queries for the whole team. Archived tasks never count.
+     *
+     * @return array<int, array<string, int|float|null>> user_id => record
+     */
+    private function objectiveRecords(Team $team, Collection $memberIds, Carbon $from, Carbon $to): array
+    {
+        $empty = fn () => [
+            'daysLogged' => 0, 'daysExpected' => 0, 'tasksheetRate' => null,
+            'standupAttended' => 0, 'standupMarked' => 0, 'standupRate' => null,
+            'completed' => 0, 'onTimeRate' => null, 'cycleDays' => null, 'reworkRate' => null, 'overdue' => 0,
+        ];
+        $records = $memberIds->mapWithKeys(fn ($id) => [$id => $empty()])->all();
+        if ($memberIds->isEmpty()) {
+            return $records;
+        }
+
+        // Lead-only feedback is never read here.
+        $entries = TasksheetEntry::query()
+            ->where('team_id', $team->id)
+            ->whereIn('user_id', $memberIds)
+            ->whereDate('date', '>=', $from->toDateString())
+            ->whereDate('date', '<=', $to->toDateString())
+            ->get(['user_id', 'date', ...TasksheetEntry::TASK_FIELDS, 'leave_type', 'standup_attended'])
+            ->groupBy('user_id');
+
+        $teamTasks = fn () => Task::query()
+            ->whereIn('assignee_id', $memberIds)
+            ->where(fn ($q) => $q->where('team_id', $team->id)->orWhereNull('team_id'));
+
+        $done = $this->completions->since($teamTasks, $from)
+            ->filter(fn (array $c) => $c['completedAt']->lte($to))
+            ->groupBy('assigneeId');
+
+        $overdue = $teamTasks()->counted()
+            ->whereNotIn('status', Task::DONE_STATUSES)
+            ->whereDate('due_date', '<', today()->toDateString())
+            ->selectRaw('assignee_id, count(*) as aggregate')
+            ->groupBy('assignee_id')
+            ->pluck('aggregate', 'assignee_id');
+
+        // A member owes rows only from the day they joined this team.
+        $joined = DB::table('team_user')
+            ->where('team_id', $team->id)
+            ->whereIn('user_id', $memberIds)
+            ->pluck('created_at', 'user_id');
+
+        $today = Carbon::today();
+        foreach ($memberIds as $id) {
+            $mine = $entries->get($id, collect())->keyBy(fn (TasksheetEntry $e) => $e->date->toDateString());
+
+            // Weekdays owed a row: since joining, up to yesterday, plus today
+            // once logged; full-day leave excluded.
+            $start = $from->copy()->startOfDay()->max(isset($joined[$id]) ? Carbon::parse($joined[$id])->startOfDay() : $from);
+            $expected = 0;
+            $logged = 0;
+            for ($d = $start; $d->lte($to); $d->addDay()) {
+                $entry = $mine->get($d->toDateString());
+                if ($d->isWeekend() || $entry?->isFullDayLeave() || ($d->gte($today) && ! $entry?->isFullyFilled())) {
+                    continue;
+                }
+                $expected++;
+                $logged += $entry?->isFullyFilled() ? 1 : 0;
+            }
+
+            $marked = $mine->filter(fn (TasksheetEntry $e) => $e->standup_attended !== null && ! $e->isFullDayLeave());
+            $attended = $marked->filter(fn (TasksheetEntry $e) => $e->attendedStandup());
+
+            $finished = $done->get($id, collect());
+            $dated = $finished->filter(fn (array $c) => $c['dueDate'] !== null);
+
+            $records[$id] = [
+                'daysLogged' => $logged,
+                'daysExpected' => $expected,
+                'tasksheetRate' => Metric::pct($logged, $expected),
+                'standupAttended' => $attended->count(),
+                'standupMarked' => $marked->count(),
+                'standupRate' => Metric::pct($attended->count(), $marked->count()),
+                'completed' => $finished->count(),
+                'onTimeRate' => Metric::pct(
+                    $dated->filter(fn (array $c) => $c['completedAt']->toDateString() <= $c['dueDate']->toDateString())->count(),
+                    $dated->count()
+                ),
+                'cycleDays' => TaskCompletions::avgCycleDays($finished->reject(fn (array $c) => $c['estimated'])),
+                'reworkRate' => Metric::pct($finished->where('reworked', true)->count(), $finished->count()),
+                'overdue' => (int) ($overdue[$id] ?? 0),
+            ];
+        }
+
+        return $records;
+    }
+
+    /**
+     * The team's record as one line: summed counts, and rates recomputed from
+     * the summed parts (not an average of averages).
+     *
+     * @param  array<int, array<string, mixed>>  $records
+     * @return array<string, int|float|null>
+     */
+    private function recordTotals(array $records): array
+    {
+        $sum = fn (string $key) => (int) collect($records)->sum($key);
+        $cycles = collect($records)->pluck('cycleDays')->filter(fn ($v) => $v !== null);
+
+        return [
+            'daysLogged' => $sum('daysLogged'),
+            'daysExpected' => $sum('daysExpected'),
+            'tasksheetRate' => Metric::pct($sum('daysLogged'), $sum('daysExpected')),
+            'standupRate' => Metric::pct($sum('standupAttended'), $sum('standupMarked')),
+            'completed' => $sum('completed'),
+            'cycleDays' => $cycles->isNotEmpty() ? round($cycles->avg(), 1) : null,
+            'overdue' => $sum('overdue'),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $current
+     * @param  array<string, mixed>  $previous
+     * @return array<string, array{current: int|float|null, previous: int|float|null, change: int|float|null}>
+     */
+    private function compareRecords(array $current, array $previous): array
+    {
+        return collect($current)->map(fn ($value, $key) => Metric::compare($value, $previous[$key] ?? null))->all();
+    }
+
     // ---- shared computation -------------------------------------------------
 
     /** Active competencies that apply to a role, ordered for display. */
     private function applicableCompetencies(string $role): Collection
     {
-        return PerformanceCompetency::active()->ordered()->get()
+        return $this->activeCompetencies()
             ->filter(fn (PerformanceCompetency $c) => $c->appliesToRole($role))
             ->values();
+    }
+
+    /**
+     * The active catalog, read once per request — it was re-queried for every
+     * member and every charted week.
+     */
+    private function activeCompetencies(): Collection
+    {
+        return $this->activeCompetencies ??= PerformanceCompetency::active()->ordered()->get();
     }
 
     /** Scores whose period_start falls inside a week window. */

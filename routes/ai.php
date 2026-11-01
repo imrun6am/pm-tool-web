@@ -55,6 +55,8 @@ Route::middleware('auth')->group(function () {
         Route::middleware('admin')->group(function () {
             Route::get('usage', [AiUsageController::class, 'index'])->name('usage');
             Route::post('features/{feature}', [AiUsageController::class, 'toggle'])->name('features.toggle');
+            Route::put('features/{feature}/model', [AiUsageController::class, 'configure'])->name('features.configure');
+            Route::put('models', [AiUsageController::class, 'configureAll'])->name('features.configure-all');
         });
     });
 });

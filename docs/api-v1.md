@@ -213,7 +213,7 @@ Done). Archived tasks appear in no count, rate, trend, streak or best. Rates and
 
 | Method   | Path                                | Access           |
 | -------- | ----------------------------------- | ---------------- |
-| `GET`    | `/projects`, `/projects/{id}`       | full-access      |
+| `GET`    | `/projects`, `/projects/{id}`       | full-access — the list takes `?status=` (`active`, `archived`), `?search=` and `?sort=` (`name`, `releases`, `progress`, `recent`) |
 | `POST`   | `/projects`                         | lead             |
 | `PUT`    | `/projects/{id}`                    | lead             |
 | `DELETE` | `/projects/{id}`                    | lead — 422 if it has releases; archive instead |
@@ -548,15 +548,52 @@ substitution. Scores are 1–5, keyed on (team, member, competency, period) — 
 Blank cells are skipped, not stored as zero. Future periods are rejected. A competency with
 recorded scores can only be **deactivated**, not deleted.
 
+**Overview analysis** (`overview`, alongside the existing keys):
+
+- `averageChange`: `{current, previous, change}`, the team average against last week.
+- `competencyTrends[]`: `{competency, points[{label, value}], current, previous, change}`, team average per competency per week.
+- `distribution`: `{total, counts{1..5}, pct{1..5}}` for the week's raw ratings.
+- `rows[].vsTeam`: a member's overall minus the team average.
+- `recordWindow`: `{start, end, weeks}`, covering the last 4 weeks.
+- `records{user_id}` and `recordTotals`: the objective record.
+  - It covers `daysLogged`, `daysExpected`, `tasksheetRate`, `standupAttended`, `standupMarked`, `standupRate`, `completed`, `onTimeRate`, `cycleDays`, `reworkRate` and `overdue`.
+  - Only this team's tasksheet counts, and only tasks of this team or no team. Archived tasks never count.
+
+**Member analysis** (`scorecard`):
+
+- `overallChange`: against last week.
+- `strengths[]` and `growthAreas[]`: `{competency, average, weeksRated, direction}`, from the member's own 8-week averages (split at 3.5).
+- `notes[]`: lead notes.
+- `record`: the same objective record, each value as `{current, previous, change}` against the 4 weeks before.
+
+Like the rest of this section, these keys are camelCase because the analytics array is returned as-is. They are lead-only, so a Developer, QA or Viewer never receives them.
+
 ### Insights
 
 | Method | Path                  | Access                                                  |
 | ------ | --------------------- | ------------------------------------------------------- |
-| `GET`  | `/activities`         | full-access — `?causer_id=&release_id=&event=&subject_type=&from=&to=` |
+| `GET`  | `/activities`         | full-access — `?causer_id=&release_id=&team_id=&project_id=&event=&subject_type=&from=&to=` |
 | `GET`  | `/activities/stats`   | full-access                                             |
+| `GET`  | `/activities/analysis` | full-access — `?days=7\|30\|90` (default 30, else 422) `&causer_id=&team_id=&project_id=&release_id=` |
 
 `updated` entries carry a `changes` object of old → new per field. Performance scores never
 appear in this feed.
+
+`/activities/analysis` compares the window with the equally long one before it. It returns:
+
+- `window` and `kpis`: `events`, `people` and `deletions` as `{current, previous, change}`, plus `per_day`.
+- `volume[]`: daily buckets, or weekly ones for 90 days.
+- `by_event`, `by_type`, `by_release` and `by_team`. The team is the one that owns the release a change belongs to.
+- `people[]`: `{user, total, created, updated, deleted}`.
+- `rhythm`: a weekday × hour grid in app time, with its `peak`.
+- `flow`: task status moves:
+  - `milestones`: `started`, `review`, `rework`, `done` and `reopened`;
+  - `rework_rate`;
+  - `transitions[]` for the top moves;
+  - `dwell[]`: the average hours in each status before leaving it.
+- `deletions[]`: recent `Activity` rows.
+
+The scope filters (person, team, project, release) narrow everything. Event, record type and dates only narrow `/activities`, which is how the web page drills from a chart into the feed.
 
 ### Engagement — open to every authenticated user
 

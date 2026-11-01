@@ -23,6 +23,7 @@ class ProjectController extends ApiController
         $query = $this->projects->filtered([
             'status' => $request->input('status'),
             'search' => $request->filled('search') ? $request->string('search')->toString() : null,
+            'sort' => $request->input('sort'), // name | releases | progress | recent
         ]);
 
         return $this->paginate($request, $query, ProjectResource::class);

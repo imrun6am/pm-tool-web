@@ -1,10 +1,13 @@
 <x-app-layout>
     <x-slot name="header">
         <x-page-header title="Edit release"
-                       :description="$release->project->name.' · '.$release->team->name.' · '.$release->year.' '.$release->quarterLabel()"
+                       :description="$release->project->name.' · '.$release->team->name.' · '.$release->year.' '.$release->quarterLabel().' · '.$release->start_date->format('M j').' – '.$release->end_date->format('M j, Y')"
                        :breadcrumbs="['Releases' => route('releases.index'), $release->name => route('releases.show', $release), 'Edit' => null]">
             <x-slot name="actions">
-                <a href="{{ route('releases.show', $release) }}" class="btn-secondary btn-sm">View release</a>
+                <x-release-state :release="$release" />
+                <a href="{{ route('releases.show', $release) }}" class="btn-secondary btn-sm">
+                    <x-icon name="eye" variant="outline" class="h-4 w-4" />View release
+                </a>
             </x-slot>
         </x-page-header>
     </x-slot>

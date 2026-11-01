@@ -9,7 +9,7 @@
 
     {{-- Workspace header --}}
     <div class="flex h-16 flex-none items-center gap-2 px-4 lg:sidebar-collapsed:justify-center lg:sidebar-collapsed:px-0">
-        <a href="{{ route('dashboard') }}" class="flex min-w-0 items-center gap-3 rounded-lg">
+        <a href="{{ route('dashboard') }}" class="flex min-w-0 items-center gap-3 rounded-lg transition-[gap] duration-200 lg:sidebar-collapsed:gap-0">
             <span class="brand-mark">PM</span>
             <span class="nav-label leading-tight">
                 <span class="block text-[15px] font-bold tracking-tight text-slate-900">PM Tool</span>
@@ -33,10 +33,10 @@
                 </button>
             </x-slot>
             <x-slot name="content">
-                <p class="px-3 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500">Create</p>
+                <p class="menu-label">Create</p>
                 @foreach ($createActions as $action)
                     <a href="{{ route($action['route']) }}"
-                       class="mx-1.5 flex items-center gap-3 rounded-md px-2 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-100 hover:text-slate-900">
+                       class="menu-item font-medium">
                         <span @class(['nav-icon', Palette::soft($action['tone'])])>
                             <x-icon :name="$action['icon']" variant="outline" class="h-4 w-4" />
                         </span>
@@ -64,6 +64,9 @@
                                @if ($active) aria-current="page" @endif
                                @click="closeMobile()"
                                @mouseenter="showTip($el)" @mouseleave="hideTip()" @focus="showTip($el)" @blur="hideTip()">
+                                {{-- The active pill carries view-transition-name: nav-pill, so on a
+                                     soft navigation it slides from the old item to the new one. --}}
+                                @if ($active)<span class="nav-pill" aria-hidden="true"></span>@endif
                                 <span @class([
                                     'nav-icon',
                                     Palette::solid($item['tone']).' shadow-sm' => $active,
@@ -82,10 +85,9 @@
 
     {{-- Footer: shortcut hint + collapse toggle (desktop only) --}}
     <div class="hidden flex-none border-t border-sidebar-border p-3 lg:block">
-        <p class="nav-label mb-2 flex items-center gap-1.5 px-2 text-[11px] text-slate-500" aria-hidden="true">
+        <p class="mb-2 flex items-center gap-1.5 whitespace-nowrap px-2 text-[11px] text-slate-500 lg:sidebar-collapsed:hidden" aria-hidden="true">
             <kbd class="kbd" x-text="modKey">⌘</kbd><kbd class="kbd">K</kbd> search
             <span class="mx-1 text-slate-300">·</span><kbd class="kbd">C</kbd> new task
-            <span class="mx-1 text-slate-300">·</span><kbd class="kbd">?</kbd>
         </p>
         <button type="button" @click="toggleCollapse()" class="nav-item"
                 aria-controls="app-sidebar" :aria-pressed="collapsed.toString()" aria-label="Collapse sidebar"

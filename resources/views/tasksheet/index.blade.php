@@ -16,7 +16,7 @@
 
                         {{-- Queues a background export, then lands on the exports list. --}}
                         <form method="POST" action="{{ route('tasksheet.exports.store') }}" data-turbo="false" x-show="open" x-transition style="display: none;"
-                              class="absolute right-0 z-20 mt-2 w-64 space-y-3 rounded-xl border border-slate-200 bg-white p-4 shadow-lg">
+                              class="menu-panel absolute right-0 z-20 mt-2 w-64 space-y-3 p-4">
                             @csrf
                             <input type="hidden" name="team" value="{{ $team->id }}">
                             {{-- The filters in effect travel with the export. --}}

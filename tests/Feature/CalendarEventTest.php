@@ -27,6 +27,8 @@ class CalendarEventTest extends TestCase
         $creator = User::factory()->create(['role' => User::ROLE_DEVELOPER]);
         $a = User::factory()->create();
         $b = User::factory()->create();
+        // Developers invite their teammates.
+        Team::create(['name' => 'T', 'color' => '#0891b2'])->members()->attach([$creator->id, $a->id, $b->id]);
 
         $this->actingAs($creator)
             ->post(route('events.store'), $this->payload(['attendees' => [$a->id, $b->id]]))

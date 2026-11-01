@@ -16,8 +16,8 @@
 
     {{-- Command palette trigger --}}
     <button type="button" @click="$dispatch('open-command-palette')"
-            class="flex h-10 min-w-0 flex-1 items-center gap-2.5 rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm text-slate-500 transition hover:border-slate-300 hover:bg-white hover:text-slate-700 sm:max-w-md">
-        <x-icon name="magnifying-glass" variant="outline" class="h-4 w-4 flex-none text-slate-400" />
+            class="group flex h-10 min-w-0 flex-1 items-center gap-2.5 rounded-xl border border-slate-200 bg-slate-100/70 px-3 text-sm text-slate-500 shadow-[inset_0_1px_1px_rgb(15_23_42/0.04)] transition duration-200 hover:border-brand-200 hover:bg-white hover:text-slate-700 hover:shadow-[0_0_0_4px_rgb(11_99_246/0.08)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-brand-500/20 sm:max-w-md">
+        <x-icon name="magnifying-glass" variant="outline" class="h-4 w-4 flex-none text-slate-400 transition-colors group-hover:text-brand-500" />
         <span class="flex-1 truncate text-left">Search or jump to…</span>
         <span class="hidden flex-none items-center gap-1 sm:flex" aria-hidden="true">
             <kbd class="kbd" x-text="modKey">⌘</kbd><kbd class="kbd">K</kbd>

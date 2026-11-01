@@ -182,6 +182,7 @@ class UserManagementTest extends TestCase
         ]);
 
         $qa = $this->user(User::ROLE_QA);
+        $team->members()->attach($qa); // QA works within their own team
 
         // QA works from the board: add a task there, then "check" it by moving to done.
         $this->actingAs($qa)->post(route('board.tasks.store'), [

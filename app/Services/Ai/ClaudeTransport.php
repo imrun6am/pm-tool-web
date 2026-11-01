@@ -34,11 +34,15 @@ class ClaudeTransport implements AiTransport
                 'effort' => $request['effort'],
                 'format' => ['type' => 'json_schema', 'schema' => $request['schema']],
             ],
-            // A policy decline is re-run server-side on the recommended fallback model.
-            'fallbacks' => 'default',
-            'betas' => ['server-side-fallback-2026-07-01'],
             'requestOptions' => ['timeout' => $request['timeout']],
         ];
+
+        // A policy decline is re-run server-side on the recommended fallback
+        // model — on the models that offer it (not Haiku).
+        if (! in_array($request['model'], config('ai.no_fallback', []), true)) {
+            $params['fallbacks'] = 'default';
+            $params['betas'] = ['server-side-fallback-2026-07-01'];
+        }
 
         return $request['max_tokens'] > self::STREAM_ABOVE
             ? $this->stream($client, $params, $request['model'])

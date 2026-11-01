@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use App\Models\User;
+use App\Services\Ai\AiFeatures;
 use App\Services\Ai\ClaudeTextEnhancer;
 use App\Services\Ai\TextEnhancer;
 use App\Services\Board\ClaudePlanTaskExtractor;
@@ -30,20 +31,22 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        $this->app->bind(KpiAnalyzer::class, fn () => new ClaudeKpiAnalyzer(
+        // KPI reports and calendar import call the SDK directly; their model and
+        // effort still come from config/ai.php and the admin's AI usage page.
+        $this->app->bind(KpiAnalyzer::class, fn ($app) => new ClaudeKpiAnalyzer(
             config('services.anthropic.key'),
-            config('services.anthropic.model'),
-            config('services.anthropic.effort'),
+            $app->make(AiFeatures::class)->get('kpi_review')['model'],
+            $app->make(AiFeatures::class)->get('kpi_review')['effort'],
         ));
 
         // These two call Claude through AiGateway (model/effort in config/ai.php).
         $this->app->bind(PlanTaskExtractor::class, ClaudePlanTaskExtractor::class);
         $this->app->bind(TextEnhancer::class, ClaudeTextEnhancer::class);
 
-        $this->app->bind(EventExtractor::class, fn () => new ClaudeEventExtractor(
+        $this->app->bind(EventExtractor::class, fn ($app) => new ClaudeEventExtractor(
             config('services.anthropic.key'),
-            config('services.anthropic.calendar_import_model'),
-            config('services.anthropic.calendar_import_effort'),
+            $app->make(AiFeatures::class)->get('calendar_import')['model'],
+            $app->make(AiFeatures::class)->get('calendar_import')['effort'],
         ));
     }
 

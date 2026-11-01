@@ -27,10 +27,23 @@ Today the brand is a muted indigo, and icon colors are picked ad hoc on each pag
   - **Footer:** a shortcuts hint (⌘K, C, ?) and the collapse control. The collapsed rail and mobile drawer keep working.
   - Role filtering and active-route patterns are unchanged.
 
+- **Modern shell and motion.** The user asked:
+
+  > sidebar and header design need to be modern show transition effect on menu change
+
+  So the shell gets:
+  - **Sliding highlight:** the active item's highlight is its own `nav-pill` element. On a soft navigation it morphs from the old item to the new one, using Turbo's existing view transition with `view-transition-name: nav-pill`.
+  - **Smooth hover:** hover eases the row and lifts the icon tile.
+  - **Collapse:** labels fade and narrow as the rail collapses, and stay in the accessibility tree.
+  - **Header:** the top bar is a frosted layer, and the page header becomes a band that fades into the canvas with a faint glow in the section's hue.
+  - **Page changes:** the header and content fade out and rise in. Same-page refreshes (`html[data-vt=refresh]`) don't animate, and nothing animates under reduced motion.
+  - **No new library:** this builds on Turbo's view transitions.
+
 ## Impact
 
 - **Config:** `tailwind.config.js` (brand scale, shadows, sidebar tokens, `info`, content path `app/Support/*.php`).
 - **Support:** new `app/Support/Palette.php`; `app/Support/Navigation.php` (`tone` per item, `color` from the palette, `activeItem()`).
 - **Views:** `layouts/sidebar`, `components/{page-header,stat,action-btn,empty-state}`, `partials/stat-tile`.
-- **CSS:** `resources/css/app.css` (sidebar and nav classes, brand mark).
+- **CSS:** `resources/css/app.css` (sidebar and nav classes, brand mark, view-transition choreography, `.app-page-header`).
+- **Layout and JS:** `layouts/app` (`app-page-header`/`app-content` hooks), `layouts/navigation` (search pill), `resources/js/app.js` (`data-vt` refresh flag in `turbo:before-render`).
 - **Tests:** `tests/Unit/PaletteTest.php`; navigation tests still pass unchanged.

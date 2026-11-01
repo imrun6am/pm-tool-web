@@ -6,20 +6,52 @@
 |--------------------------------------------------------------------------
 |
 | Every Claude call made through App\Services\Ai\AiGateway names one of the
-| features below. A feature's model and effort come from here; an admin can
-| switch any feature off at runtime on the AI usage page (stored in
-| ai_feature_settings), which overrides `enabled`. The API key itself lives in
-| config/services.php (ANTHROPIC_API_KEY).
+| features below. A feature's model and effort come from here; on the AI
+| usage page an admin can switch a feature off and change its model and
+| effort at runtime (stored in ai_feature_settings), which overrides these
+| defaults. The API key itself lives in config/services.php (ANTHROPIC_API_KEY).
 |
 */
 
-$model = env('AI_DEFAULT_MODEL', 'claude-opus-5-5');
+$model = env('AI_DEFAULT_MODEL', 'claude-sonnet-5-5');
 
 return [
 
     'default_model' => $model,
 
+    // Models an admin may pick on the AI usage page.
+    'models' => [
+        'claude-sonnet-5-5' => 'Sonnet 5.5 — balanced (default)',
+        'claude-haiku-5-5' => 'Haiku 5.5 — fastest, cheapest',
+        'claude-opus-5-5' => 'Opus 5.5 — most capable, costliest',
+    ],
+
+    // Models without the server-side refusal fallback: the gateway leaves it
+    // out for them, and the untracked features (which always send it) can't use them.
+    'no_fallback' => ['claude-haiku-5-5'],
+
+    'efforts' => ['low' => 'Low', 'medium' => 'Medium', 'high' => 'High'],
+
     'features' => [
+        // Called directly through the SDK (streaming / Files API), not through
+        // AiGateway: only their model and effort come from here, and their
+        // calls are not logged on the usage page. `tracked` marks the difference.
+        'kpi_review' => [
+            'label' => 'KPI reports',
+            'description' => 'Admin KPI review reports drafted from tasksheets.',
+            'model' => env('KPI_REVIEW_MODEL', $model),
+            'effort' => env('KPI_REVIEW_EFFORT', 'medium'),
+            'enabled' => true,
+            'tracked' => false,
+        ],
+        'calendar_import' => [
+            'label' => 'Calendar import',
+            'description' => 'Finds events in uploaded files for the calendar.',
+            'model' => env('CALENDAR_IMPORT_MODEL', $model),
+            'effort' => env('CALENDAR_IMPORT_EFFORT', 'medium'),
+            'enabled' => true,
+            'tracked' => false,
+        ],
         // Existing features, moved onto the gateway; their original env names still apply.
         'note_enhance' => [
             'label' => 'Enhance with Claude',

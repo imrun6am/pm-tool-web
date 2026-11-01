@@ -4,7 +4,9 @@ namespace App\Providers;
 
 use App\Http\Middleware\ShareCelebration;
 use App\Models\Comment;
+use App\Models\Project;
 use App\Models\Task;
+use App\Models\Team;
 use App\Observers\CommentEngagementObserver;
 use App\Observers\TaskEngagementObserver;
 use App\Services\NotificationService;
@@ -42,6 +44,13 @@ class EngagementServiceProvider extends ServiceProvider
             $view->with([
                 'bellUnread' => $notifications->unreadCount($user),
                 'bellLatest' => $notifications->latest($user),
+            ]);
+        });
+
+        View::composer('layouts.select-swatches', function ($view) {
+            $view->with([
+                'ssTeamColors' => Team::pluck('color', 'id'),
+                'ssProjectColors' => Project::pluck('color', 'id'),
             ]);
         });
 

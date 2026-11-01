@@ -394,7 +394,21 @@
         lg:pl-64 lg:sidebar-collapsed:pl-[4.5rem];
     }
     .app-topbar {
-        @apply sticky top-0 z-40 border-b border-slate-200 bg-white/85 backdrop-blur-md;
+        @apply sticky top-0 z-40 border-b border-slate-200/80 bg-white/80 backdrop-blur-xl backdrop-saturate-150;
+    }
+    /* Page sub-header: one surface with the top bar — white fading into the
+       canvas, with a faint glow in the section's hue (x-page-header).
+       Not overflow-hidden: header actions (e.g. the tasksheet Export PDF
+       popover) must be able to hang below it. z-20 lifts that popover over
+       the page content; only the glow is clipped, by its own wrapper. */
+    .app-page-header {
+        @apply relative z-20 border-b border-slate-200/80 bg-gradient-to-b from-white to-slate-50/60;
+    }
+    .page-glow-clip {
+        @apply pointer-events-none absolute inset-0 -z-10 overflow-hidden;
+    }
+    .page-glow {
+        @apply absolute -left-16 -top-24 h-56 w-[28rem] rounded-full opacity-70 blur-3xl;
     }
     .brand-mark {
         @apply inline-flex h-9 w-9 flex-none items-center justify-center rounded-xl bg-gradient-to-br from-sky-400 via-brand-500 to-brand-700
@@ -402,7 +416,8 @@
     }
     /* Sidebar Create button: a touch more presence than an ordinary primary. */
     .sidebar-create {
-        @apply h-10 rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-700 hover:to-brand-600;
+        @apply h-10 rounded-xl bg-gradient-to-r from-brand-600 to-brand-500 hover:from-brand-700 hover:to-brand-600
+        lg:sidebar-collapsed:gap-0;
     }
 
     /* Nav groups and items — 40px rows; the icon sits in a 28px tile tinted
@@ -427,21 +442,52 @@
     }
     .nav-item {
         @apply relative flex h-10 w-full items-center gap-3 rounded-xl px-1.5 text-sm font-medium text-sidebar-text
-        transition-colors hover:bg-sidebar-hover hover:text-slate-900
+        transition-[background-color,color,gap] duration-200 ease-out hover:bg-sidebar-hover hover:text-slate-900
         focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-1
-        lg:sidebar-collapsed:justify-center lg:sidebar-collapsed:px-0;
+        motion-reduce:transition-none
+        lg:sidebar-collapsed:justify-center lg:sidebar-collapsed:gap-0 lg:sidebar-collapsed:px-0;
+    }
+    .nav-item > .nav-icon,
+    .nav-item > .nav-label {
+        @apply relative z-[1];
     }
     .nav-item:hover .nav-icon {
-        @apply scale-105 motion-reduce:scale-100;
+        @apply -translate-y-px scale-105 motion-reduce:transform-none;
     }
-    /* Active: tinted row, brand text, and an accent bar on the sidebar edge. */
+    /* Active: brand text over the sliding pill (tinted row + accent bar on the
+       sidebar edge). The pill is its own element so a view transition can
+       move it between items; see `nav-pill` at the end of this file. */
     .nav-item-active {
-        @apply bg-sidebar-active font-semibold text-sidebar-active-text hover:bg-sidebar-active hover:text-sidebar-active-text
-        before:absolute before:-left-3 before:inset-y-2 before:w-1 before:rounded-r-full before:bg-gradient-to-b before:from-sky-400 before:to-brand-600;
+        @apply font-semibold text-sidebar-active-text hover:bg-transparent hover:text-sidebar-active-text;
     }
-    /* Text that hides (but stays accessible) when the rail is collapsed. */
+    .nav-pill {
+        @apply pointer-events-none absolute inset-0 rounded-xl bg-sidebar-active ring-1 ring-inset ring-brand-100
+        before:absolute before:-left-3 before:inset-y-2 before:w-1 before:rounded-r-full before:bg-gradient-to-b before:from-sky-400 before:to-brand-600
+        lg:sidebar-collapsed:before:hidden;
+    }
+    /* Text that fades out (but stays in the accessibility tree, so it still
+       names the control) as the rail collapses. */
     .nav-label {
-        @apply truncate lg:sidebar-collapsed:sr-only;
+        @apply max-w-[13rem] truncate opacity-100 transition-[opacity,max-width] duration-200 ease-out motion-reduce:transition-none
+        lg:sidebar-collapsed:max-w-0 lg:sidebar-collapsed:opacity-0;
+    }
+
+    /* One look for every menu and popover — x-dropdown (account, Create),
+       the notification bell, header popovers, x-multi-select — matching the
+       searchable-select panel (.ss-panel). */
+    .menu-panel {
+        @apply rounded-xl bg-white shadow-[0_10px_30px_-12px_rgb(15_23_42/0.25),0_0_0_1px_rgb(15_23_42/0.07)];
+    }
+    .menu-item {
+        @apply mx-1.5 flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-start text-sm leading-5 text-slate-700
+        transition-colors duration-100 hover:bg-brand-50 hover:text-brand-700
+        focus:outline-none focus-visible:bg-brand-50 focus-visible:text-brand-700 motion-reduce:transition-none;
+    }
+    .menu-label {
+        @apply px-3 pb-1.5 pt-1 text-[11px] font-semibold uppercase tracking-wider text-slate-500;
+    }
+    .menu-divider {
+        @apply my-1.5 border-t border-slate-100;
     }
 
     /* Keyboard shortcut hint */
@@ -452,7 +498,7 @@
 
     /* Page-title cluster used in the sticky sub-header */
     .page-title {
-        @apply text-lg font-semibold tracking-tight text-slate-900 sm:text-xl;
+        @apply text-lg font-bold tracking-tight text-slate-900 sm:text-[22px] sm:leading-8;
     }
     .eyebrow {
         @apply text-xs font-medium uppercase tracking-wide text-slate-400;
@@ -534,18 +580,62 @@ trix-editor:empty:not(:focus)::before {
     border-radius: 0 9999px 9999px 0;
 }
 
-/* Turbo wraps each render in a view transition (meta view-transition): a
-   quick crossfade of the page. Unchanged pixels (top bar, canvas) blend to
-   themselves, so only the content visibly changes; the sidebar is its own
-   layer so it never dims while its active item moves. */
+/* Turbo wraps each render in a view transition (meta view-transition). The
+   shell is choreographed in layers:
+   - sidebar and top bar are their own layers, so they never dim;
+   - the active nav pill (one per page, `nav-pill`) morphs from the old item
+     to the new one, so the highlight slides down the menu;
+   - the page header and content fade out quickly and rise in softly.
+   Same-page refreshes (an action redirecting back) skip the rise, see
+   html[data-vt="refresh"] set by resources/js/app.js. Reduced motion turns
+   all of it off below. */
 .sidebar {
     view-transition-name: app-sidebar;
+}
+.app-topbar {
+    view-transition-name: app-topbar;
+}
+.app-page-header {
+    view-transition-name: app-header;
+}
+.app-content {
+    view-transition-name: app-content;
+}
+.nav-pill {
+    view-transition-name: nav-pill;
 }
 ::view-transition-group(*),
 ::view-transition-old(*),
 ::view-transition-new(*) {
     animation-duration: 150ms;
     animation-timing-function: ease-out;
+}
+::view-transition-group(nav-pill) {
+    animation-duration: 320ms;
+    animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+::view-transition-old(app-header),
+::view-transition-old(app-content) {
+    animation: 110ms ease-in both vt-fade-out;
+}
+::view-transition-new(app-header) {
+    animation: 260ms cubic-bezier(0.22, 1, 0.36, 1) both vt-rise;
+}
+::view-transition-new(app-content) {
+    animation: 320ms cubic-bezier(0.22, 1, 0.36, 1) 40ms both vt-rise;
+}
+html[data-vt="refresh"]::view-transition-old(app-header),
+html[data-vt="refresh"]::view-transition-old(app-content),
+html[data-vt="refresh"]::view-transition-new(app-header),
+html[data-vt="refresh"]::view-transition-new(app-content) {
+    animation: none;
+}
+@keyframes vt-fade-out {
+    to { opacity: 0; }
+}
+@keyframes vt-rise {
+    from { opacity: 0; transform: translateY(8px); }
+    to { opacity: 1; transform: none; }
 }
 /* In-page action regions (<x-live-region>): block-level, and dimmed while
    an action is in flight (after a beat, so quick ones don't flicker). */
@@ -653,4 +743,323 @@ turbo-frame {
     background: rgb(255 255 255 / 0.1);
     box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.18), 0 20px 40px -20px rgb(2 6 23 / 0.6);
     backdrop-filter: blur(6px);
+}
+
+/* Searchable selects (resources/js/searchable-select.js). The native <select>
+   is kept for the form but hidden; the button wears the select's own classes
+   (field-select, filter-select…) plus `ss-trigger`, which adds what a <select>
+   gets for free: left-aligned text, a chevron, and a white face (the
+   field-control `read-only:` tint would otherwise match a button). */
+.ss-native {
+    position: absolute !important;
+    width: 1px !important;
+    height: 1px !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    overflow: hidden;
+}
+button:where(.ss-trigger) {
+    /* What @tailwindcss/forms gives a <select> element. Element-level
+       specificity: enough to beat preflight's `button { padding: 0 }`, low
+       enough that the select's own classes (rounded-lg, text-sm, field-sm…)
+       still win. */
+    border-width: 1px;
+    border-style: solid;
+    border-color: rgb(203 213 225);
+    border-radius: 0;
+    background-color: #fff;
+    padding: 0.5rem 0.75rem;
+    font-size: 1rem;
+    line-height: 1.5rem;
+}
+button.ss-trigger:not([hidden]) {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding-right: 2.25rem;
+    text-align: left;
+    cursor: pointer;
+}
+button.ss-trigger:read-only:not(:disabled) {
+    background-color: #fff;
+}
+button.ss-trigger:read-only:not(:disabled):not([aria-invalid="true"]):hover {
+    border-color: rgb(148 163 184);
+}
+button.ss-trigger[aria-expanded="true"]:not([aria-invalid="true"]) {
+    border-color: #2f7cf8;
+    box-shadow: 0 0 0 4px rgb(11 99 246 / 0.15);
+}
+button.ss-trigger:disabled {
+    cursor: not-allowed;
+}
+.ss-value {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.ss-placeholder .ss-value {
+    color: rgb(100 116 139);
+}
+/* Leading cue (colour dot / avatar) and the clear "×". */
+.ss-cue:empty {
+    display: none;
+}
+.ss-cue {
+    display: flex;
+    flex: none;
+}
+.ss-dot {
+    display: inline-block;
+    width: 0.625rem;
+    height: 0.625rem;
+    flex: none;
+    border-radius: 9999px;
+    box-shadow: inset 0 0 0 1px rgb(15 23 42 / 0.12);
+}
+.ss-avatar {
+    display: inline-flex;
+    width: 1.375rem;
+    height: 1.375rem;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    font-size: 9px;
+    font-weight: 600;
+    line-height: 1;
+}
+/* Same tones as x-avatar (user id % 8). */
+.ss-avatar[data-tone="0"] { background: #d9e8ff; color: #0a50d0; }
+.ss-avatar[data-tone="1"] { background: #ede9fe; color: #6d28d9; }
+.ss-avatar[data-tone="2"] { background: #e0f2fe; color: #075985; }
+.ss-avatar[data-tone="3"] { background: #d1fae5; color: #065f46; }
+.ss-avatar[data-tone="4"] { background: #fef3c7; color: #92400e; }
+.ss-avatar[data-tone="5"] { background: #ffe4e6; color: #be123c; }
+.ss-avatar[data-tone="6"] { background: #ccfbf1; color: #115e59; }
+.ss-avatar[data-tone="7"] { background: #fae8ff; color: #a21caf; }
+button.ss-trigger .ss-avatar {
+    width: 1.25rem;
+    height: 1.25rem;
+    margin-left: -0.125rem;
+}
+.ss-clear {
+    display: none;
+    position: absolute;
+    right: 1.875rem;
+    top: 50%;
+    width: 1.25rem;
+    height: 1.25rem;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9999px;
+    font-size: 1rem;
+    line-height: 1;
+    color: rgb(148 163 184);
+    transform: translateY(-50%);
+    transition: background-color 120ms, color 120ms;
+}
+.ss-clear:hover {
+    background: rgb(241 245 249);
+    color: rgb(71 85 105);
+}
+button.ss-trigger.ss-clearable:not(:disabled) .ss-clear {
+    display: flex;
+}
+button.ss-trigger.ss-clearable:not([hidden]) {
+    padding-right: 3.5rem;
+}
+.ss-chevron {
+    position: absolute;
+    right: 0.625rem;
+    top: 50%;
+    width: 1rem;
+    height: 1rem;
+    color: rgb(148 163 184);
+    transform: translateY(-50%);
+    transition: transform 150ms ease-out;
+}
+button.ss-trigger[aria-expanded="true"] .ss-chevron {
+    transform: translateY(-50%) rotate(180deg);
+}
+
+.ss-panel {
+    position: fixed;
+    z-index: 80;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-radius: 0.75rem;
+    background: #fff;
+    box-shadow: 0 10px 30px -12px rgb(15 23 42 / 0.25), 0 0 0 1px rgb(15 23 42 / 0.07);
+    animation: ss-in 120ms ease-out both;
+}
+.ss-panel.ss-up {
+    animation-name: ss-in-up;
+}
+.ss-panel.ss-leaving,
+.ss-backdrop.ss-leaving {
+    opacity: 0;
+    transition: opacity 110ms ease-in;
+}
+.ss-panel.ss-sheet.ss-leaving {
+    transform: translateY(16px);
+    transition: opacity 110ms ease-in, transform 110ms ease-in;
+}
+.ss-search {
+    position: relative;
+    flex: none;
+    border-bottom: 1px solid rgb(241 245 249);
+    padding: 0.5rem;
+}
+.ss-search-icon {
+    pointer-events: none;
+    position: absolute;
+    left: 1.125rem;
+    top: 50%;
+    width: 1rem;
+    height: 1rem;
+    color: rgb(148 163 184);
+    transform: translateY(-50%);
+}
+.ss-input {
+    display: block;
+    width: 100%;
+    height: 2.25rem;
+    border-radius: 0.5rem;
+    border: 1px solid rgb(226 232 240);
+    background: rgb(248 250 252);
+    padding: 0 0.75rem 0 2.25rem;
+    font-size: 0.875rem;
+    color: rgb(30 41 59);
+}
+.ss-input:focus {
+    outline: none;
+    border-color: #2f7cf8;
+    background: #fff;
+    box-shadow: 0 0 0 3px rgb(11 99 246 / 0.15);
+}
+.ss-list {
+    min-height: 0;
+    flex: 1 1 auto;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: 0.375rem;
+}
+.ss-list:focus {
+    outline: none;
+}
+.ss-group {
+    padding: 0.5rem 0.625rem 0.25rem;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: rgb(100 116 139);
+}
+.ss-option {
+    display: flex;
+    cursor: pointer;
+    align-items: center;
+    gap: 0.5rem;
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.625rem;
+    font-size: 0.875rem;
+    line-height: 1.25rem;
+    color: rgb(51 65 85);
+}
+.ss-option {
+    transition: background-color 120ms ease-out, color 120ms ease-out;
+}
+/* Pointer hover and keyboard focus share one highlight: brand-tinted. */
+.ss-option.is-active {
+    background: #eef5ff;
+    color: #0a50d0;
+}
+.ss-option[aria-selected="true"] {
+    font-weight: 600;
+    color: #0a50d0;
+}
+.ss-option[aria-disabled="true"] {
+    cursor: not-allowed;
+    color: rgb(148 163 184);
+}
+.ss-label {
+    min-width: 0;
+    flex: 1 1 auto;
+    overflow-wrap: anywhere;
+}
+.ss-label mark {
+    border-radius: 0.2rem;
+    background: rgb(217 232 255);
+    color: inherit;
+    padding: 0 1px;
+}
+.ss-check {
+    width: 1rem;
+    height: 1rem;
+    flex: none;
+    color: #0b63f6;
+    visibility: hidden;
+}
+.ss-option[aria-selected="true"] .ss-check {
+    visibility: visible;
+}
+.ss-empty {
+    padding: 1rem 0.75rem;
+    text-align: center;
+    font-size: 0.875rem;
+    color: rgb(100 116 139);
+}
+
+/* Phones: a bottom sheet, big enough to tap, with a 16px search box so iOS
+   doesn't zoom. */
+.ss-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 79;
+    background: rgb(15 23 42 / 0.4);
+    animation: ss-fade 150ms ease-out both;
+}
+.ss-panel.ss-sheet {
+    inset: auto 0 0 0;
+    max-height: 70vh;
+    border-radius: 1rem 1rem 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+    animation-name: ss-sheet-in;
+    animation-duration: 200ms;
+}
+.ss-sheet .ss-input {
+    height: 2.75rem;
+    font-size: 16px;
+}
+.ss-sheet .ss-option {
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+}
+@keyframes ss-in {
+    from { opacity: 0; transform: translateY(-4px); }
+}
+@keyframes ss-in-up {
+    from { opacity: 0; transform: translateY(4px); }
+}
+@keyframes ss-sheet-in {
+    from { transform: translateY(100%); }
+}
+@keyframes ss-fade {
+    from { opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .ss-panel,
+    .ss-backdrop,
+    .ss-option,
+    .ss-chevron {
+        animation: none !important;
+        transition: none !important;
+    }
 }

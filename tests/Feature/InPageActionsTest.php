@@ -178,7 +178,8 @@ class InPageActionsTest extends TestCase
 
         $region = $this->region($this->actingAs($user)->get($page), 'release-tasks');
         $this->assertStringContainsString('Wire up frames', $region);
-        $this->assertStringContainsString('Tasks (1)', $region);
+        // The card header's count badge reflects the new task.
+        $this->assertMatchesRegularExpression('/Tasks\s*<span class="badge badge-slate tabular">1<\/span>/', $region);
     }
 
     public function test_flash_toast_payload_cannot_break_out_of_its_script_tag(): void

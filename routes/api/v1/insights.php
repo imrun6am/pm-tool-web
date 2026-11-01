@@ -21,4 +21,5 @@ use Illuminate\Support\Facades\Route;
 Route::middleware('full-access')->group(function () {
     Route::get('activities', [ActivityController::class, 'index'])->name('activities.index');
     Route::get('activities/stats', [ActivityController::class, 'stats'])->name('activities.stats');
+    Route::get('activities/analysis', [ActivityController::class, 'analysis'])->name('activities.analysis');
 });

@@ -15,7 +15,7 @@
     <div x-show="open" x-cloak
          x-transition:enter="transition ease-out duration-150 motion-reduce:transition-none" x-transition:enter-start="opacity-0 translate-y-1" x-transition:enter-end="opacity-100 translate-y-0"
          x-transition:leave="transition ease-in duration-100 motion-reduce:transition-none" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
-         class="absolute right-0 z-50 mt-2 w-[min(24rem,calc(100vw-1.5rem))] overflow-hidden rounded-xl bg-white shadow-pop ring-1 ring-slate-900/10"
+         class="menu-panel absolute right-0 z-50 mt-2 w-[min(24rem,calc(100vw-1.5rem))] overflow-hidden"
          role="dialog" aria-label="Notifications">
         <div class="flex items-center justify-between gap-3 border-b border-slate-100 px-4 py-3">
             <p class="text-sm font-semibold text-slate-900">Notifications</p>

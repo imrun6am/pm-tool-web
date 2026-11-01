@@ -1,244 +1,414 @@
+@use('App\Services\ActivityInsights')
+@use('Illuminate\Support\Str')
 <x-app-layout>
-    @php $hasFilters = $filters['causer_id'] || $filters['event']; @endphp
-
-    <x-slot name="header">
-        <x-page-header title="Activity" description="Audit trail of every change made across the workspace." />
-    </x-slot>
-
     @php
-        // Shared palette so cards, charts and the feed all speak the same colour language.
+        $a = $analysis;
+        $k = $a['kpis'];
+        $w = $a['window'];
+        $versus = 'previous '.$w['days'].' days';
+
+        // Scope filters carry into every link; slice filters are what a drill sets.
+        $scope = collect($filters)->only(['days', 'causer_id', 'team_id', 'project_id', 'release_id'])->filter()->all();
+        $drill = fn (array $slice) => route('activity.index', array_filter([...$scope, ...$slice], fn ($v) => $v !== null)).'#feed';
+        $hasSlice = $filters['event'] || $filters['subject_type'] || $filters['from'] || $filters['to'] || $filters['release_id'];
+        $hasFilters = $hasSlice || $filters['causer_id'] || $filters['team_id'] || $filters['project_id'];
+
+        // One colour language for events across the donut, people mix and feed.
         $eventMeta = [
-            'created' => ['label' => 'Created', 'hex' => '#10b981', 'bg' => 'bg-emerald-500', 'soft' => 'bg-emerald-50', 'text' => 'text-emerald-600'],
-            'updated' => ['label' => 'Updated', 'hex' => '#2f7cf8', 'bg' => 'bg-brand-500', 'soft' => 'bg-brand-50', 'text' => 'text-brand-600'],
-            'deleted' => ['label' => 'Deleted', 'hex' => '#f43f5e', 'bg' => 'bg-rose-500', 'soft' => 'bg-rose-50', 'text' => 'text-rose-600'],
+            'created' => ['label' => 'Created', 'hex' => '#10b981', 'bg' => 'bg-emerald-500'],
+            'updated' => ['label' => 'Updated', 'hex' => '#2f7cf8', 'bg' => 'bg-brand-500'],
+            'deleted' => ['label' => 'Deleted', 'hex' => '#f43f5e', 'bg' => 'bg-rose-500'],
         ];
+        $fmtDwell = fn (?float $h) => $h === null ? '—' : ($h >= 48 ? rtrim(rtrim(number_format($h / 24, 1), '0'), '.').'d' : rtrim(rtrim(number_format($h, 1), '0'), '.').'h');
+        $rampFor = function (int $c, int $max) {
+            if ($c === 0 || $max === 0) return 'bg-slate-100';
+            $r = $c / $max;
+            return $r > 0.75 ? 'bg-brand-700' : ($r > 0.5 ? 'bg-brand-500' : ($r > 0.25 ? 'bg-brand-300' : 'bg-brand-100'));
+        };
     @endphp
 
-    {{-- On lg+, the content becomes a fixed-height flex column: the KPI cards and
-         filters stay pinned while each of the two panes scrolls independently.
-         The height subtracts the top bar + page header (measured: content starts
-         ~158px down). On smaller screens it falls back to normal page scroll. --}}
-    <div class="py-6 lg:h-[calc(100vh-9.875rem)] lg:overflow-hidden lg:py-6">
-        <div class="app-container flex h-full flex-col gap-4">
-
-            {{-- ============================ KPI CARDS ============================ --}}
-            <div class="stat-strip shrink-0">
-                <x-stat label="Total events" :value="number_format($stats['total'])"
-                        :sub="$filters['causer_id'] ? 'For selected user' : 'All recorded activity'"
-                        icon="chart-bar" tone="slate" />
-                <x-stat label="Today" :value="number_format($stats['today'])"
-                        :sub="number_format($stats['week']).' in the last 7 days'"
-                        icon="clock" tone="brand" />
-                <x-stat label="Contributors" :value="number_format($stats['contributors'])"
-                        sub="People with logged activity" icon="user-group" tone="sky" />
-
-                {{-- Event split --}}
-                <div class="stat-cell">
-                    <p class="stat-label">
-                        <x-icon name="squares" variant="outline" class="h-4 w-4 flex-none text-violet-600" />
-                        <span class="truncate">Event breakdown</span>
-                    </p>
-                    <div class="mt-1.5 space-y-0.5">
-                        @foreach ($eventMeta as $key => $meta)
-                            @php $val = $stats[$key]; $pct = $stats['total'] ? round($val / $stats['total'] * 100) : 0; @endphp
-                            <div class="flex items-center gap-2 text-xs">
-                                <span class="h-2 w-2 flex-none rounded-full {{ $meta['bg'] }}"></span>
-                                <span class="w-14 flex-none text-slate-500">{{ $meta['label'] }}</span>
-                                <span class="h-1.5 flex-1 overflow-hidden rounded-full bg-slate-100">
-                                    <span class="block h-full {{ $meta['bg'] }}" style="width: {{ $pct }}%"></span>
-                                </span>
-                                <span class="w-8 flex-none text-right font-medium tabular text-slate-700">{{ number_format($val) }}</span>
-                            </div>
+    <x-slot name="header">
+        <x-page-header title="Activity" :description="'Who changed what, when, and how work flowed · '.$w['label'].' ('.$w['start']->format('M j').' – '.$w['end']->format('M j').')'">
+            <x-slot name="actions">
+                <form method="GET" action="{{ route('activity.index') }}" x-data="filterBar" @change="onChange($event)">
+                    @foreach (collect($scope)->except('days') as $key => $value)
+                        <input type="hidden" name="{{ $key }}" value="{{ $value }}">
+                    @endforeach
+                    <fieldset class="segmented">
+                        <legend class="sr-only">Analysis period</legend>
+                        @foreach (ActivityInsights::PERIODS as $days => $label)
+                            <label><input type="radio" name="days" value="{{ $days }}" @checked($filters['days'] === $days)>{{ $days }}d</label>
                         @endforeach
-                    </div>
-                </div>
-            </div>
+                    </fieldset>
+                    <button type="submit" class="sr-only">Apply period</button>
+                </form>
+            </x-slot>
+        </x-page-header>
+    </x-slot>
+
+    <div class="py-6 sm:py-8">
+        <div class="app-container space-y-6">
 
             {{-- ============================ FILTERS ============================ --}}
-            <x-filter-bar :action="route('activity.index')" :active="$hasFilters" :count="$activities->total()" noun="entry" class="shrink-0">
-                <label for="causer_id" class="filter-label">User</label>
-                <select id="causer_id" name="causer_id" class="filter-select max-w-[13rem]">
+            <x-filter-bar :action="route('activity.index')" :active="$hasFilters">
+                <input type="hidden" name="days" value="{{ $filters['days'] }}">
+                <label for="causer_id" class="filter-label">Person</label>
+                <select id="causer_id" name="causer_id" class="filter-select max-w-[12rem]">
                     <option value="">Everyone</option>
                     @foreach ($users as $u)
                         <option value="{{ $u->id }}" @selected($filters['causer_id'] === $u->id)>{{ $u->name }}</option>
                     @endforeach
                 </select>
-
+                <label for="team_id" class="filter-label">Team</label>
+                <select id="team_id" name="team_id" class="filter-select max-w-[11rem]">
+                    <option value="">All teams</option>
+                    @foreach ($teams as $t)
+                        <option value="{{ $t->id }}" @selected($filters['team_id'] === $t->id)>{{ $t->name }}</option>
+                    @endforeach
+                </select>
+                <label for="project_id" class="filter-label">Project</label>
+                <select id="project_id" name="project_id" class="filter-select max-w-[11rem]">
+                    <option value="">All projects</option>
+                    @foreach ($projects as $p)
+                        <option value="{{ $p->id }}" @selected($filters['project_id'] === $p->id)>{{ $p->name }}</option>
+                    @endforeach
+                </select>
                 <label for="event" class="filter-label">Event</label>
                 <select id="event" name="event" class="filter-select">
                     <option value="">All events</option>
-                    @foreach (['created' => 'Created', 'updated' => 'Updated', 'deleted' => 'Deleted'] as $val => $label)
-                        <option value="{{ $val }}" @selected($filters['event'] === $val)>{{ $label }}</option>
+                    @foreach ($eventMeta as $val => $meta)
+                        <option value="{{ $val }}" @selected($filters['event'] === $val)>{{ $meta['label'] }}</option>
                     @endforeach
                 </select>
+                <label for="subject_type" class="filter-label">Record</label>
+                <select id="subject_type" name="subject_type" class="filter-select max-w-[11rem]">
+                    <option value="">All records</option>
+                    @foreach ($typeOptions as $type)
+                        <option value="{{ $type['type'] }}" @selected($filters['subject_type'] === $type['type'])>{{ $type['label'] }}</option>
+                    @endforeach
+                </select>
+                @if ($filters['release_id'])<input type="hidden" name="release_id" value="{{ $filters['release_id'] }}">@endif
             </x-filter-bar>
 
-            {{-- ==================== FEED (left) + CHARTS (right) ==================== --}}
-            <div class="grid gap-4 lg:min-h-0 lg:flex-1 lg:grid-cols-3">
+            {{-- ============================ KPIs ============================ --}}
+            <div class="stat-strip">
+                <x-stat label="Events" :value="number_format($k['events']['current'])" icon="chart-bar" tone="brand"
+                        :sub="$k['perDay'].' a day on average'">
+                    <div class="mt-2">@include('partials.delta', ['change' => $k['events']['change'], 'versus' => $versus])</div>
+                </x-stat>
+                <x-stat label="Active people" :value="$k['people']['current']" icon="user-group" tone="sky" sub="made at least one change">
+                    <div class="mt-2">@include('partials.delta', ['change' => $k['people']['change'], 'versus' => $versus])</div>
+                </x-stat>
+                <x-stat label="Workflow moves" :value="$a['flow']['moves']" icon="view-columns" tone="violet"
+                        :sub="$a['flow']['milestones']['done'].' to Done · '.$a['flow']['milestones']['rework'].' to Recheck'" />
+                <x-stat label="Deletions" :value="$k['deletions']['current']" icon="trash" tone="rose"
+                        :sub="$stats['total'] ? number_format($stats['total']).' events all time' : 'Nothing recorded yet'">
+                    <div class="mt-2">@include('partials.delta', ['change' => $k['deletions']['change'], 'versus' => $versus, 'lowerIsBetter' => true])</div>
+                </x-stat>
+            </div>
 
-                {{-- ----------------------- Activity feed ----------------------- --}}
-                <div class="lg:col-span-2 lg:flex lg:min-h-0 lg:flex-col">
-                    <div class="card lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
-                        <div class="card-header shrink-0">
-                            <h3 class="card-title">Activity log</h3>
-                            @if ($activities->hasPages())
-                                <span class="tabular text-xs text-slate-400">Page {{ $activities->currentPage() }} of {{ $activities->lastPage() }}</span>
+            @if ($k['events']['current'] === 0)
+                <div class="card">
+                    <x-empty-state icon="clock" title="No activity in this window."
+                                   description="Try a longer period or clear the person, team or project filter.">
+                        @if ($hasFilters)<a href="{{ route('activity.index') }}" class="btn-secondary btn-sm">Clear all filters</a>@endif
+                    </x-empty-state>
+                </div>
+            @else
+                {{-- ============================ VOLUME ============================ --}}
+                <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                    <section class="card card-pad lg:col-span-2" aria-labelledby="volume-title">
+                        <h2 id="volume-title" class="card-title">Volume</h2>
+                        <p class="card-subtitle">Events per {{ $w['days'] > 30 ? 'week' : 'day' }} · click a bar to see those entries</p>
+                        @include('partials.column-chart', [
+                            'label' => 'Events per '.($w['days'] > 30 ? 'week' : 'day'),
+                            'bars' => collect($a['volume'])->map(fn ($b) => [
+                                'label' => $b['label'],
+                                'value' => $b['count'],
+                                'current' => $b['current'],
+                                'highlight' => false,
+                                'title' => number_format($b['count']).' events · '.($b['start']->eq($b['end']) ? $b['start']->format('D, M j') : $b['start']->format('M j').' – '.$b['end']->format('M j')),
+                                'href' => $drill(['from' => $b['start']->toDateString(), 'to' => $b['end']->toDateString()]),
+                            ])->all(),
+                        ])
+                    </section>
+
+                    <section class="card card-pad" aria-labelledby="events-title">
+                        <h2 id="events-title" class="card-title">By event</h2>
+                        <p class="card-subtitle">Click a row to filter the feed</p>
+                        <div class="mt-5">
+                            @include('partials.donut', [
+                                'label' => 'Events by kind',
+                                'center' => number_format($k['events']['current']),
+                                'caption' => 'events',
+                                'segments' => collect($eventMeta)->map(fn ($m, $key) => [
+                                    'label' => $m['label'], 'value' => $a['byEvent'][$key], 'color' => $m['hex'],
+                                    'href' => $drill(['event' => $key]),
+                                ])->values()->all(),
+                            ])
+                        </div>
+                    </section>
+                </div>
+
+                {{-- ============================ BREAKDOWNS ============================ --}}
+                @php
+                    $ranked = [
+                        ['title' => 'By record type', 'sub' => 'What changed', 'rows' => collect($a['byType'])->map(fn ($r) => [
+                            'label' => $r['label'], 'count' => $r['count'], 'color' => null, 'href' => $drill(['subject_type' => $r['type']])])],
+                        ['title' => 'By team', 'sub' => 'Through the release a change belongs to', 'rows' => collect($a['byTeam'])->map(fn ($r) => [
+                            'label' => $r['name'], 'count' => $r['count'], 'color' => $r['color'], 'href' => $r['id'] ? $drill(['team_id' => $r['id']]) : null])],
+                        ['title' => 'Busiest releases', 'sub' => 'Most changes in this window', 'rows' => collect($a['byRelease'])->map(fn ($r) => [
+                            'label' => $r['name'], 'count' => $r['count'], 'color' => $r['color'], 'href' => $drill(['release_id' => $r['id']])])],
+                    ];
+                @endphp
+                <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                    @foreach ($ranked as $panel)
+                        <section class="card card-pad">
+                            <h2 class="card-title">{{ $panel['title'] }}</h2>
+                            <p class="card-subtitle">{{ $panel['sub'] }}</p>
+                            @if ($panel['rows']->isEmpty())
+                                <p class="mt-6 text-sm text-slate-500">Nothing in this window.</p>
+                            @else
+                                @php $max = max($panel['rows']->max('count'), 1); @endphp
+                                <ul class="mt-4 space-y-2.5">
+                                    @foreach ($panel['rows'] as $row)
+                                        <li>
+                                            <{{ $row['href'] ? 'a' : 'div' }} @if ($row['href']) href="{{ $row['href'] }}" @endif
+                                                @class(['block rounded -mx-1 px-1 py-0.5', 'hover:bg-slate-50' => $row['href']])>
+                                                <span class="flex items-center justify-between gap-3 text-sm">
+                                                    <span class="flex min-w-0 items-center gap-2">
+                                                        @if ($row['color'])<span class="h-2.5 w-2.5 flex-none rounded-full" style="background-color: {{ $row['color'] }}"></span>@endif
+                                                        <span class="truncate text-slate-700">{{ $row['label'] }}</span>
+                                                    </span>
+                                                    <span class="tabular flex-none font-semibold text-slate-900">{{ number_format($row['count']) }}</span>
+                                                </span>
+                                                <span class="mt-1 block h-1.5 overflow-hidden rounded-full bg-slate-100">
+                                                    <span class="block h-full rounded-full bg-brand-500" style="width: {{ max(3, round($row['count'] / $max * 100)) }}%"></span>
+                                                </span>
+                                            </{{ $row['href'] ? 'a' : 'div' }}>
+                                        </li>
+                                    @endforeach
+                                </ul>
+                            @endif
+                        </section>
+                    @endforeach
+                </div>
+
+                {{-- ============================ PEOPLE + RHYTHM ============================ --}}
+                <div class="grid grid-cols-1 gap-6 lg:grid-cols-5">
+                    <section class="card lg:col-span-2" aria-labelledby="people-title">
+                        <div class="card-header">
+                            <div>
+                                <h2 id="people-title" class="card-title">Most active people</h2>
+                                <p class="card-subtitle">Changes in this window and their mix</p>
+                            </div>
+                        </div>
+                        @if (empty($a['people']))
+                            <p class="px-5 py-6 text-sm text-slate-500 sm:px-6">No attributed changes in this window.</p>
+                        @else
+                            @php $pMax = max(collect($a['people'])->max('total'), 1); @endphp
+                            <ul class="divide-y divide-slate-100">
+                                @foreach ($a['people'] as $p)
+                                    <li>
+                                        <a href="{{ $drill(['causer_id' => $p['user']->id]) }}" class="block px-5 py-2.5 hover:bg-slate-50/80 sm:px-6"
+                                           title="{{ $p['created'] }} created · {{ $p['updated'] }} updated · {{ $p['deleted'] }} deleted">
+                                            <span class="flex items-center gap-2.5">
+                                                <x-avatar :user="$p['user']" size="sm" />
+                                                <span class="min-w-0 flex-1 truncate text-sm text-slate-800">{{ $p['user']->name }}</span>
+                                                <span class="tabular text-sm font-semibold text-slate-900">{{ number_format($p['total']) }}</span>
+                                            </span>
+                                            {{-- stacked event mix, scaled to the busiest person --}}
+                                            <span class="mt-1.5 flex h-1.5 gap-px overflow-hidden rounded-full bg-slate-100" style="width: {{ max(6, round($p['total'] / $pMax * 100)) }}%">
+                                                @foreach ($eventMeta as $key => $meta)
+                                                    @if ($p[$key] > 0)<span class="{{ $meta['bg'] }}" style="flex: {{ $p[$key] }}"></span>@endif
+                                                @endforeach
+                                            </span>
+                                        </a>
+                                    </li>
+                                @endforeach
+                            </ul>
+                            <p class="flex flex-wrap gap-x-3 gap-y-1 border-t border-slate-100 px-5 py-2.5 text-[11px] text-slate-500 sm:px-6">
+                                @foreach ($eventMeta as $meta)
+                                    <span class="inline-flex items-center gap-1"><span class="h-2 w-2 rounded-full {{ $meta['bg'] }}"></span>{{ $meta['label'] }}</span>
+                                @endforeach
+                            </p>
+                        @endif
+                    </section>
+
+                    <section class="card card-pad min-w-0 lg:col-span-3" aria-labelledby="rhythm-title">
+                        <div class="flex flex-wrap items-start justify-between gap-2">
+                            <div>
+                                <h2 id="rhythm-title" class="card-title">Weekly rhythm</h2>
+                                <p class="card-subtitle">Changes by weekday and hour ({{ config('app.timezone') }})</p>
+                            </div>
+                            @if ($a['rhythm']['peak'])
+                                <p class="text-right text-xs text-slate-500">Busiest slot
+                                    <span class="block text-sm font-semibold text-slate-900">{{ $a['rhythm']['peak']['day'] }} {{ sprintf('%02d:00', $a['rhythm']['peak']['hour']) }}</span>
+                                </p>
                             @endif
                         </div>
-                        @if ($activities->isEmpty())
-                            <div class="lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
-                                @if ($hasFilters)
-                                    <x-empty-state icon="funnel" title="No activity matches these filters."
-                                                   description="Try another person or event type.">
-                                        <a href="{{ route('activity.index') }}" class="btn-secondary btn-sm">Clear all filters</a>
-                                    </x-empty-state>
-                                @else
-                                    <x-empty-state icon="clock" title="No activity recorded yet."
-                                                   description="Changes to releases, tasks and other records will appear here as they happen." />
-                                @endif
+                        @php $rMax = $a['rhythm']['max']; @endphp
+                        <div class="mt-4 overflow-x-auto pb-1">
+                            <div class="inline-grid min-w-full gap-[3px]" style="grid-template-columns: 2.25rem repeat(24, minmax(0.75rem, 1fr))" role="img"
+                                 aria-label="Activity by weekday and hour; busiest {{ $a['rhythm']['peak'] ? $a['rhythm']['peak']['day'].' at '.$a['rhythm']['peak']['hour'].':00' : 'none' }}">
+                                <span></span>
+                                @for ($h = 0; $h < 24; $h++)
+                                    <span class="text-center text-[9px] text-slate-400" aria-hidden="true">{{ $h % 3 === 0 ? $h : '' }}</span>
+                                @endfor
+                                @foreach ($a['rhythm']['grid'] as $row)
+                                    <span class="text-[10px] leading-4 text-slate-500" aria-hidden="true">{{ $row['day'] }}</span>
+                                    @foreach ($row['hours'] as $h => $c)
+                                        <span class="h-4 rounded-[3px] ring-1 ring-inset ring-slate-900/5 {{ $rampFor($c, $rMax) }}"
+                                              title="{{ $row['day'] }} {{ sprintf('%02d:00', $h) }}: {{ $c }} {{ Str::plural('change', $c) }}" aria-hidden="true"></span>
+                                    @endforeach
+                                @endforeach
                             </div>
+                        </div>
+                        <div class="mt-3 flex items-center justify-end gap-1.5 text-[11px] text-slate-500" aria-hidden="true">
+                            Fewer
+                            @foreach (['bg-slate-100', 'bg-brand-100', 'bg-brand-300', 'bg-brand-500', 'bg-brand-700'] as $shade)
+                                <span class="h-3 w-3 rounded-[3px] ring-1 ring-inset ring-slate-900/5 {{ $shade }}"></span>
+                            @endforeach
+                            More
+                        </div>
+                    </section>
+                </div>
+
+                {{-- ============================ WORKFLOW + DELETIONS ============================ --}}
+                @php $f = $a['flow']; @endphp
+                <div class="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                    <section class="card card-pad lg:col-span-2" aria-labelledby="flow-title">
+                        <div class="flex flex-wrap items-start justify-between gap-2">
+                            <div>
+                                <h2 id="flow-title" class="card-title">Task workflow</h2>
+                                <p class="card-subtitle">Status moves on the board in this window, and how long work waited in each status</p>
+                            </div>
+                            <a href="{{ $drill(['subject_type' => 'task', 'event' => 'updated']) }}" class="text-xs font-medium text-brand-700 hover:text-brand-800">Task changes →</a>
+                        </div>
+                        @if ($f['moves'] === 0)
+                            <p class="mt-6 text-sm text-slate-500">No task moved status in this window.</p>
                         @else
-                            <div class="px-6 py-2 lg:min-h-0 lg:flex-1 lg:overflow-y-auto">
-                                @include('partials.activity-list', ['activities' => $activities])
+                            <dl class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-5">
+                                @foreach ([
+                                    ['Started', $f['milestones']['started'], 'To Do → In Progress', false],
+                                    ['To review', $f['milestones']['review'], 'moved into In Review', false],
+                                    ['Rework', $f['milestones']['rework'], 'sent to Recheck', $f['milestones']['rework'] > 0],
+                                    ['Done', $f['milestones']['done'], 'finished', false],
+                                    ['Reopened', $f['milestones']['reopened'], 'out of Done/Archive', false],
+                                ] as [$label, $value, $hint, $warn])
+                                    <div @class(['rounded-lg px-3 py-2.5 ring-1 ring-inset', 'bg-warning-50 ring-warning-600/20' => $warn, 'bg-slate-50 ring-slate-200' => ! $warn]) title="{{ $hint }}">
+                                        <dd @class(['tabular text-xl font-semibold leading-none', 'text-warning-700' => $warn, 'text-slate-900' => ! $warn])>{{ $value }}</dd>
+                                        <dt @class(['mt-1 text-xs', 'text-warning-800' => $warn, 'text-slate-500' => ! $warn])>{{ $label }}</dt>
+                                    </div>
+                                @endforeach
+                            </dl>
+                            @if ($f['reworkRate'] !== null)
+                                <p class="mt-2 text-xs text-slate-500">Rework rate: <span class="font-semibold text-slate-800">{{ $f['reworkRate'] }}%</span> of moves into Done or Recheck went to Recheck.</p>
+                            @endif
+
+                            <div class="mt-5 grid gap-6 md:grid-cols-2">
+                                <div>
+                                    <h3 class="text-xs font-semibold uppercase tracking-wide text-slate-500">Most common moves</h3>
+                                    @php $tMax = max(collect($f['transitions'])->max('count'), 1); @endphp
+                                    <ul class="mt-2 space-y-2">
+                                        @foreach ($f['transitions'] as $t)
+                                            <li>
+                                                <div class="flex items-center justify-between gap-3 text-sm">
+                                                    <span class="truncate text-slate-700">{{ $t['label'] }}</span>
+                                                    <span class="tabular font-semibold text-slate-900">{{ $t['count'] }}</span>
+                                                </div>
+                                                <div class="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                                                    <div @class(['h-full rounded-full', 'bg-warning-500' => $t['to'] === 'recheck', 'bg-success-500' => $t['to'] === 'done', 'bg-brand-500' => ! in_array($t['to'], ['recheck', 'done'])])
+                                                         style="width: {{ max(3, round($t['count'] / $tMax * 100)) }}%"></div>
+                                                </div>
+                                            </li>
+                                        @endforeach
+                                    </ul>
+                                </div>
+                                <div>
+                                    <h3 class="text-xs font-semibold uppercase tracking-wide text-slate-500">Average time in status</h3>
+                                    @php $dMax = max(collect($f['dwell'])->max('avgHours') ?? 0, 1); @endphp
+                                    <ul class="mt-2 space-y-2">
+                                        @foreach ($f['dwell'] as $d)
+                                            <li title="{{ $d['samples'] }} {{ Str::plural('move', $d['samples']) }} measured">
+                                                <div class="flex items-center justify-between gap-3 text-sm">
+                                                    <span class="text-slate-700">{{ $d['label'] }}</span>
+                                                    <span class="tabular font-semibold text-slate-900">{{ $fmtDwell($d['avgHours']) }}</span>
+                                                </div>
+                                                <div class="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                                                    <div class="h-full rounded-full bg-violet-500" style="width: {{ $d['avgHours'] ? max(3, round($d['avgHours'] / $dMax * 100)) : 0 }}%"></div>
+                                                </div>
+                                            </li>
+                                        @endforeach
+                                    </ul>
+                                    <p class="mt-2 text-[11px] text-slate-400">From entering a status to leaving it, for moves in this window.</p>
+                                </div>
                             </div>
                         @endif
-                    </div>
+                    </section>
 
-                    @if ($activities->hasPages())
-                        <div class="mt-4 shrink-0">{{ $activities->links() }}</div>
+                    <section class="card" aria-labelledby="deletions-title">
+                        <div class="card-header">
+                            <div>
+                                <h2 id="deletions-title" class="card-title">Recent deletions</h2>
+                                <p class="card-subtitle">Removed records worth a second look</p>
+                            </div>
+                            @if ($a['deletions']->isNotEmpty())
+                                <a href="{{ $drill(['event' => 'deleted']) }}" class="text-xs font-medium text-brand-700 hover:text-brand-800">All →</a>
+                            @endif
+                        </div>
+                        @if ($a['deletions']->isEmpty())
+                            <p class="px-5 py-6 text-sm text-slate-500 sm:px-6">Nothing was deleted in this window.</p>
+                        @else
+                            <ul class="divide-y divide-slate-100">
+                                @foreach ($a['deletions'] as $del)
+                                    <li class="px-5 py-2.5 sm:px-6">
+                                        <p class="truncate text-sm text-slate-800" title="{{ $del->description }}">{{ $del->description }}</p>
+                                        <p class="mt-0.5 text-xs text-slate-500">{{ $del->causer?->name ?? 'System' }} · {{ $del->created_at->diffForHumans() }}</p>
+                                    </li>
+                                @endforeach
+                            </ul>
+                        @endif
+                    </section>
+                </div>
+            @endif
+
+            {{-- ============================ FEED ============================ --}}
+            <section id="feed" class="card scroll-mt-24" aria-labelledby="feed-title">
+                <div class="card-header flex-wrap">
+                    <div>
+                        <h2 id="feed-title" class="card-title">Activity log</h2>
+                        <p class="card-subtitle">{{ number_format($activities->total()) }} {{ Str::plural('entry', $activities->total()) }}{{ $filters['from'] ? '' : ' in '.Str::lower($w['label']) }}</p>
+                    </div>
+                    @if ($hasSlice)
+                        <div class="flex flex-wrap items-center gap-1.5">
+                            @if ($filters['from'])<span class="badge badge-brand">{{ \Illuminate\Support\Carbon::parse($filters['from'])->format('M j') }}{{ $filters['to'] && $filters['to'] !== $filters['from'] ? ' – '.\Illuminate\Support\Carbon::parse($filters['to'])->format('M j') : '' }}</span>@endif
+                            @if ($filters['event'])<span class="badge badge-brand">{{ $eventMeta[$filters['event']]['label'] }}</span>@endif
+                            @if ($filters['subject_type'])<span class="badge badge-brand">{{ Str::headline($filters['subject_type']) }}</span>@endif
+                            @if ($release)<span class="badge badge-brand">{{ $release->name }}</span>@endif
+                            <a href="{{ route('activity.index', collect($scope)->except('release_id')->all()) }}#feed" class="btn-ghost btn-sm">Clear drill-down</a>
+                        </div>
                     @endif
                 </div>
-
-                {{-- ------------------------- Charts --------------------------- --}}
-                <div class="space-y-4 lg:min-h-0 lg:overflow-y-auto lg:pr-1">
-
-                    {{-- 14-day trend bar chart --}}
-                    @php
-                        $maxTrend = max(1, collect($trend)->max('count'));
-                        $trendTotal = collect($trend)->sum('count');
-                    @endphp
-                    <div class="card card-pad">
-                        <div class="flex items-baseline justify-between">
-                            <h3 class="text-sm font-semibold text-slate-900">Last 14 days</h3>
-                            <span class="text-xs text-slate-400">{{ number_format($trendTotal) }} events</span>
-                        </div>
-                        <div class="mt-4 flex h-28 items-end gap-1">
-                            @foreach ($trend as $day)
-                                @php $h = $day['count'] ? max(6, round($day['count'] / $maxTrend * 100)) : 2; @endphp
-                                <div class="group relative flex flex-1 items-end" style="height: 100%">
-                                    <div class="w-full rounded-t {{ $day['count'] ? 'bg-brand-500 group-hover:bg-brand-600' : 'bg-slate-100' }} transition-colors"
-                                         style="height: {{ $h }}%"></div>
-                                    {{-- tooltip --}}
-                                    <div class="pointer-events-none absolute -top-9 left-1/2 z-10 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-[11px] font-medium text-white opacity-0 shadow-pop transition-opacity group-hover:opacity-100">
-                                        {{ $day['count'] }} · {{ $day['date']->format('M j') }}
-                                    </div>
-                                </div>
-                            @endforeach
-                        </div>
-                        <div class="mt-2 flex justify-between text-[11px] text-slate-400 tabular">
-                            <span>{{ $trend[0]['date']->format('M j') }}</span>
-                            <span>{{ $trend[count($trend) - 1]['date']->format('M j') }}</span>
-                        </div>
+                @if ($activities->isEmpty())
+                    @if ($hasFilters)
+                        <x-empty-state icon="funnel" title="No activity matches these filters."
+                                       description="Try another person, event type or a longer period.">
+                            <a href="{{ route('activity.index') }}" class="btn-secondary btn-sm">Clear all filters</a>
+                        </x-empty-state>
+                    @else
+                        <x-empty-state icon="clock" title="No activity recorded yet."
+                                       description="Changes to releases, tasks and other records will appear here as they happen." />
+                    @endif
+                @else
+                    <div class="px-6 py-2">
+                        @include('partials.activity-list', ['activities' => $activities])
                     </div>
-
-                    {{-- Event donut --}}
-                    <div class="card card-pad">
-                        <h3 class="text-sm font-semibold text-slate-900">Events</h3>
-                        @if ($stats['total'] > 0)
-                            <div class="mt-4 flex items-center gap-5">
-                                <div class="relative h-28 w-28 flex-none">
-                                    <svg viewBox="0 0 36 36" class="h-full w-full -rotate-90">
-                                        <circle cx="18" cy="18" r="15.9155" fill="none" stroke="#f1f5f9" stroke-width="3.5"/>
-                                        @php $cursor = 0; @endphp
-                                        @foreach ($eventMeta as $key => $meta)
-                                            @php
-                                                $pct = $stats['total'] ? $stats[$key] / $stats['total'] * 100 : 0;
-                                            @endphp
-                                            @if ($pct > 0)
-                                                <circle cx="18" cy="18" r="15.9155" fill="none"
-                                                        stroke="{{ $meta['hex'] }}" stroke-width="3.5"
-                                                        stroke-dasharray="{{ $pct }} {{ 100 - $pct }}"
-                                                        stroke-dashoffset="{{ $cursor > 0 ? 100 - $cursor : 0 }}"/>
-                                                @php $cursor += $pct; @endphp
-                                            @endif
-                                        @endforeach
-                                    </svg>
-                                    <div class="absolute inset-0 flex flex-col items-center justify-center">
-                                        <span class="text-xl font-semibold tabular text-slate-900">{{ number_format($stats['total']) }}</span>
-                                        <span class="text-[10px] uppercase tracking-wide text-slate-400">events</span>
-                                    </div>
-                                </div>
-                                <div class="min-w-0 flex-1 space-y-2">
-                                    @foreach ($eventMeta as $key => $meta)
-                                        @php $pct = $stats['total'] ? round($stats[$key] / $stats['total'] * 100) : 0; @endphp
-                                        <div class="flex items-center gap-2 text-xs">
-                                            <span class="h-2.5 w-2.5 flex-none rounded-sm" style="background-color: {{ $meta['hex'] }}"></span>
-                                            <span class="flex-1 text-slate-600">{{ $meta['label'] }}</span>
-                                            <span class="font-medium tabular text-slate-900">{{ number_format($stats[$key]) }}</span>
-                                            <span class="w-9 text-right tabular text-slate-400">{{ $pct }}%</span>
-                                        </div>
-                                    @endforeach
-                                </div>
-                            </div>
-                        @else
-                            <p class="py-6 text-center text-sm text-slate-400">No events to chart.</p>
-                        @endif
-                    </div>
-
-                    {{-- Top contributors --}}
-                    <div class="card card-pad">
-                        <h3 class="text-sm font-semibold text-slate-900">Top contributors</h3>
-                        @php $maxContrib = max(1, $topContributors->max('c') ?? 0); @endphp
-                        @if ($topContributors->isNotEmpty())
-                            <div class="mt-4 space-y-3">
-                                @foreach ($topContributors as $row)
-                                    @php $name = $row->causer->name ?? 'System'; @endphp
-                                    <div class="flex items-center gap-3">
-                                        <span class="flex h-7 w-7 flex-none items-center justify-center rounded-full bg-brand-100 text-[11px] font-semibold text-brand-700">
-                                            {{ Str::of($name)->explode(' ')->take(2)->map(fn ($p) => Str::substr($p, 0, 1))->implode('') }}
-                                        </span>
-                                        <div class="min-w-0 flex-1">
-                                            <div class="flex items-center justify-between gap-2">
-                                                <span class="truncate text-xs font-medium text-slate-700">{{ $name }}</span>
-                                                <span class="flex-none text-xs font-medium tabular text-slate-500">{{ number_format($row->c) }}</span>
-                                            </div>
-                                            <span class="mt-1 block h-1.5 overflow-hidden rounded-full bg-slate-100">
-                                                <span class="block h-full rounded-full bg-brand-500" style="width: {{ max(4, round($row->c / $maxContrib * 100)) }}%"></span>
-                                            </span>
-                                        </div>
-                                    </div>
-                                @endforeach
-                            </div>
-                        @else
-                            <p class="py-6 text-center text-sm text-slate-400">No contributors yet.</p>
-                        @endif
-                    </div>
-
-                    {{-- Activity by type --}}
-                    <div class="card card-pad">
-                        <h3 class="text-sm font-semibold text-slate-900">By type</h3>
-                        @php $maxType = max(1, $byType->max('count') ?? 0); @endphp
-                        @if ($byType->isNotEmpty())
-                            <div class="mt-4 space-y-3">
-                                @foreach ($byType as $row)
-                                    <div>
-                                        <div class="flex items-center justify-between gap-2 text-xs">
-                                            <span class="truncate font-medium text-slate-700">{{ $row['label'] }}</span>
-                                            <span class="flex-none tabular text-slate-500">{{ number_format($row['count']) }}</span>
-                                        </div>
-                                        <span class="mt-1 block h-1.5 overflow-hidden rounded-full bg-slate-100">
-                                            <span class="block h-full rounded-full bg-slate-400" style="width: {{ max(4, round($row['count'] / $maxType * 100)) }}%"></span>
-                                        </span>
-                                    </div>
-                                @endforeach
-                            </div>
-                        @else
-                            <p class="py-6 text-center text-sm text-slate-400">Nothing tracked yet.</p>
-                        @endif
-                    </div>
-
-                </div>
-            </div>
+                @endif
+            </section>
+            @if ($activities->hasPages())
+                <div>{{ $activities->links() }}</div>
+            @endif
         </div>
     </div>
 </x-app-layout>

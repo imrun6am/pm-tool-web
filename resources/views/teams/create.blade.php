@@ -6,7 +6,7 @@
 
     <div class="py-6 sm:py-8">
         <div class="app-container">
-            <form method="POST" action="{{ route('teams.store') }}" class="mx-auto max-w-5xl space-y-4">
+            <form method="POST" action="{{ route('teams.store') }}" class="space-y-4">
                 @csrf
                 @include('teams.form')
                 <x-form-actions :cancel="route('teams.index')" submit="Create team" />

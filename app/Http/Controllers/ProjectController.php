@@ -4,18 +4,32 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\ProjectRequest;
 use App\Models\Project;
+use App\Services\OverlapChecker;
 use App\Services\ProjectService;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\View\View;
 
 class ProjectController extends Controller
 {
     public function __construct(private readonly ProjectService $projects) {}
 
-    public function index(): View
+    public function index(Request $request): View
     {
+        $filters = [
+            'search' => trim((string) $request->string('search')) ?: null,
+            'status' => in_array($request->input('status'), ['active', 'archived'], true) ? $request->input('status') : null,
+            'sort' => array_key_exists((string) $request->input('sort'), ProjectService::SORTS) ? $request->input('sort') : 'name',
+        ];
+
+        $projects = $this->projects->filtered($filters)->get();
+
         return view('projects.index', [
-            'projects' => $this->projects->filtered()->get(),
+            'projects' => $projects,
+            'summaries' => $this->projects->cardSummaries($projects),
+            'overview' => $this->projects->overview(),
+            'filters' => $filters,
+            'sorts' => ProjectService::SORTS,
         ]);
     }
 
@@ -32,21 +46,26 @@ class ProjectController extends Controller
             ->with('success', "Project “{$project->name}” created.");
     }
 
-    public function show(Project $project): View
+    public function show(Project $project, OverlapChecker $overlap): View
     {
         $releases = $this->projects->releasesWithProgress($project);
 
         return view('projects.show', [
             'project' => $project,
             'releases' => $releases,
+            'conflicts' => $overlap->flagConflicts($releases->whereNull('completed_at')->values()),
             'stats' => $this->projects->analytics($project, $releases),
             'activities' => $this->projects->recentActivity($project, $releases),
+            'deletable' => $releases->isEmpty(),
         ]);
     }
 
     public function edit(Project $project): View
     {
-        return view('projects.edit', compact('project'));
+        return view('projects.edit', [
+            'project' => $project,
+            'deletable' => $this->projects->isDeletable($project),
+        ]);
     }
 
     public function update(ProjectRequest $request, Project $project): RedirectResponse

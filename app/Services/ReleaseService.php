@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Release;
 use App\Models\ReleaseOffDay;
+use App\Models\Task;
 use App\Models\User;
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
@@ -28,33 +29,187 @@ class ReleaseService
 
     public function __construct(private readonly OverlapChecker $overlap) {}
 
+    /** Status filter values the index accepts; `active` is every ongoing (not completed) release. */
+    public const STATUSES = ['active', 'in_progress', 'upcoming', 'overdue', 'completed'];
+
+    /** Sort keys for filtered(); prefix with `-` for descending. */
+    public const SORTS = ['start', 'end', 'name', 'progress'];
+
     /**
      * The release index query, shared by the Blade list and the API collection.
      *
-     * @param  array{status?: ?string, project_id?: ?int, team_id?: ?int, year?: ?int, search?: ?string}  $filters
+     * Every key is optional. `status` takes one of STATUSES — the date-based
+     * ones (`in_progress`, `upcoming`, `overdue`) mirror Release::state() in
+     * SQL. `sort` takes one of SORTS, optionally `-`-prefixed; without it the
+     * list keeps its newest-quarter-first order.
+     *
+     * @param  array{status?: ?string, project_id?: ?int, team_id?: ?int, year?: ?int, quarter?: ?int, search?: ?string, sort?: ?string}  $filters
      * @return Builder<Release>
      */
     public function filtered(array $filters = []): Builder
     {
-        $status = $filters['status'] ?? null;
+        $query = $this->scoped($filters)->with(['project', 'team', 'completedBy']);
 
-        return Release::query()
-            ->with(['project', 'team', 'completedBy'])
-            ->when($status === 'active', fn ($q) => $q->ongoing())
-            ->when($status === 'completed', fn ($q) => $q->completed())
-            ->when($filters['project_id'] ?? null, fn ($q, $id) => $q->where('project_id', $id))
-            ->when($filters['team_id'] ?? null, fn ($q, $id) => $q->where('team_id', $id))
-            ->when($filters['year'] ?? null, fn ($q, $year) => $q->where('year', $year))
-            ->when($filters['search'] ?? null, fn ($q, $term) => $q->where('name', 'like', '%'.$term.'%'))
-            ->orderBy('year', 'desc')
-            ->orderBy('quarter', 'desc')
-            ->orderBy('start_date', 'desc');
+        $this->applyStatus($query, $filters['status'] ?? null);
+
+        return $this->applySort($query, $filters['sort'] ?? null);
+    }
+
+    /**
+     * The web index listing: filtered() plus each release's task progress
+     * (Release::withTaskProgress) and its members for the avatar stack.
+     *
+     * @param  array<string, mixed>  $filters  as for filtered()
+     * @return Builder<Release>
+     */
+    public function listing(array $filters = []): Builder
+    {
+        return $this->filtered($filters)
+            ->withTaskProgress()
+            ->with(['members' => fn ($q) => $q->select('users.id', 'users.name')->orderBy('users.name')]);
+    }
+
+    /**
+     * How many releases sit in each Release::state(), under every filter but
+     * status — the index's quick-filter strip.
+     *
+     * @param  array<string, mixed>  $filters  as for filtered()
+     * @return array<string, int> keyed by Release::STATES
+     */
+    public function stateCounts(array $filters = []): array
+    {
+        $counts = $this->scoped($filters)
+            ->get(['id', 'start_date', 'end_date', 'completed_at'])
+            ->countBy(fn (Release $release) => $release->state());
+
+        return array_map(fn (string $state) => (int) ($counts[$state] ?? 0), array_combine(
+            array_keys(Release::STATES), array_keys(Release::STATES)
+        ));
+    }
+
+    /**
+     * Which of these releases double-book their team, checked against every
+     * ongoing release of the same teams — not just the ones on this page — so
+     * a filter or page break never hides a clash.
+     *
+     * @param  Collection<int, Release>  $releases
+     * @return array<int, bool> keyed by release id (OverlapChecker::flagConflicts)
+     */
+    public function conflictFlags(Collection $releases): array
+    {
+        $teamIds = $releases->reject->isComplete()->pluck('team_id')->unique()->values();
+
+        if ($teamIds->isEmpty()) {
+            return [];
+        }
+
+        $pool = Release::query()->ongoing()->whereIn('team_id', $teamIds)
+            ->get(['id', 'team_id', 'start_date', 'end_date']);
+
+        return array_intersect_key($this->overlap->flagConflicts($pool), $releases->keyBy('id')->all());
+    }
+
+    /**
+     * Task counts for the release page's KPI strip, over the tasks the viewer
+     * may see. Archived tasks never count (Task::scopeCounted); subtasks do,
+     * as in Release::withTaskProgress().
+     *
+     * @return array{total: int, done: int, open: int, overdue: int}
+     */
+    public function taskStats(Release $release, User $viewer): array
+    {
+        $base = fn () => $release->tasks()->visibleTo($viewer)->counted();
+
+        $total = $base()->count();
+        $done = $base()->where('status', 'done')->count();
+        $overdue = $base()->where('status', '!=', 'done')
+            ->whereNotNull('due_date')
+            ->whereDate('due_date', '<', today()->toDateString())
+            ->count();
+
+        return ['total' => $total, 'done' => $done, 'open' => $total - $done, 'overdue' => $overdue];
     }
 
     /** Every distinct year that has a release, newest first. */
     public function years(): Collection
     {
         return Release::query()->select('year')->distinct()->orderBy('year', 'desc')->pluck('year');
+    }
+
+    /**
+     * The filters every listing shares — everything but status and sort.
+     *
+     * @param  array<string, mixed>  $filters
+     * @return Builder<Release>
+     */
+    private function scoped(array $filters): Builder
+    {
+        return Release::query()
+            ->when($filters['project_id'] ?? null, fn ($q, $id) => $q->where('project_id', $id))
+            ->when($filters['team_id'] ?? null, fn ($q, $id) => $q->where('team_id', $id))
+            ->when($filters['year'] ?? null, fn ($q, $year) => $q->where('year', $year))
+            ->when($filters['quarter'] ?? null, fn ($q, $quarter) => $q->where('quarter', $quarter))
+            ->when($filters['search'] ?? null, fn ($q, $term) => $q->where('name', 'like', '%'.$term.'%'));
+    }
+
+    /**
+     * @param  Builder<Release>  $query
+     */
+    private function applyStatus(Builder $query, ?string $status): void
+    {
+        $today = today()->toDateString();
+
+        match ($status) {
+            'active' => $query->ongoing(),
+            'completed' => $query->completed(),
+            'upcoming' => $query->ongoing()->whereDate('start_date', '>', $today),
+            'in_progress' => $query->ongoing()
+                ->whereDate('start_date', '<=', $today)
+                ->whereDate('end_date', '>=', $today),
+            'overdue' => $query->ongoing()->whereDate('end_date', '<', $today),
+            default => null,
+        };
+    }
+
+    /**
+     * @param  Builder<Release>  $query
+     * @return Builder<Release>
+     */
+    private function applySort(Builder $query, ?string $sort): Builder
+    {
+        $sort = (string) $sort;
+        $dir = str_starts_with($sort, '-') ? 'desc' : 'asc';
+
+        return match (ltrim($sort, '-')) {
+            'start' => $query->orderBy('start_date', $dir)->orderBy('id', $dir),
+            'end' => $query->orderBy('end_date', $dir)->orderBy('id', $dir),
+            'name' => $query->orderByRaw('lower(name) '.$dir)->orderBy('id'),
+            'progress' => $this->orderByProgress($query, $dir)->orderBy('start_date', 'desc'),
+            default => $query->orderBy('year', 'desc')->orderBy('quarter', 'desc')->orderBy('start_date', 'desc'),
+        };
+    }
+
+    /**
+     * Order by the share of counted tasks done — the same numbers as
+     * Release::withTaskProgress(), written as correlated subqueries so the sort
+     * never depends on a select alias. Releases with no tasks sort lowest.
+     *
+     * @param  Builder<Release>  $query
+     * @return Builder<Release>
+     */
+    private function orderByProgress(Builder $query, string $dir): Builder
+    {
+        $done = Task::query()->selectRaw('count(*)')
+            ->whereColumn('tasks.release_id', 'releases.id')
+            ->where('status', 'done');
+        $total = Task::query()->selectRaw('count(*)')
+            ->whereColumn('tasks.release_id', 'releases.id')
+            ->counted();
+
+        return $query->orderByRaw(
+            sprintf('coalesce((%s) * 1.0 / nullif((%s), 0), -1) %s', $done->toSql(), $total->toSql(), $dir),
+            array_merge($done->getBindings(), $total->getBindings()),
+        );
     }
 
     /**

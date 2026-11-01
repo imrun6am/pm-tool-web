@@ -15,10 +15,12 @@
     $tileIcon = $icon ?? $section['icon'] ?? null;
     $tileTone = $tone ?? $section['tone'] ?? 'brand';
 @endphp
+{{-- A faint glow in the section's hue behind the header band (.app-page-header). --}}
+<span class="page-glow-clip" aria-hidden="true"><span @class(['page-glow', \App\Support\Palette::back($tileTone)])></span></span>
 <div {{ $attributes->merge(['class' => 'flex flex-wrap items-end justify-between gap-x-6 gap-y-3']) }}>
     <div class="flex min-w-0 items-center gap-3.5">
     @if ($tileIcon)
-        <span @class(['hidden h-11 w-11 flex-none items-center justify-center rounded-xl ring-1 ring-inset sm:flex', \App\Support\Palette::soft($tileTone), \App\Support\Palette::ring($tileTone)]) aria-hidden="true">
+        <span @class(['hidden h-11 w-11 flex-none items-center justify-center rounded-xl shadow-sm ring-1 ring-inset sm:flex', \App\Support\Palette::soft($tileTone), \App\Support\Palette::ring($tileTone)]) aria-hidden="true">
             <x-icon :name="$tileIcon" variant="outline" class="h-6 w-6" />
         </span>
     @endif

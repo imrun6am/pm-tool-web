@@ -19,15 +19,26 @@ class ReleaseController extends Controller
 
     public function index(Request $request): View
     {
+        $status = $request->input('status');
+        $sort = $request->input('sort');
+        $quarter = $request->integer('quarter');
+
         $filters = [
-            'status' => $request->input('status'), // active | completed | (all)
+            'status' => in_array($status, ReleaseService::STATUSES, true) ? $status : null,
             'project_id' => $request->filled('project_id') ? (int) $request->integer('project_id') : null,
             'team_id' => $request->filled('team_id') ? (int) $request->integer('team_id') : null,
             'year' => $request->filled('year') ? (int) $request->integer('year') : null,
+            'quarter' => $quarter >= 1 && $quarter <= 4 ? $quarter : null,
+            'search' => $request->filled('search') ? trim($request->string('search')->limit(100, '')->toString()) : null,
+            'sort' => in_array(ltrim((string) $sort, '-'), ReleaseService::SORTS, true) ? $sort : null,
         ];
 
+        $releases = $this->releases->listing($filters)->paginate(25)->withQueryString();
+
         return view('releases.index', [
-            'releases' => $this->releases->filtered($filters)->get(),
+            'releases' => $releases,
+            'conflicts' => $this->releases->conflictFlags($releases->getCollection()),
+            'stateCounts' => $this->releases->stateCounts($filters),
             'projects' => Project::orderBy('name')->get(),
             'teams' => Team::orderBy('name')->get(),
             'years' => $this->releases->years(),
@@ -36,6 +47,9 @@ class ReleaseController extends Controller
                 'projectId' => $filters['project_id'],
                 'teamId' => $filters['team_id'],
                 'year' => $filters['year'],
+                'quarter' => $filters['quarter'],
+                'search' => $filters['search'],
+                'sort' => $filters['sort'],
             ],
         ]);
     }
@@ -58,15 +72,25 @@ class ReleaseController extends Controller
         return back()->with('success', "Release “{$release->name}” reopened.");
     }
 
-    public function create(): View
+    public function create(Request $request): View
     {
+        $projects = Project::active()->orderBy('name')->get();
+        $teams = Team::active()->orderBy('name')->get();
+
+        // "New release" links from a project or team page pre-select it —
+        // only when the id names an active project/team; anything else is ignored.
+        $projectId = $request->integer('project_id');
+        $teamId = $request->integer('team_id');
+
         return view('releases.create', [
             'release' => new Release([
                 'year' => (int) now()->year,
                 'quarter' => (int) ceil(now()->month / 3),
+                'project_id' => $projects->contains('id', $projectId) ? $projectId : null,
+                'team_id' => $teams->contains('id', $teamId) ? $teamId : null,
             ]),
-            'projects' => Project::active()->orderBy('name')->get(),
-            'teams' => Team::active()->orderBy('name')->get(),
+            'projects' => $projects,
+            'teams' => $teams,
             'teamMembers' => $this->teamMembersMap(),
             'memberValues' => [],
             'phaseValues' => [],
@@ -113,6 +137,7 @@ class ReleaseController extends Controller
             'conflicts' => $this->releases->conflictsFor($release),
             'history' => $history,
             'users' => $this->releases->assignableUsers($release),
+            'taskStats' => $this->releases->taskStats($release, request()->user()),
             'releaseLinks' => $release->quickLinks()->with('author')
                 ->visibleTo(request()->user())->get(),
         ]);

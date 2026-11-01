@@ -6,8 +6,10 @@ use App\Models\Activity;
 use App\Models\Project;
 use App\Models\Release;
 use App\Models\Task;
+use App\Models\Team;
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Collection as SupportCollection;
 
 /**
  * Projects, and the roll-ups the project detail page charts.
@@ -17,19 +19,127 @@ use Illuminate\Database\Eloquent\Collection;
  */
 class ProjectService
 {
+    /** Index orderings (`?sort=`); archived projects always sink below active ones. */
+    public const SORTS = [
+        'name' => 'Name',
+        'releases' => 'Most releases',
+        'progress' => 'Task progress',
+        'recent' => 'Most recent',
+    ];
+
     /**
-     * @param  array{status?: ?string, search?: ?string}  $filters
+     * Fills for the task-status mix, keyed by status. Chart data, like
+     * Release::PHASE_COLORS: Recheck is orange-700 so it stays apart from
+     * In review's amber (CVD-checked, as on the member dashboard).
+     *
+     * @var array<string, string>
+     */
+    public const STATUS_FILL = [
+        'todo' => '#94a3b8',        // slate-400
+        'in_progress' => '#3b82f6', // blue-500
+        'in_review' => '#f59e0b',   // amber-500
+        'recheck' => '#c2410c',     // orange-700
+        'done' => '#10b981',        // emerald-500
+        'archive' => '#64748b',     // slate-500
+    ];
+
+    /**
+     * @param  array{status?: ?string, search?: ?string, sort?: ?string}  $filters
      * @return Builder<Project>
      */
     public function filtered(array $filters = []): Builder
     {
-        return Project::query()
+        $sort = array_key_exists($filters['sort'] ?? '', self::SORTS) ? $filters['sort'] : 'name';
+
+        $query = Project::query()
             ->withCount('releases')
             ->when(($filters['status'] ?? null) === 'archived', fn ($q) => $q->whereNotNull('archived_at'))
             ->when(($filters['status'] ?? null) === 'active', fn ($q) => $q->whereNull('archived_at'))
             ->when($filters['search'] ?? null, fn ($q, $term) => $q->where('name', 'like', '%'.$term.'%'))
-            ->orderByRaw('archived_at is not null') // active first
-            ->orderBy('name');
+            ->orderByRaw('archived_at is not null'); // active first
+
+        return match ($sort) {
+            'releases' => $query->orderByDesc('releases_count')->orderBy('name'),
+            'progress' => $query
+                ->addSelect(['task_progress' => $this->taskProgressSubquery()])
+                ->orderByDesc('task_progress')
+                ->orderBy('name'),
+            'recent' => $query->orderByDesc('created_at')->orderByDesc('id'),
+            default => $query->orderBy('name'),
+        };
+    }
+
+    /**
+     * Share of a project's counted tasks that are done (0–1), or -1 when it
+     * has none, so task-less projects sort last under "progress".
+     */
+    private function taskProgressSubquery(): Builder
+    {
+        return Task::query()
+            ->join('releases', 'releases.id', '=', 'tasks.release_id')
+            ->whereColumn('releases.project_id', 'projects.id')
+            ->whereNotIn('tasks.status', Task::UNCOUNTED_STATUSES)
+            ->selectRaw("coalesce(sum(case when tasks.status = 'done' then 1 else 0 end) * 1.0 / nullif(count(*), 0), -1)");
+    }
+
+    /**
+     * Workspace-wide counts for the index's KPI strip (ignores the filters).
+     *
+     * @return array{projects: int, active: int, archived: int, ongoing: int, completed: int}
+     */
+    public function overview(): array
+    {
+        $active = Project::query()->active()->count();
+        $total = Project::query()->count();
+        $completed = Release::query()->completed()->count();
+
+        return [
+            'projects' => $total,
+            'active' => $active,
+            'archived' => $total - $active,
+            'ongoing' => Release::query()->ongoing()->count(),
+            'completed' => $completed,
+        ];
+    }
+
+    /**
+     * Per-project roll-ups for the index cards, keyed by project id, from one
+     * releases query: release counts, counted-task progress (archived tasks
+     * never count), the teams involved, and the release to watch — the one in
+     * its window now, else the next to start, else the latest past its window.
+     *
+     * @param  Collection<int, Project>  $projects
+     * @return array<int, array{ongoing: int, completed: int, done: int, total: int, teams: SupportCollection<int, Team>, next: ?Release}>
+     */
+    public function cardSummaries(Collection $projects): array
+    {
+        $releases = $projects->isEmpty() ? collect() : Release::query()
+            ->select(['id', 'project_id', 'team_id', 'name', 'year', 'quarter', 'start_date', 'end_date', 'completed_at'])
+            ->whereIn('project_id', $projects->modelKeys())
+            ->with('team:id,name,color')
+            ->withTaskProgress()
+            ->orderBy('start_date')
+            ->get()
+            ->groupBy('project_id');
+
+        $summaries = [];
+        foreach ($projects as $project) {
+            $own = $releases->get($project->id, collect());
+            $ongoing = $own->whereNull('completed_at');
+
+            $summaries[$project->id] = [
+                'ongoing' => $ongoing->count(),
+                'completed' => $own->count() - $ongoing->count(),
+                'done' => (int) $own->sum('tasks_done'),
+                'total' => (int) $own->sum('tasks_total'),
+                'teams' => $own->pluck('team')->filter()->unique('id')->sortBy('name')->values(),
+                'next' => $ongoing->first(fn (Release $r) => $r->state() === 'active')
+                    ?? $ongoing->first(fn (Release $r) => $r->state() === 'upcoming')
+                    ?? $ongoing->filter(fn (Release $r) => $r->state() === 'overdue')->last(),
+            ];
+        }
+
+        return $summaries;
     }
 
     /**
@@ -49,6 +159,11 @@ class ProjectService
             ])
             ->orderBy('start_date'),
         ]);
+
+        // Each release knows its project without a query per row (the timeline reads it).
+        // A relation-free copy, so the project and its releases never form a cycle.
+        $owner = $project->withoutRelations();
+        $project->releases->each->setRelation('project', $owner);
 
         return $project->releases;
     }
@@ -178,6 +293,38 @@ class ProjectService
             'periodMax' => collect($byPeriod)->max('count') ?: 0,
             'spanStart' => $releases->min('start_date'),
             'spanEnd' => $releases->max('end_date'),
+            // Additions for the redesigned detail page (existing keys above are API-stable).
+            'statusColors' => array_intersect_key(self::STATUS_FILL, $statusCounts),
+            'activeReleases' => $ongoing->filter(fn ($r) => $r->state() === 'active')->count(),
+            'upcomingReleases' => $ongoing->filter(fn ($r) => $r->state() === 'upcoming')->count(),
+            'overdueReleases' => $ongoing->filter(fn ($r) => $r->state() === 'overdue')->count(),
+            'teamRows' => $this->teamRows($releases),
         ];
+    }
+
+    /**
+     * The teams delivering a project's releases, busiest first, with each
+     * team's release split and counted-task progress (needs the counts that
+     * releasesWithProgress() loads).
+     *
+     * @param  Collection<int, Release>  $releases
+     * @return array<int, array{team: Team, releases: int, ongoing: int, completed: int, done: int, total: int}>
+     */
+    public function teamRows(Collection $releases): array
+    {
+        return $releases
+            ->filter(fn ($r) => $r->team)
+            ->groupBy('team_id')
+            ->map(fn ($rs) => [
+                'team' => $rs->first()->team,
+                'releases' => $rs->count(),
+                'ongoing' => $rs->whereNull('completed_at')->count(),
+                'completed' => $rs->whereNotNull('completed_at')->count(),
+                'done' => (int) $rs->sum('done_tasks_count'),
+                'total' => (int) $rs->sum('tasks_count'),
+            ])
+            ->sortBy([['releases', 'desc'], fn ($a, $b) => strcmp($a['team']->name, $b['team']->name)])
+            ->values()
+            ->all();
     }
 }

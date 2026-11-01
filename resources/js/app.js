@@ -3,6 +3,7 @@ import * as Turbo from '@hotwired/turbo';
 import 'trix';
 import './tasksheet-exports';
 import './engagement';
+import './searchable-select';
 import './ai';
 
 window.Alpine = Alpine;
@@ -29,9 +30,13 @@ document.addEventListener('turbo:before-render', (e) => {
     // A same-page refresh (an action that redirected back here) keeps its
     // scroll position; don't let Turbo's [autofocus] handling jump away.
     const visit = Turbo.session.navigator.currentVisit;
-    if (visit && Turbo.session.view.isPageRefresh?.(visit)) {
+    const refresh = !!(visit && Turbo.session.view.isPageRefresh?.(visit));
+    if (refresh) {
         e.detail.newBody.querySelectorAll('[autofocus]').forEach((el) => el.removeAttribute('autofocus'));
     }
+    // The page-change animation (app.css, view transitions) is for moving
+    // between pages; a refresh of the same page just swaps in place.
+    document.documentElement.dataset.vt = refresh ? 'refresh' : 'visit';
     // `scroll-behavior: smooth` on <html> would animate Turbo's jump to the
     // top (or its back/forward restore); switch it off for the swap.
     document.documentElement.style.scrollBehavior = 'auto';

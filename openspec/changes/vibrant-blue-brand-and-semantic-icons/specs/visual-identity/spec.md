@@ -32,3 +32,14 @@ The items shown per role SHALL be unchanged.
 #### Scenario: Developer sidebar
 - **WHEN** a developer opens the board
 - **THEN** the sidebar lists only their work surfaces, and Board is marked active with a solid sky icon tile
+
+### Requirement: Menu change motion
+When the user moves between pages from the menu, the active highlight SHALL move smoothly from the previous item to the new one, and the page content SHALL fade and rise in. A same-page refresh SHALL NOT animate the content. With reduced motion requested, none of these animations SHALL play.
+
+#### Scenario: Clicking through the menu
+- **WHEN** a user on Notes clicks Meetings
+- **THEN** the highlight slides from Notes to Meetings, and the Meetings page fades up into place
+
+#### Scenario: Reduced motion
+- **WHEN** the system requests reduced motion
+- **THEN** the page swaps without the slide or rise animations

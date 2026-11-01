@@ -1,6 +1,6 @@
 <x-app-layout>
     <x-slot name="header">
-        <x-page-header title="New release plan" description="Define the window, split it into phases, and flag any off-days."
+        <x-page-header title="New release plan" description="Name it, set the window, split it into phases, and pick who's on it. You can change everything later."
                        :breadcrumbs="['Releases' => route('releases.index'), 'New release' => null]" />
     </x-slot>
 
@@ -9,7 +9,7 @@
             <form method="POST" action="{{ route('releases.store') }}" class="space-y-4">
                 @csrf
                 @include('releases.form')
-                <x-form-actions :cancel="route('dashboard')" submit="Create release" />
+                <x-form-actions :cancel="route('releases.index')" submit="Create release" />
             </form>
         </div>
     </div>

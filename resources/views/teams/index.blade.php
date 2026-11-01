@@ -1,5 +1,19 @@
 <x-app-layout>
-    @php $canManage = auth()->user()->canManageWorkspace(); @endphp
+    @php
+        $canManage = auth()->user()->canManageWorkspace();
+        $hasFilters = $filters['search'] !== null || $filters['archived'] || $filters['sort'] !== 'name';
+        $activeTeams = $teams->whereNull('archived_at');
+        $byOpenTasks = $activeTeams
+            ->filter(fn ($t) => $t->open_tasks_count > 0)
+            ->sortByDesc('open_tasks_count')
+            ->map(fn ($t) => ['label' => $t->name, 'value' => (int) $t->open_tasks_count, 'color' => $t->color])
+            ->values()->all();
+        $byMembers = $activeTeams
+            ->filter(fn ($t) => $t->members_count > 0)
+            ->sortByDesc('members_count')
+            ->map(fn ($t) => ['label' => $t->name, 'value' => $t->members_count, 'color' => $t->color])
+            ->values()->all();
+    @endphp
 
     <x-slot name="header">
         <x-page-header title="Teams" description="Delivery teams, their members and the releases they own.">
@@ -17,128 +31,89 @@
     <div class="py-6 sm:py-8">
         <div class="app-container space-y-4">
 
-            {{-- Compact overview --}}
-            @if ($teams->isNotEmpty())
-                @php
-                    $activeTeams = $teams->whereNull('archived_at');
-                    $tTotal = $teams->count();
-                    $tActive = $activeTeams->count();
-                    $tArchived = $tTotal - $tActive;
-                    $tMembers = $teams->sum('members_count');
-                    $tReleases = $teams->sum('releases_count');
-                    $tByReleases = $activeTeams
-                        ->filter(fn ($t) => $t->releases_count > 0)
-                        ->sortByDesc('releases_count')
-                        ->map(fn ($t) => ['label' => $t->name, 'value' => $t->releases_count, 'color' => $t->color])
-                        ->values()->all();
-                    $tByMembers = $activeTeams
-                        ->filter(fn ($t) => $t->members_count > 0)
-                        ->sortByDesc('members_count')
-                        ->map(fn ($t) => ['label' => $t->name, 'value' => $t->members_count, 'color' => $t->color])
-                        ->values()->all();
-                    $summary = [
-                        ['label' => 'Teams', 'value' => $tTotal, 'sub' => 'total', 'icon' => 'user-group', 'tone' => 'brand'],
-                        ['label' => 'Active', 'value' => $tActive, 'sub' => 'delivering', 'icon' => 'check', 'tone' => 'emerald'],
-                        ['label' => 'Members', 'value' => $tMembers, 'sub' => 'assignments across teams', 'icon' => 'identification', 'tone' => 'sky'],
-                        ['label' => 'Releases', 'value' => $tReleases, 'sub' => 'across all teams', 'icon' => 'rocket', 'tone' => 'violet'],
-                    ];
-                @endphp
-
-                <div class="stat-strip">
-                    @foreach ($summary as $s)
-                        <x-stat :label="$s['label']" :value="$s['value']" :sub="$s['sub']" :icon="$s['icon']" :tone="$s['tone']" />
-                    @endforeach
-                </div>
-            @endif
-
-            <div class="card overflow-hidden">
-                @if ($teams->isEmpty())
-                    <x-empty-state icon="user-group" title="No teams yet."
-                                   description="Create a team, add its members and assign it releases.">
-                        @if ($canManage)
-                            <a href="{{ route('teams.create') }}" class="btn-primary btn-sm">
-                                <x-icon name="plus" variant="outline" class="h-4 w-4" />New team
-                            </a>
-                        @endif
-                    </x-empty-state>
-                @else
-                    <div class="table-wrap">
-                    <table class="table-base">
-                        <thead>
-                            <tr>
-                                <th>Team</th>
-                                <th>Releases</th>
-                                <th>Status</th>
-                                <th class="text-right">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            @foreach ($teams as $team)
-                                <tr class="{{ $team->isArchived() ? 'bg-slate-50/60' : '' }}">
-                                    <td>
-                                        <div class="flex items-center gap-3">
-                                            <span class="inline-block h-3 w-3 flex-none rounded-full" style="background-color: {{ $team->color }}"></span>
-                                            <div>
-                                                <a href="{{ route('teams.show', $team) }}" class="font-medium text-slate-900 hover:text-brand-700">{{ $team->name }}</a>
-                                                @if ($team->description)
-                                                    <p class="text-xs text-slate-500">{{ Str::limit($team->description, 80) }}</p>
-                                                @endif
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td class="tabular text-slate-600">{{ $team->releases_count }}</td>
-                                    <td>
-                                        @if ($team->isArchived())
-                                            <span class="badge badge-slate">Archived</span>
-                                        @else
-                                            <span class="badge badge-success">Active</span>
-                                        @endif
-                                    </td>
-                                    <td>
-                                        <div class="flex items-center justify-end gap-1">
-                                            <x-action-btn icon="eye" tone="brand" :href="route('teams.show', $team)" title="View" aria-label="View {{ $team->name }}" />
-                                            @if ($canManage)
-                                                <x-action-btn icon="pencil" tone="brand" :href="route('teams.edit', $team)" title="Edit" aria-label="Edit {{ $team->name }}" />
-                                                @if ($team->isArchived())
-                                                    <form method="POST" action="{{ route('teams.restore', $team) }}">@csrf
-                                                        <x-action-btn icon="restore" tone="emerald" title="Restore" aria-label="Restore {{ $team->name }}" />
-                                                    </form>
-                                                @else
-                                                    <form method="POST" action="{{ route('teams.archive', $team) }}">@csrf
-                                                        <x-action-btn icon="archive" tone="amber" title="Archive" aria-label="Archive {{ $team->name }}" />
-                                                    </form>
-                                                @endif
-                                                @if ($team->releases_count === 0)
-                                                    <form method="POST" action="{{ route('teams.destroy', $team) }}"
-                                                          data-confirm="Delete this team permanently?" data-confirm-verb="Delete">
-                                                        @csrf @method('DELETE')
-                                                        <x-action-btn icon="trash" tone="rose" title="Delete" aria-label="Delete {{ $team->name }}" />
-                                                    </form>
-                                                @endif
-                                            @endif
-                                        </div>
-                                    </td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                    </div>
-                @endif
+            {{-- Workspace overview (independent of the filters) --}}
+            <div class="stat-strip">
+                <x-stat label="Teams" :value="$overview['teams']"
+                        :sub="$overview['archived'] ? $overview['archived'].' archived' : 'all active'"
+                        icon="user-group" tone="teams" />
+                <x-stat label="People" :value="$overview['people']" sub="on active teams" icon="identification" tone="sky" />
+                <x-stat label="Active releases" :value="$overview['activeReleases']" sub="not yet completed" icon="rocket" tone="releases" />
+                <x-stat label="Open tasks" :value="$overview['openTasks']" sub="across active teams" icon="clipboard-check" tone="brand"
+                        :href="route('board.index')" />
             </div>
 
-            {{-- Breakdowns below the table so the list is visible first --}}
-            @if ($teams->isNotEmpty())
+            <x-filter-bar :action="route('teams.index')" :active="$hasFilters" :count="$teams->count()" noun="team">
+                <x-slot name="search">
+                    <label for="team-search" class="filter-label">Search teams</label>
+                    <input id="team-search" type="search" name="search" value="{{ $filters['search'] }}"
+                           placeholder="Search teams…" class="filter-search" autocomplete="off">
+                </x-slot>
+
+                <label for="sort" class="filter-label">Sort by</label>
+                <select id="sort" name="sort" class="filter-select">
+                    @foreach ($sorts as $value => $label)
+                        <option value="{{ $value }}" @selected($filters['sort'] === $value)>Sort: {{ $label }}</option>
+                    @endforeach
+                </select>
+
+                <label class="inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600 shadow-sm transition-colors hover:border-slate-300">
+                    <input type="checkbox" name="archived" value="1" class="field-check" @checked($filters['archived'])>
+                    Show archived
+                    @if ($overview['archived'])
+                        <span class="tabular text-xs text-slate-400">{{ $overview['archived'] }}</span>
+                    @endif
+                </label>
+            </x-filter-bar>
+
+            @if ($teams->isEmpty())
+                <div class="card">
+                    @if ($filters['search'] !== null)
+                        <x-empty-state icon="funnel" title="No teams match “{{ $filters['search'] }}”."
+                                       :description="$filters['archived'] ? 'Try a different name.' : 'Try a different name, or include archived teams.'">
+                            <a href="{{ route('teams.index') }}" class="btn-secondary btn-sm">Clear all filters</a>
+                        </x-empty-state>
+                    @elseif (! $filters['archived'] && $overview['archived'] > 0)
+                        <x-empty-state icon="user-group" title="No active teams."
+                                       description="Every team is archived. Restore one, or create a new team.">
+                            <a href="{{ route('teams.index', ['archived' => 1]) }}" class="btn-secondary btn-sm">Show archived</a>
+                            @if ($canManage)
+                                <a href="{{ route('teams.create') }}" class="btn-primary btn-sm">
+                                    <x-icon name="plus" variant="outline" class="h-4 w-4" />New team
+                                </a>
+                            @endif
+                        </x-empty-state>
+                    @else
+                        <x-empty-state icon="user-group" title="No teams yet."
+                                       description="Create a team, add its members and assign it releases.">
+                            @if ($canManage)
+                                <a href="{{ route('teams.create') }}" class="btn-primary btn-sm">
+                                    <x-icon name="plus" variant="outline" class="h-4 w-4" />New team
+                                </a>
+                            @endif
+                        </x-empty-state>
+                    @endif
+                </div>
+            @else
+                <ul role="list" class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">
+                    @foreach ($teams as $team)
+                        @include('teams.partials.team-card', ['team' => $team, 'canManage' => $canManage])
+                    @endforeach
+                </ul>
+            @endif
+
+            {{-- Breakdowns below the list so the teams are visible first --}}
+            @if ($activeTeams->isNotEmpty())
                 <div class="grid gap-4 pt-2 lg:grid-cols-2">
                     @include('partials.hbar-chart', [
-                        'title' => 'Releases by team',
-                        'subtitle' => 'Active teams, busiest first',
-                        'rows' => $tByReleases,
-                        'emptyText' => 'No releases assigned to active teams yet.',
+                        'title' => 'Open work by team',
+                        'subtitle' => 'Open tasks on active teams, busiest first',
+                        'rows' => $byOpenTasks,
+                        'emptyText' => 'No open tasks on active teams.',
                     ])
                     @include('partials.hbar-chart', [
                         'title' => 'Members by team',
                         'subtitle' => 'Active teams, largest first',
-                        'rows' => $tByMembers,
+                        'rows' => $byMembers,
                         'barClass' => 'bg-sky-500',
                         'emptyText' => 'No members on active teams yet.',
                     ])

@@ -58,6 +58,7 @@
                         </div>
                     </div>
                     <p class="mt-3 text-sm font-medium text-slate-700">{{ ScoreColor::label($overall) }}</p>
+                    <div class="mt-1">@include('partials.delta', ['change' => $c['overallChange']['change'], 'versus' => 'last week'])</div>
                     <p class="text-xs text-slate-400">
                         {{ $overall !== null ? ScoreColor::pct($overall).'%' : '—' }} · {{ $c['ratedCount'] }}/{{ $c['applicableCount'] }} competencies rated
                     </p>
@@ -108,6 +109,8 @@
                     @endforeach
                 </div>
             </div>
+
+            @include('performance._member_depth')
 
             {{-- Objective panels — context, not part of the score --}}
             <div>

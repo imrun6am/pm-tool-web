@@ -51,16 +51,22 @@
     </button>
 
     {{-- Dropdown: search + checkbox list. z-[45] keeps it above sticky page chrome (z-40). --}}
-    <div x-show="open" x-cloak x-transition.opacity
-         class="absolute z-[45] mt-1.5 w-full overflow-hidden rounded-xl bg-white shadow-pop ring-1 ring-slate-900/[0.07]">
-        <div class="border-b border-slate-100 p-2">
-            <input type="text" x-model="query" @click.stop placeholder="Search…"
-                   class="field-control field-sm">
+    <div x-show="open" x-cloak
+         x-transition:enter="transition ease-out duration-150 motion-reduce:transition-none" x-transition:enter-start="opacity-0 -translate-y-1" x-transition:enter-end="opacity-100 translate-y-0"
+         x-transition:leave="transition ease-in duration-100 motion-reduce:transition-none" x-transition:leave-start="opacity-100" x-transition:leave-end="opacity-0"
+         class="menu-panel absolute z-[45] mt-1.5 w-full overflow-hidden"
+         x-effect="open && $nextTick(() => $refs.search.focus())">
+        {{-- Same search box as the searchable selects (.ss-search / .ss-input). --}}
+        <div class="ss-search">
+            <svg class="ss-search-icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.45 4.39l3.08 3.08a.75.75 0 11-1.06 1.06l-3.08-3.08A7 7 0 012 9z" clip-rule="evenodd"/></svg>
+            <input type="text" x-ref="search" x-model="query" @click.stop placeholder="Search…" aria-label="Search options"
+                   class="ss-input" autocomplete="off" spellcheck="false">
         </div>
         <ul class="scroll-area max-h-56 overflow-y-auto p-1.5" role="listbox" aria-multiselectable="true">
             <template x-for="opt in filtered()" :key="opt.value">
                 <li>
-                    <label class="flex cursor-pointer items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm text-slate-700 hover:bg-slate-100">
+                    <label class="flex cursor-pointer items-center gap-2.5 rounded-lg px-2.5 py-2 text-sm text-slate-700 transition-colors hover:bg-brand-50 hover:text-brand-700"
+                           :class="selected.includes(opt.value) && 'font-medium text-brand-700'">
                         <input type="checkbox" :checked="selected.includes(opt.value)" @change="toggle(opt.value)"
                                class="field-check">
                         <span x-text="opt.label"></span>
@@ -68,7 +74,7 @@
                     </label>
                 </li>
             </template>
-            <li x-show="filtered().length === 0" class="px-3 py-3 text-center text-sm text-slate-400">No matches.</li>
+            <li x-show="filtered().length === 0" class="ss-empty">No matches</li>
         </ul>
         <div x-show="selected.length" class="flex items-center justify-between border-t border-slate-100 px-3 py-1.5 text-xs">
             <span class="text-slate-400"><span x-text="selected.length"></span> selected</span>
