@@ -32,7 +32,9 @@ class NoteService
      * only ever narrow that set — filtering by a colleague returns their shared
      * notes and the ones they addressed to the viewer, never their private ones.
      *
-     * @param  array{date?: ?string, from?: ?string, to?: ?string, author?: ?int}  $filters
+     * `mine` keeps the viewer's own notes and the ones addressed to them.
+     *
+     * @param  array{date?: ?string, from?: ?string, to?: ?string, author?: ?int, mine?: bool}  $filters
      * @return Builder<Note>
      */
     public function visibleTo(User $viewer, array $filters = []): Builder
@@ -42,6 +44,11 @@ class NoteService
         return Note::query()
             ->with(['author', 'recipients'])
             ->visibleTo($viewer)
+            ->when($filters['mine'] ?? false, fn ($q) => $q->where(fn ($own) => $own
+                ->where('user_id', $viewer->id)
+                ->orWhere(fn ($addressed) => $addressed
+                    ->where('visibility', Note::VISIBILITY_SPECIFIC)
+                    ->whereHas('recipients', fn ($r) => $r->whereKey($viewer->id)))))
             ->when($filters['author'] ?? null, fn ($q, $id) => $q->where('user_id', (int) $id))
             ->when($date, fn ($q) => $q->whereDate('date', $date))
             // A single-date filter wins outright; a range only applies without one.

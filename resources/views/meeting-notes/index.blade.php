@@ -1,6 +1,13 @@
 <x-app-layout>
     @php
-        $hasFilters = $filter || $type || $author || $attendee || $search || $from || $to;
+        $viewer = auth()->user();
+        // Developers and QA land on their own notes, which isn't a filter they can clear.
+        $mineByDefault = $mine && ! request()->has('mine');
+        $hasFilters = $filter || $type || $author || $attendee || $search || $from || $to || ($mine && ! $mineByDefault);
+        $mineUrl = route('meeting-notes.index', [
+            ...request()->except(['page', 'mine']),
+            'mine' => $mine ? ($viewer->hasLimitedAccess() ? '0' : null) : '1',
+        ]);
     @endphp
 
     <x-slot name="header">
@@ -64,11 +71,22 @@
                     <label for="to" class="filter-label">Meeting date to</label>
                     <input id="to" type="date" name="to" value="{{ $to }}" class="filter-date" title="To">
                 </div>
+
+                {{-- Keep this choice when another filter changes. --}}
+                @if ($mine || $viewer->hasLimitedAccess())
+                    <input type="hidden" name="mine" value="{{ $mine ? 1 : 0 }}">
+                @endif
+                @include('partials.my-tasks-toggle', ['url' => $mineUrl, 'mine' => $mine, 'label' => 'My meetings'])
             </x-filter-bar>
 
             @if ($notes->isEmpty())
                 <div class="card">
-                    @if ($hasFilters)
+                    @if ($mineByDefault)
+                        <x-empty-state icon="chat-bubbles" title="You have no meeting notes yet."
+                                       description="This shows meetings you wrote up or attended.">
+                            <a href="{{ $mineUrl }}" class="font-medium text-brand-700 hover:text-brand-800">See everyone's meeting notes</a>
+                        </x-empty-state>
+                    @elseif ($hasFilters)
                         <x-empty-state icon="funnel" title="No meeting notes match these filters."
                                        description="Try widening the date range or removing a filter.">
                             <a href="{{ route('meeting-notes.index') }}" class="btn-secondary btn-sm">Clear all filters</a>

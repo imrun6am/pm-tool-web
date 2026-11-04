@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ReadsMineFilter;
 use App\Http\Requests\MeetingNoteRequest;
 use App\Models\Event;
 use App\Models\MeetingNote;
@@ -13,6 +14,8 @@ use Illuminate\View\View;
 
 class MeetingNoteController extends Controller
 {
+    use ReadsMineFilter;
+
     public function __construct(private readonly MeetingNoteService $meetingNotes) {}
 
     public function index(): View
@@ -23,10 +26,13 @@ class MeetingNoteController extends Controller
         $author = request()->filled('author') ? request()->integer('author') : null;
         $attendee = request()->filled('attendee') ? request()->integer('attendee') : null;
         $search = request()->filled('search') ? trim((string) request('search')) : null;
+        $mine = $this->mineFilter(request(), (bool) ($filter || $type || $author || $attendee || $search || $range['from'] || $range['to']));
 
         return view('meeting-notes.index', [
+            'mine' => $mine,
             'notes' => $this->meetingNotes
                 ->visibleTo(request()->user(), [
+                    'mine' => $mine,
                     'release' => $filter,
                     'type' => $type,
                     'author' => $author,

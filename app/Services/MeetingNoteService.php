@@ -46,7 +46,9 @@ class MeetingNoteService
      * colleague can never surface an attendees-only note the viewer may not
      * read — the person filters are not a disclosure channel.
      *
-     * @param  array{release?: mixed, type?: ?string, author?: mixed, attendee?: mixed, search?: ?string, from?: ?string, to?: ?string}  $filters
+     * `mine` keeps the notes the viewer wrote or attended.
+     *
+     * @param  array{mine?: bool, release?: mixed, type?: ?string, author?: mixed, attendee?: mixed, search?: ?string, from?: ?string, to?: ?string}  $filters
      * @return Builder<MeetingNote>
      */
     public function visibleTo(User $viewer, array $filters = []): Builder
@@ -57,6 +59,9 @@ class MeetingNoteService
             ->with(['author', 'release'])
             ->withCount('attendees')
             ->visibleTo($viewer)
+            ->when($filters['mine'] ?? false, fn ($q) => $q->where(fn (Builder $own) => $own
+                ->where('created_by', $viewer->id)
+                ->orWhereHas('attendees', fn (Builder $a) => $a->whereKey($viewer->id))))
             ->when($release === 'general', fn ($q) => $q->general())
             ->when($release && $release !== 'general', fn ($q) => $q->forRelease((int) $release))
             ->when($filters['type'] ?? null, fn ($q, $type) => $q->ofType($type))

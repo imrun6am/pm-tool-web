@@ -341,10 +341,10 @@ serialized, so there is no public URL to leak.
 | `PATCH`           | `/board/tasks/{id}/assignee` — `{ assignee_id }`, `null` clears; the key is required and nothing else changes. 403 on a task they can't update; 422 on a person they can't pick |
 | `DELETE`          | `/board/tasks/{id}` — **admin only**; moves a top-level task and its subtasks to the trash. Returns `deleted_ids`, `subtasks_deleted`. 403 for other roles and on a subtask |
 | `POST`            | `/board/tasks/bulk-delete` — **admin only**; `{ ids[] }`, up to 1000 top-level task ids, all or nothing. Returns `deleted_ids`, `subtasks_deleted`. 403 for other roles whatever is sent; 422 on any bad id, with nothing deleted |
-| `GET`             | `/events` — `?year=&month=` or `?from=&to=`, `?show=all\|mine\|shared`; returns `events_by_date`. Others' private events are never listed |
+| `GET`             | `/events` — `?year=&month=` or `?from=&to=`, `?show=all\|mine\|shared` (`mine`: events you created or attend); returns `events_by_date`. Others' private events are never listed |
 | `POST`            | `/events` — `visibility`: `shared` (default) or `private` (creator + attendees only) |
 | `GET/PUT/DELETE`  | `/events/{id}` — 403 on someone else's private event; **creator only** may edit; `DELETE` also by an admin on a shared event |
-| `GET/POST`        | `/notes` — visibility-scoped; `?author=&date=&from=&to=` |
+| `GET/POST`        | `/notes` — visibility-scoped; `?mine=1&author=&date=&from=&to=` |
 | `GET/PUT/DELETE`  | `/notes/{id}` — **author only**, leads included          |
 | `GET/POST`        | `/meeting-notes` — filters below                         |
 | `GET/PUT/DELETE`  | `/meeting-notes/{id}` — author edits; author or lead deletes |
@@ -476,7 +476,8 @@ read back is safe to render. A body with no visible text is rejected as empty.
 **Note filters.** `GET /notes` takes `author` (a user id) alongside `date` or `from`/`to`. `author`
 narrows **within** what you may already see — it returns that person's shared notes and the ones
 addressed to you, never their private ones, and an id whose notes you cannot see returns an empty
-page rather than an error.
+page rather than an error. `mine=1` keeps only notes you wrote or that were addressed specifically
+to you.
 
 **Quick-link pinning and drawer scoping** — `POST /quick-links/{id}/pin` toggles the *calling user's*
 pin and returns the resulting `{ id, is_pinned }`. A pin is per-viewer: pinning a link someone else
@@ -494,6 +495,7 @@ author). `is_pinned` on a quick link is always the requesting user's own.
 
 | Param      | Meaning                                                          |
 | ---------- | ---------------------------------------------------------------- |
+| `mine`     | `1` — only notes you wrote or attended                           |
 | `release`  | `general` for notes with no release, or a release id             |
 | `type`     | a meeting type — values come from `meeting_note_types` in `/meta` |
 | `author`   | user id — notes that person **wrote**                            |

@@ -35,6 +35,7 @@ class MeetingNoteController extends ApiController
         $range = $this->meetingNotes->normalizeRange($request->only(['from', 'to']));
 
         $query = $this->meetingNotes->visibleTo($request->user(), [
+            'mine' => $request->boolean('mine'),
             'release' => $request->input('release'), // null | 'general' | release id
             'type' => $request->input('type'),
             'author' => $this->filterId($request, 'author'),

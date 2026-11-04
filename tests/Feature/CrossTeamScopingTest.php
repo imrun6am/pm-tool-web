@@ -231,7 +231,7 @@ class CrossTeamScopingTest extends TestCase
         $this->meetingNote('Stranger sync', $this->stranger);
         $this->meetingNote('Dana was there', $this->stranger, attendees: [$this->dev->id]);
 
-        $page = $this->actingAs($this->dev)->get(route('meeting-notes.index'))->assertOk()
+        $page = $this->actingAs($this->dev)->get(route('meeting-notes.index', ['mine' => 0]))->assertOk()
             ->assertSee(['Core retro', 'Teammate sync', 'All-hands', 'Dana was there']);
         $page->assertDontSee('Growth retro')->assertDontSee('Stranger sync');
         $this->actingAs($this->dev)->get(route('meeting-notes.show', $secret))->assertForbidden();

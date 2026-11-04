@@ -1,14 +1,18 @@
 <x-app-layout>
+    @php
+        // The viewer's default tab needs no `show`, and any other tab must say so.
+        $showParam = fn (string $value) => $value !== $defaultShow ? $value : null;
+    @endphp
     <x-slot name="header">
         <x-page-header title="Calendar" description="Click any day to add an event on that date.">
             <x-slot name="actions">
                 <div class="flex items-center gap-1">
-                    <a href="{{ route('calendar.index', ['year' => $prev->year, 'month' => $prev->month, 'show' => $show !== 'all' ? $show : null]) }}"
+                    <a href="{{ route('calendar.index', ['year' => $prev->year, 'month' => $prev->month, 'show' => $showParam($show)]) }}"
                        class="btn-secondary btn-sm btn-icon" title="Previous month" aria-label="Previous month">‹</a>
                     <span class="tabular px-1 text-center text-sm font-semibold text-slate-800 sm:min-w-[8.5rem]">{{ $monthLabel }}</span>
-                    <a href="{{ route('calendar.index', ['year' => $next->year, 'month' => $next->month, 'show' => $show !== 'all' ? $show : null]) }}"
+                    <a href="{{ route('calendar.index', ['year' => $next->year, 'month' => $next->month, 'show' => $showParam($show)]) }}"
                        class="btn-secondary btn-sm btn-icon" title="Next month" aria-label="Next month">›</a>
-                    <a href="{{ route('calendar.index', ['show' => $show !== 'all' ? $show : null]) }}" class="btn-ghost btn-sm">Today</a>
+                    <a href="{{ route('calendar.index', ['show' => $showParam($show)]) }}" class="btn-ghost btn-sm">Today</a>
                 </div>
                 <a href="{{ route('calendar.imports.index') }}" class="btn-secondary btn-sm" title="Create events from a file or pasted text">
                     <x-icon name="sparkles" variant="outline" class="h-4 w-4" />
@@ -24,11 +28,11 @@
 
     <div class="py-6 sm:py-8">
         <div class="app-container">
-            {{-- Whose events: everything I may see, only mine, or only shared ones --}}
+            {{-- Whose events: everything I may see, ones I created or attend, or only shared ones --}}
             <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
                 <nav class="inline-flex rounded-lg bg-slate-100 p-0.5 text-sm" aria-label="Filter events">
                     @foreach (\App\Services\EventService::SHOW as $value => $label)
-                        <a href="{{ route('calendar.index', array_filter(['year' => request('year'), 'month' => request('month'), 'show' => $value !== 'all' ? $value : null])) }}"
+                        <a href="{{ route('calendar.index', array_filter(['year' => request('year'), 'month' => request('month'), 'show' => $showParam($value)])) }}"
                            @if ($show === $value) aria-current="page" @endif
                            class="rounded-md px-3 py-1 font-medium transition-colors {{ $show === $value ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-800' }}">{{ $label }}</a>
                     @endforeach

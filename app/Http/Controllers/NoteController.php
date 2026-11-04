@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ReadsMineFilter;
 use App\Http\Requests\NoteRequest;
 use App\Models\Note;
 use App\Models\User;
@@ -12,6 +13,8 @@ use Illuminate\View\View;
 
 class NoteController extends Controller
 {
+    use ReadsMineFilter;
+
     public function __construct(private readonly NoteService $notes) {}
 
     public function index(Request $request): View
@@ -28,8 +31,10 @@ class NoteController extends Controller
         $user = $request->user();
         $author = $request->filled('author') ? $request->integer('author') : null;
         $filters = $this->notes->normalizeFilters($request->only(['date', 'from', 'to'])) + ['author' => $author];
+        $filters['mine'] = $this->mineFilter($request, (bool) ($filters['date'] || $filters['from'] || $filters['to'] || $author));
 
         return view('notes.index', [
+            'mine' => $filters['mine'],
             'notes' => $this->notes->visibleTo($user, $filters)->paginate(15)->withQueryString(),
             'date' => $filters['date'],
             'from' => $filters['from'],

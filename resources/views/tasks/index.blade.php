@@ -113,7 +113,7 @@
                     Blocked
                 </label>
 
-                @include('partials.my-tasks-toggle', ['url' => $mineUrl, 'mine' => $mine])
+                @include('partials.my-tasks-toggle', ['url' => $mineUrl, 'mine' => $mine, 'label' => 'My tasks'])
             </x-filter-bar>
 
             <x-live-region id="task-list">

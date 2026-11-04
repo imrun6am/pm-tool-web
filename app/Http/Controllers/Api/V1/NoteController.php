@@ -33,7 +33,7 @@ class NoteController extends ApiController
         ]);
 
         $filters = $this->notes->normalizeFilters($request->only(['date', 'from', 'to']))
-            + ['author' => $this->filterId($request, 'author')];
+            + ['author' => $this->filterId($request, 'author'), 'mine' => $request->boolean('mine')];
 
         return $this->paginate(
             $request,

@@ -74,9 +74,12 @@ class MyTasksDefaultTest extends TestCase
     {
         $this->assertSame(['Mine'], $this->titlesOn($page, $this->member));
 
-        $this->actingAs($this->member)->get(route($page))
-            ->assertSee('aria-pressed="true"', false)
+        $response = $this->actingAs($this->member)->get(route($page))
             ->assertViewHas('filters', fn (array $filters) => $filters['assignee_id'] === $this->member->id);
+
+        // The button is selected and named, and no other filter is preselected.
+        $this->assertMatchesRegularExpression('/aria-pressed="true".*?<\/span>\s*My tasks\s*<\/a>/s', $response->getContent());
+        $this->assertNull($response->viewData('filters')['priority']);
     }
 
     #[DataProvider('pages')]

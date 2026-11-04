@@ -28,7 +28,7 @@ class EventService
         'title', 'description', 'type', 'visibility', 'starts_at', 'ends_at', 'all_day', 'location', 'release_id',
     ];
 
-    /** Calendar filter: everything the viewer may see, only their own, or only shared ones. */
+    /** Calendar filter: everything the viewer may see, the ones they created or attend, or only shared ones. */
     public const SHOW = ['all' => 'All', 'mine' => 'Mine', 'shared' => 'Shared'];
 
     /**
@@ -54,7 +54,9 @@ class EventService
                     ->whereDate('starts_at', '>=', $from->toDateString())))
             ->when($filters['release_id'] ?? null, fn ($q, $id) => $q->where('release_id', $id))
             ->when($filters['type'] ?? null, fn ($q, $type) => $q->where('type', $type))
-            ->when(($filters['show'] ?? null) === 'mine' && $viewer, fn ($q) => $q->where('created_by', $viewer->id))
+            ->when(($filters['show'] ?? null) === 'mine' && $viewer, fn ($q) => $q->where(fn ($own) => $own
+                ->where('created_by', $viewer->id)
+                ->orWhereHas('attendees', fn ($a) => $a->whereKey($viewer->id))))
             ->when(($filters['show'] ?? null) === 'shared', fn ($q) => $q->where('visibility', Event::VISIBILITY_SHARED))
             ->orderBy('starts_at')
             ->get();

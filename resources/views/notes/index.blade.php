@@ -2,10 +2,16 @@
     use App\Models\Note;
     use Illuminate\Support\Carbon;
 
-    $hasFilters = $date || $from || $to || $author;
+    $viewer = auth()->user();
+    // Developers and QA land on their own notes, which isn't a filter they can clear.
+    $mineByDefault = $mine && ! request()->has('mine');
+    $hasFilters = $date || $from || $to || $author || ($mine && ! $mineByDefault);
+    $mineUrl = route('notes.index', [
+        ...request()->except(['page', 'mine']),
+        'mine' => $mine ? ($viewer->hasLimitedAccess() ? '0' : null) : '1',
+    ]);
     // Start the composer open when a previous submit failed or left input behind.
     $composerOpen = $errors->hasAny(['body', 'date', 'visibility', 'recipients']) || old('body') !== null;
-    $viewer = auth()->user();
     // The feed only holds notes this viewer may read, so this one check is enough for every card.
     $canFindEvents = app(\App\Services\Ai\AiFeatures::class)->available('calendar_import');
 @endphp
@@ -43,6 +49,12 @@
                             {{ Carbon::parse($date)->format('D, M j') }}
                         </span>
                     @endif
+
+                    {{-- Keep this choice when another filter changes. --}}
+                    @if ($mine || $viewer->hasLimitedAccess())
+                        <input type="hidden" name="mine" value="{{ $mine ? 1 : 0 }}">
+                    @endif
+                    @include('partials.my-tasks-toggle', ['url' => $mineUrl, 'mine' => $mine, 'label' => 'My notes'])
                 </x-filter-bar>
 
                 {{-- Composer: a one-line prompt that expands into the editor --}}
@@ -105,7 +117,12 @@
                 {{-- Feed: newest first, grouped by day --}}
                 @if ($notes->isEmpty())
                     <div class="card">
-                        @if ($date || $from || $to || $author)
+                        @if ($mineByDefault)
+                            <x-empty-state icon="pencil-square" title="You have no notes yet — add your first above."
+                                           description="This shows notes you wrote and notes sent to you.">
+                                <a href="{{ $mineUrl }}" class="font-medium text-brand-700 hover:text-brand-800">See everyone's notes</a>
+                            </x-empty-state>
+                        @elseif ($hasFilters)
                             <x-empty-state icon="funnel" title="No notes match this filter."
                                            description="Try a different author or date range.">
                                 <a href="{{ route('notes.index') }}" class="btn-secondary btn-sm">Clear filters</a>

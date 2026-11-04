@@ -63,7 +63,7 @@ class EventVisibilityTest extends TestCase
         $this->event($creator, ['title' => 'Team sync']);
 
         foreach ([$creator, $attendee] as $insider) {
-            $this->calendar($insider)->assertSee('Dentist')->assertSee('Team sync');
+            $this->calendar($insider, ['show' => 'all'])->assertSee('Dentist')->assertSee('Team sync');
             $this->actingAs($insider)->get(route('events.show', $private))->assertOk()->assertSee('Private');
         }
 

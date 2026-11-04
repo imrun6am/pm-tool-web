@@ -26,7 +26,9 @@ class CalendarController extends Controller
         $new = $request->query('new');
         $newDate = is_string($new) && strtotime($new) ? Carbon::parse($new) : null;
 
-        $show = array_key_exists($request->query('show'), EventService::SHOW) ? $request->query('show') : 'all';
+        // Developers and QA open on their own events; the other tabs stay a click away.
+        $defaultShow = $request->user()->hasLimitedAccess() ? 'mine' : 'all';
+        $show = array_key_exists($request->query('show'), EventService::SHOW) ? $request->query('show') : $defaultShow;
 
         $byDate = $this->events->groupByDate(
             $this->events->inWindow($gridStart, $gridEnd, ['show' => $show], $request->user()),
@@ -35,6 +37,7 @@ class CalendarController extends Controller
         );
 
         return view('calendar.index', [
+            'defaultShow' => $defaultShow,
             'weeks' => $this->buildWeeks($gridStart, $gridEnd, $month, $byDate),
             'monthLabel' => $first->format('F Y'),
             'prev' => $first->copy()->subMonthNoOverflow(),

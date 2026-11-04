@@ -116,7 +116,7 @@
                         @endforeach
                     </select>
 
-                    @include('partials.my-tasks-toggle', ['url' => $mineUrl, 'mine' => $mine])
+                    @include('partials.my-tasks-toggle', ['url' => $mineUrl, 'mine' => $mine, 'label' => 'My tasks'])
                 </x-filter-bar>
             </x-slot>
         </x-page-header>
