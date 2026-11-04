@@ -1,8 +1,13 @@
 @php
+    use App\Services\TaskService;
     use Illuminate\Support\Str;
 
-    $hasFilters = $filters['release_id'] || $filters['team_id'] || $filters['assignee_id'] || $filters['priority'] || $filters['label_id'] || $filters['blocked'];
     $me = auth()->user();
+
+    // Developers and QA land on their own tasks, which isn't a filter they can clear.
+    $ownByDefault = $filters['assignee_id'] === $me->id && ! request()->filled('assignee_id');
+    $anyone = $me->hasLimitedAccess() ? TaskService::ANYONE : '';
+    $hasFilters = $filters['release_id'] || $filters['team_id'] || ($filters['assignee_id'] && ! $ownByDefault) || $filters['priority'] || $filters['label_id'] || $filters['blocked'];
 
     // Developers and QA are pinned to their team: no team choice unless they are on several.
     $teamChoice = ! $me->hasLimitedAccess() || $teams->count() > 1;
@@ -12,7 +17,7 @@
     $mineUrl = route('board.index', array_filter([
         'release_id' => $filters['release_id'],
         'team_id' => $filters['team_id'],
-        'assignee_id' => $mine ? null : $me->id,
+        'assignee_id' => $mine ? $anyone : $me->id,
         'priority' => $filters['priority'],
         'label_id' => $filters['label_id'],
         'blocked' => $filters['blocked'] ? 1 : null,
@@ -87,7 +92,7 @@
 
                     <label for="assignee_id" class="filter-label">Assignee</label>
                     <select id="assignee_id" name="assignee_id" class="filter-select max-w-[8rem] 2xl:max-w-[13rem]">
-                        <option value="">Anyone</option>
+                        <option value="{{ $anyone }}">Anyone</option>
                         <option value="none" @selected($filters['assignee_id'] === 'none')>Unassigned</option>
                         @foreach ($users as $u)
                             <option value="{{ $u->id }}" @selected($filters['assignee_id'] === $u->id)>{{ $u->name }}</option>
@@ -111,15 +116,7 @@
                         @endforeach
                     </select>
 
-                    <a href="{{ $mineUrl }}" role="button" aria-pressed="{{ $mine ? 'true' : 'false' }}" @keydown.space.prevent="$el.click()"
-                       @class([
-                           'inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-medium ring-1 ring-inset transition-colors',
-                           'bg-brand-600 text-white ring-brand-600 hover:bg-brand-700' => $mine,
-                           'bg-white text-slate-700 ring-slate-300 hover:bg-slate-50' => ! $mine,
-                       ])>
-                        <x-avatar :user="$me" size="xs" @class(['ring-1 ring-white/60' => $mine]) />
-                        My tasks
-                    </a>
+                    @include('partials.my-tasks-toggle', ['url' => $mineUrl, 'mine' => $mine])
                 </x-filter-bar>
             </x-slot>
         </x-page-header>

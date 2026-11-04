@@ -294,7 +294,7 @@ class ReleaseOptionalTasksTest extends TestCase
                 ->assertSee('Open to the team')
                 ->assertSee(route('board.index'), false); // breadcrumb falls back to the board
 
-            $this->actingAs($user)->get(route('board.index'))->assertOk()->assertSee('Open to the team');
+            $this->actingAs($user)->get(route('board.index', ['assignee_id' => 'anyone']))->assertOk()->assertSee('Open to the team');
 
             Sanctum::actingAs($user);
             $this->getJson("/api/v1/tasks/{$task->id}")->assertOk()->assertJsonPath('data.release', null);

@@ -33,10 +33,13 @@ class BoardController extends Controller
 
     public function index(Request $request): View
     {
-        $releaseId = $this->idOrNoneFilter($request, 'release_id');
-        $teamId = $this->idOrNoneFilter($request, 'team_id');
-        $assigneeId = $this->idOrNoneFilter($request, 'assignee_id');
-        $fields = $this->fieldFilters($request);
+        $filters = $this->defaultToOwnTasks([
+            'release_id' => $this->idOrNoneFilter($request, 'release_id'),
+            'team_id' => $this->idOrNoneFilter($request, 'team_id'),
+            'assignee_id' => $this->idOrNoneFilter($request, 'assignee_id'),
+        ] + $this->fieldFilters($request), $request);
+        $releaseId = $filters['release_id'];
+        $teamId = $filters['team_id'];
         $viewer = $request->user();
 
         // Developers and QA only ever see their own teams' work, releases and people.
@@ -45,11 +48,7 @@ class BoardController extends Controller
 
         $group = in_array($request->input('group'), BoardService::GROUPS, true) ? $request->input('group') : null;
 
-        $columns = $this->board->columns([
-            'release_id' => $releaseId,
-            'team_id' => $teamId,
-            'assignee_id' => $assigneeId,
-        ] + $fields, $viewer);
+        $columns = $this->board->columns($filters, $viewer);
 
         return view('board.index', [
             'columns' => $group ? array_map(fn ($cards) => $this->board->grouped($cards, $group), $columns) : $columns,
@@ -62,7 +61,7 @@ class BoardController extends Controller
             'users' => User::visibleTo($viewer)->orderBy('name')->get(),
             'labels' => Label::orderBy('name')->get(),
             'savedViews' => $this->savedViews->forPage($viewer, 'board'),
-            'filters' => ['release_id' => $releaseId, 'team_id' => $teamId, 'assignee_id' => $assigneeId] + $fields,
+            'filters' => $filters,
         ]);
     }
 

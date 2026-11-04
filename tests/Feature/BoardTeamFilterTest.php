@@ -102,7 +102,7 @@ class BoardTeamFilterTest extends TestCase
             $this->core->members()->attach($user);
             $this->growth->members()->attach($user);
 
-            $this->actingAs($user)->get(route('board.index'))
+            $this->actingAs($user)->get(route('board.index', ['assignee_id' => 'anyone']))
                 ->assertOk()
                 ->assertSee('Core linked')
                 ->assertSee('Growth loose')

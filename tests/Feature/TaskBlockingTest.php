@@ -59,7 +59,7 @@ class TaskBlockingTest extends TestCase
             ->assertSee('id="task-blocking"', false)
             ->assertSee('Waiting for sandbox keys');
 
-        $this->get(route('board.index'))->assertOk()->assertSee('Waiting for sandbox keys');
+        $this->get(route('board.index', ['assignee_id' => 'anyone']))->assertOk()->assertSee('Waiting for sandbox keys');
     }
 
     public function test_a_reason_is_required(): void

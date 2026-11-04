@@ -40,7 +40,7 @@ class TaskController extends Controller
         $viewer = $request->user();
         $limited = $viewer->hasLimitedAccess();
         $teamIds = $limited ? $viewer->currentTeamIds() : null;
-        $filters = $this->taskListFilters($request);
+        $filters = $this->defaultToOwnTasks($this->taskListFilters($request), $request);
 
         return view('tasks.index', [
             'tasks' => $this->tasks->filtered($filters, $viewer)->paginate(self::PER_PAGE)->withQueryString(),

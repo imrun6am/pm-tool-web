@@ -30,6 +30,9 @@ class TaskService
     /** The `release_id` / `team_id` / board `assignee_id` filter value that selects tasks with none set. */
     public const NONE = 'none';
 
+    /** The `assignee_id` value for everyone's tasks, where a bare visit would show only the viewer's. */
+    public const ANYONE = 'anyone';
+
     /** What the task list can sort by. */
     public const SORTS = ['title', 'status', 'priority', 'assignee', 'due_date', 'updated_at'];
 

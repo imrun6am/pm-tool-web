@@ -73,7 +73,7 @@ class TaskTeamScopingTest extends TestCase
 
         $visible = ['Assigned to Dana elsewhere', 'Core linked', 'Core loose', 'Dana personal'];
 
-        $page = $this->actingAs($this->dev)->get(route('board.index'))
+        $page = $this->actingAs($this->dev)->get(route('board.index', ['assignee_id' => 'anyone']))
             ->assertOk()
             ->assertSee($visible)
             ->assertDontSee('Growth secret')

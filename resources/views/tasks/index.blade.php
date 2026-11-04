@@ -4,7 +4,21 @@
 
     $me = auth()->user();
     $teamChoice = ! $me->hasLimitedAccess() || $teams->count() > 1;
-    $hasFilters = collect($filters)->except(['include_subtasks', 'sort', 'direction'])->filter()->isNotEmpty();
+
+    // Developers and QA land on their own tasks, which isn't a filter they can clear.
+    $ownByDefault = $filters['assignee_id'] === $me->id && ! request()->filled('assignee_id');
+    $anyone = $me->hasLimitedAccess() ? TaskService::ANYONE : '';
+    $hasFilters = collect($filters)
+        ->except(['include_subtasks', 'sort', 'direction', ...($ownByDefault ? ['assignee_id'] : [])])
+        ->filter()
+        ->isNotEmpty();
+
+    // "My tasks" toggles the assignee filter and keeps everything else.
+    $mine = $filters['assignee_id'] === $me->id;
+    $mineUrl = route('tasks.index', array_filter([
+        ...request()->except(['page', 'assignee_id']),
+        'assignee_id' => $mine ? $anyone : $me->id,
+    ]));
 
     // A column header: click to sort by it, click again to reverse.
     $sortUrl = fn (string $column) => route('tasks.index', array_filter([
@@ -62,7 +76,7 @@
 
                 <label for="assignee_id" class="filter-label">Assignee</label>
                 <select id="assignee_id" name="assignee_id" class="filter-select max-w-[11rem]">
-                    <option value="">Anyone</option>
+                    <option value="{{ $anyone }}">Anyone</option>
                     <option value="none" @selected($filters['assignee_id'] === 'none')>Unassigned</option>
                     @foreach ($users as $u)
                         <option value="{{ $u->id }}" @selected($filters['assignee_id'] === $u->id)>{{ $u->name }}</option>
@@ -98,11 +112,19 @@
                     <input type="checkbox" name="blocked" value="1" @checked($filters['blocked']) class="checkbox-sm">
                     Blocked
                 </label>
+
+                @include('partials.my-tasks-toggle', ['url' => $mineUrl, 'mine' => $mine])
             </x-filter-bar>
 
             <x-live-region id="task-list">
                 @if ($tasks->isEmpty())
-                    <x-empty-state icon="check" title="{{ $hasFilters ? 'No tasks match these filters.' : 'No tasks yet.' }}" />
+                    @if ($ownByDefault)
+                        <x-empty-state icon="check" title="No tasks assigned to you.">
+                            <a href="{{ $mineUrl }}" class="font-medium text-brand-700 hover:text-brand-800">See everyone's tasks</a>
+                        </x-empty-state>
+                    @else
+                        <x-empty-state icon="check" title="{{ $hasFilters ? 'No tasks match these filters.' : 'No tasks yet.' }}" />
+                    @endif
                 @else
                     <div x-data="{
                             count: 0,

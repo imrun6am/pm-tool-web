@@ -18,7 +18,29 @@ trait ReadsTaskFilters
             return TaskService::NONE;
         }
 
-        return $request->filled($key) ? (int) $request->integer($key) : null;
+        return $request->filled($key) ? ($request->integer($key) ?: null) : null;
+    }
+
+    /**
+     * Developers and QA open the board and task list on their own tasks. Only a
+     * visit with no filters gets this, so a link to a release or label still
+     * shows all of it, and TaskService::ANYONE asks for everyone's tasks.
+     *
+     * @param  array<string, mixed>  $filters
+     * @return array<string, mixed>
+     */
+    protected function defaultToOwnTasks(array $filters, Request $request): array
+    {
+        $narrowed = collect($filters)
+            ->except(['assignee_id', 'include_subtasks', 'sort', 'direction'])
+            ->filter()
+            ->isNotEmpty();
+
+        if ($request->user()->hasLimitedAccess() && ! $narrowed && ! $request->filled('assignee_id')) {
+            $filters['assignee_id'] = $request->user()->id;
+        }
+
+        return $filters;
     }
 
     /**

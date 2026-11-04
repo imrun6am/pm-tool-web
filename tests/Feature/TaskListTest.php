@@ -127,7 +127,7 @@ class TaskListTest extends TestCase
         $response = $this->actingAs($dev)->get(route('tasks.index', ['team_id' => $other->id]))->assertOk();
         $this->assertSame([], $response->viewData('tasks')->pluck('id')->all());
 
-        $this->assertSame([$mine->id], $this->actingAs($dev)->get(route('tasks.index'))->viewData('tasks')->pluck('id')->all());
+        $this->assertSame([$mine->id], $this->actingAs($dev)->get(route('tasks.index', ['assignee_id' => 'anyone']))->viewData('tasks')->pluck('id')->all());
     }
 
     public function test_the_list_pages_and_keeps_its_filters(): void
