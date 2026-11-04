@@ -31,7 +31,7 @@ class BulkDeleteTasksRequest extends FormRequest
     {
         return [
             'ids' => ['required', 'array', 'min:1', 'max:'.BoardService::MAX_BULK_DELETE],
-            'ids.*' => ['required', 'integer', 'distinct:strict', Rule::exists('tasks', 'id')->whereNull('parent_id')],
+            'ids.*' => ['required', 'integer', 'distinct:strict', Rule::exists('tasks', 'id')->whereNull('parent_id')->whereNull('deleted_at')],
         ];
     }
 

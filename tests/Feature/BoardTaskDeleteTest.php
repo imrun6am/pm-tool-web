@@ -62,9 +62,14 @@ class BoardTaskDeleteTest extends TestCase
             ->assertOk()
             ->assertExactJson(['ok' => true, 'deleted_ids' => [$card->id], 'subtasks_deleted' => 1]);
 
-        $this->assertDatabaseMissing('tasks', ['id' => $card->id]);
-        $this->assertDatabaseMissing('tasks', ['id' => $subtask->id]);
+        $this->assertSoftDeleted('tasks', ['id' => $card->id]);
+        $this->assertSoftDeleted('tasks', ['id' => $subtask->id]);
         $this->assertDatabaseHas('tasks', ['id' => $other->id]);
+        // Comments wait in the trash with their task until it's purged.
+        $this->assertSame(3, Comment::count());
+
+        $card->fresh()?->delete();
+        Task::withTrashed()->find($card->id)->forceDelete();
         $this->assertSame(['Stays'], Comment::pluck('body')->all());
     }
 
@@ -101,7 +106,7 @@ class BoardTaskDeleteTest extends TestCase
             ->assertJsonPath('data.subtasks_deleted', 1)
             ->assertJsonPath('message', '1 task deleted.');
 
-        $this->assertDatabaseMissing('tasks', ['id' => $card->id]);
+        $this->assertSoftDeleted('tasks', ['id' => $card->id]);
     }
 
     public function test_the_single_endpoint_refuses_a_subtask(): void
@@ -134,9 +139,9 @@ class BoardTaskDeleteTest extends TestCase
             ->assertJsonPath('subtasks_deleted', 1)
             ->assertJsonCount(2, 'deleted_ids');
 
-        $this->assertDatabaseMissing('tasks', ['id' => $first->id]);
-        $this->assertDatabaseMissing('tasks', ['id' => $second->id]);
-        $this->assertDatabaseMissing('tasks', ['id' => $subtask->id]);
+        $this->assertSoftDeleted('tasks', ['id' => $first->id]);
+        $this->assertSoftDeleted('tasks', ['id' => $second->id]);
+        $this->assertSoftDeleted('tasks', ['id' => $subtask->id]);
         $this->assertDatabaseHas('tasks', ['id' => $kept->id]);
         $this->assertSame(3, Activity::where('event', 'deleted')->where('causer_id', $admin->id)->count());
     }
@@ -160,8 +165,8 @@ class BoardTaskDeleteTest extends TestCase
 
         $this->postJson(route('board.tasks.bulk-destroy'), ['ids' => $shown])->assertOk();
 
-        $this->assertDatabaseMissing('tasks', ['id' => $coreTodo->id]);
-        $this->assertDatabaseMissing('tasks', ['id' => $coreDone->id]);
+        $this->assertSoftDeleted('tasks', ['id' => $coreTodo->id]);
+        $this->assertSoftDeleted('tasks', ['id' => $coreDone->id]);
         $this->assertDatabaseHas('tasks', ['id' => $growthCard->id]);
         $this->assertDatabaseHas('tasks', ['id' => $teamless->id]);
     }
@@ -237,8 +242,8 @@ class BoardTaskDeleteTest extends TestCase
         Sanctum::actingAs($admin);
         $this->deleteJson("/api/v1/tasks/{$api->id}")->assertOk();
 
-        $this->assertDatabaseMissing('tasks', ['id' => $web->id]);
-        $this->assertDatabaseMissing('tasks', ['id' => $api->id]);
+        $this->assertSoftDeleted('tasks', ['id' => $web->id]);
+        $this->assertSoftDeleted('tasks', ['id' => $api->id]);
         $this->assertDatabaseHas('tasks', ['id' => $task->id]);
     }
 

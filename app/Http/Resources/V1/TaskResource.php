@@ -22,6 +22,7 @@ class TaskResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'key' => $this->reference(),
             'release_id' => $this->release_id,
             'team_id' => $this->team_id,
             'parent_id' => $this->parent_id,
@@ -35,6 +36,15 @@ class TaskResource extends JsonResource
             'due_date' => $this->due_date?->toDateString(),
             'phase' => $this->phase,
             'phase_label' => $this->phaseLabel(),
+            'priority' => $this->priority,
+            'priority_label' => $this->priorityLabel(),
+            'estimate_minutes' => $this->estimate_minutes,
+            'labels' => LabelResource::collection($this->whenLoaded('labels')),
+            'is_blocked' => $this->isBlocked(),
+            'blocked_at' => $this->blocked_at?->toIso8601String(),
+            'blocked_reason' => $this->blocked_reason,
+            'blockers' => TaskSummaryResource::collection($this->whenLoaded('blockers')),
+            'blocking' => TaskSummaryResource::collection($this->whenLoaded('blocking')),
             'position' => $this->position,
 
             'assignee_id' => $this->assignee_id,

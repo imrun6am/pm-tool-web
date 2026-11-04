@@ -35,6 +35,15 @@ class TaskEngagementObserver
             $this->notifications->taskAssigned($task, $actor);
         }
 
+        if ($actor && $task->wasChanged('blocked_at') && $task->blocked_at) {
+            $this->notifications->taskBlocked($task, $actor);
+        }
+
+        if ($actor && $task->wasChanged('status') && in_array($task->status, Task::DONE_STATUSES, true)
+            && ! in_array($task->getOriginal('status'), Task::DONE_STATUSES, true)) {
+            $this->notifications->dependencyFinished($task, $actor);
+        }
+
         if ($actor && $task->wasChanged('status')
             && CelebrationService::isCompletion($task->getOriginal('status'), $task->status)) {
             $celebration = $this->celebrations->for($task, $actor);

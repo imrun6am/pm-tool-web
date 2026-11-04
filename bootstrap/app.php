@@ -8,6 +8,7 @@ use App\Http\Middleware\EnsureUserCanManageUsers;
 use App\Http\Middleware\EnsureUserIsActive;
 use App\Http\Middleware\EnsureUserIsAdmin;
 use App\Http\Middleware\EnsureUserIsLead;
+use App\Http\Middleware\KeepTaskPanelOpen;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -37,6 +38,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Sign out any user deactivated mid-session on their next request.
         $middleware->web(append: [
             EnsureUserIsActive::class,
+            KeepTaskPanelOpen::class,
         ]);
 
         // Every API request is throttled; the limiter is defined in AppServiceProvider.

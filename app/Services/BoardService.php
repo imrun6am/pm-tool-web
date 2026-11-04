@@ -54,7 +54,7 @@ class BoardService
      * `release_id` and `team_id` are ids, or TaskService::NONE for tasks with
      * none set. Filters combine, within what `$viewer` may see when given.
      *
-     * @param  array{release_id?: int|string|null, team_id?: int|string|null, assignee_id?: ?int}  $filters
+     * @param  array{release_id?: int|string|null, team_id?: int|string|null, assignee_id?: ?int, priority?: ?string, label_id?: ?int, blocked?: bool}  $filters
      * @return array<string, Collection<int, Task>>
      */
     public function columns(array $filters = [], ?User $viewer = null): array
@@ -62,7 +62,9 @@ class BoardService
         $tasks = Task::query()
             ->when($viewer, fn ($q) => $q->visibleTo($viewer))
             ->whereNull('parent_id') // top-level tasks are the cards
-            ->with(['release.project', 'team', 'assignee', 'subtasks'])
+            ->with(['release.project', 'team', 'assignee', 'subtasks', 'labels'])
+            ->withExists('openBlockers as has_open_blockers')
+            ->tap(fn ($q) => TaskService::whereFields($q, $filters))
             ->withCount('comments')
             ->when($filters['release_id'] ?? null, fn ($q, $id) => TaskService::whereIdOrNone($q, 'release_id', $id))
             ->when($filters['team_id'] ?? null, fn ($q, $id) => TaskService::whereIdOrNone($q, 'team_id', $id))

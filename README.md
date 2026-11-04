@@ -19,6 +19,21 @@ proposal, specs, design, and task list this implementation follows.
   and four phase date ranges (with an "auto-split window evenly" helper).
 - **Tasks & subtasks** — each release has tasks with status (To Do / In Progress / In Review /
   Done), assignee, due date, and an optional phase link; one level of subtasks with progress.
+- **Task fields** — priority, shared labels, an estimate in hours and a short key such as `PM-123`,
+  shown on cards and usable as board filters. Leads manage the label list.
+- **Blocked tasks and dependencies** — flag a task as blocked with a reason, or make it wait for
+  other tasks, with loops refused. Cards show it, the team lead is told, and the assignee hears when
+  the last blocker finishes.
+- **All tasks** — a searchable, sortable list across every release and team, with bulk changes to
+  status, assignee, priority and labels.
+- **Saved views** — name a set of filters on the board or the task list; leads can share one with
+  everyone.
+- **Task side panel** — open a task from the board or the task list and edit it, log time, comment
+  and manage what it waits for without leaving the page.
+- **Trash** — deleting a task moves it to the trash, with Undo on the board. Admins can restore it
+  for 30 days, after which it's removed for good.
+- **Time logging** — log hours on a task from its page; totals include subtasks. People change
+  their own entries for a week, and leads can correct anyone's.
 - **Comments** — threaded comments on both releases and tasks, attributed to their author;
   author or admin can edit/delete.
 - **Off-days** — mark non-working days within a release window (with a reason and a "mark

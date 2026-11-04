@@ -32,12 +32,13 @@ class BoardController extends ApiController
         $releaseId = $this->idOrNoneFilter($request, 'release_id');
         $teamId = $this->idOrNoneFilter($request, 'team_id');
         $assigneeId = $this->filterId($request, 'assignee_id');
+        $fields = $this->fieldFilters($request);
 
         $grouped = $this->board->columns([
             'release_id' => $releaseId,
             'team_id' => $teamId,
             'assignee_id' => $assigneeId,
-        ], $request->user());
+        ] + $fields, $request->user());
 
         $columns = [];
         foreach (Task::STATUSES as $status => $label) {
@@ -58,7 +59,7 @@ class BoardController extends ApiController
                 'release_id' => $releaseId,
                 'team_id' => $teamId,
                 'assignee_id' => $assigneeId,
-            ],
+            ] + $fields,
         ]);
     }
 

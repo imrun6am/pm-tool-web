@@ -60,7 +60,7 @@ class AiAssistController extends Controller
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:5000'],
             'release_id' => ['nullable', 'integer', 'exists:releases,id'],
-            'task_id' => ['nullable', 'integer', 'exists:tasks,id'],
+            'task_id' => ['nullable', 'integer', 'exists:tasks,id,deleted_at,NULL'],
         ]);
 
         $release = isset($data['release_id']) ? Release::find($data['release_id']) : null;

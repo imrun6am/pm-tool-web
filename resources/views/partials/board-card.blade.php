@@ -41,7 +41,7 @@
             @if ($canDelete)
                 <form method="POST" action="{{ route('board.tasks.destroy', $task) }}" class="board-delete-form flex-none"
                       data-confirm-title="Delete this task?" data-confirm-verb="Delete task"
-                      data-confirm="“{{ Str::limit($task->title, 80) }}” will be permanently deleted, along with {{ $subtaskCount > 0 ? 'its '.$subtaskCount.' '.Str::plural('subtask', $subtaskCount).' and all comments' : 'its comments' }}. This can’t be undone.">
+                      data-confirm="“{{ Str::limit($task->title, 80) }}” goes to the trash, along with {{ $subtaskCount > 0 ? 'its '.$subtaskCount.' '.Str::plural('subtask', $subtaskCount).' and all comments' : 'its comments' }}. An admin can restore it for {{ Task::TRASH_DAYS }} days.">
                     @csrf @method('DELETE')
                     <button class="board-delete" aria-label="Delete “{{ $task->title }}”" title="Delete task">
                         <x-icon name="trash" variant="outline" class="h-3.5 w-3.5" />
@@ -51,7 +51,7 @@
         </div>
     </div>
 
-    <a href="{{ route('tasks.show', $task) }}" draggable="false"
+    <a href="{{ route('tasks.show', $task) }}" draggable="false" data-task-panel="{{ route('tasks.panel', $task) }}" data-task-id="{{ $task->id }}"
        class="mt-1.5 block text-sm font-semibold leading-snug text-slate-900 hover:text-brand-700">{{ $task->title }}</a>
 
     @if ($progress['total'] > 0)
@@ -64,8 +64,29 @@
         </div>
     @endif
 
-    @if ($task->phase || $task->due_date)
+    @php $blocked = $task->isBlocked(); @endphp
+    @if ($blocked || $task->priority || $task->labels->isNotEmpty() || $task->phase || $task->due_date)
         <div class="mt-2.5 flex flex-wrap items-center gap-1.5">
+            @if ($blocked)
+                <span class="badge badge-danger" title="{{ $task->blocked_reason ?: 'Waiting for another task' }}">
+                    <x-icon name="exclamation-circle" variant="outline" class="h-3 w-3" />Blocked
+                </span>
+            @endif
+            @if ($task->priority)
+                <span @class([
+                    'badge',
+                    'badge-danger' => $task->priority === 'urgent',
+                    'badge-warning' => $task->priority === 'high',
+                    'badge-info' => $task->priority === 'medium',
+                    'badge-slate' => $task->priority === 'low',
+                ])>{{ $task->priorityLabel() }}</span>
+            @endif
+            @foreach ($task->labels as $label)
+                <span class="badge badge-slate">
+                    <span class="h-1.5 w-1.5 rounded-full" style="background-color: {{ $label->color }}" aria-hidden="true"></span>
+                    {{ $label->name }}
+                </span>
+            @endforeach
             @if ($task->phase)
                 <span class="badge badge-slate">
                     <span class="h-1.5 w-1.5 rounded-full" style="background-color: {{ Release::PHASE_COLORS[$task->phase] ?? '#94a3b8' }}"></span>
@@ -90,6 +111,7 @@
         @else
             <span class="text-xs text-slate-400">Unassigned</span>
         @endif
+        <span class="tabular flex-none text-[11px] text-slate-400">{{ $task->reference() }}</span>
         @if ($task->comments_count > 0)
             <span class="flex flex-none items-center gap-1 text-xs text-slate-500" title="{{ $task->comments_count }} {{ Str::plural('comment', $task->comments_count) }}">
                 <x-icon name="chat-bubbles" variant="outline" class="h-3.5 w-3.5" />{{ $task->comments_count }}

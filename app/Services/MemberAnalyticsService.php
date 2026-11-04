@@ -2,11 +2,11 @@
 
 namespace App\Services;
 
-use App\Models\Activity;
 use App\Models\Comment;
 use App\Models\Event;
 use App\Models\Task;
 use App\Models\TasksheetEntry;
+use App\Models\TaskStatusChange;
 use App\Models\User;
 use App\Support\Metric;
 use Illuminate\Support\Carbon;
@@ -19,7 +19,7 @@ use Illuminate\Support\Facades\DB;
  * their own past — never with a colleague's.
  *
  * Tasks carry no started/completed columns, so both moments are read from the
- * RecordsActivity audit trail: *started* is the first move to In Progress,
+ * task's status history (TaskStatusChange): *started* is the first move to In Progress,
  * *completed* the last move from an open status into Done. A task only counts
  * as completed while it is still Done, so reopened work drops out — and so
  * does archived work, which is never counted anywhere (Task::UNCOUNTED_STATUSES).
@@ -119,15 +119,12 @@ class MemberAnalyticsService
     {
         // One query for every status change on the member's tasks; the id list
         // is a sub-select so a long history never becomes a huge IN binding.
-        $history = Activity::query()
-            ->where('subject_type', (new Task)->getMorphClass())
-            ->whereIn('subject_id', Task::select('id')->where('assignee_id', $user->id))
-            ->whereIn('event', ['created', 'updated'])
-            ->whereNotNull('properties->attributes->status')
-            ->orderBy('created_at')
+        $history = TaskStatusChange::query()
+            ->whereIn('task_id', Task::select('id')->where('assignee_id', $user->id))
+            ->orderBy('changed_at')
             ->orderBy('id')
-            ->get(['id', 'subject_id', 'event', 'properties', 'created_at'])
-            ->groupBy('subject_id');
+            ->get(['id', 'task_id', 'from_status', 'to_status', 'changed_at'])
+            ->groupBy('task_id');
 
         return $tasks
             ->filter(fn (Task $t) => $t->status === 'done')
@@ -135,16 +132,13 @@ class MemberAnalyticsService
                 $startedAt = null;
                 $completedAt = null;
 
-                foreach ($history->get($task->id, []) as $activity) {
-                    $new = $activity->properties['attributes']['status'] ?? null;
-                    $old = $activity->event === 'created' ? null : ($activity->properties['old']['status'] ?? null);
-
-                    if ($new === 'in_progress' && $startedAt === null) {
-                        $startedAt = $activity->created_at;
+                foreach ($history->get($task->id, []) as $change) {
+                    if ($change->to_status === 'in_progress' && $startedAt === null) {
+                        $startedAt = $change->changed_at;
                     }
                     // Only a move into Done completes; Archive → Done is a restore.
-                    if ($new === 'done' && ! in_array($old, Task::DONE_STATUSES, true)) {
-                        $completedAt = $activity->created_at;
+                    if ($change->to_status === 'done' && ! in_array($change->from_status, Task::DONE_STATUSES, true)) {
+                        $completedAt = $change->changed_at;
                     }
                 }
 

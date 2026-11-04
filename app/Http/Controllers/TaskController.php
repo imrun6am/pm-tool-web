@@ -2,20 +2,63 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Controllers\Concerns\ReadsTaskFilters;
+use App\Http\Requests\BulkUpdateTasksRequest;
 use App\Http\Requests\TaskRequest;
 use App\Models\Activity;
+use App\Models\Label;
 use App\Models\Release;
 use App\Models\Task;
+use App\Models\TaskTimeLog;
 use App\Models\Team;
+use App\Models\User;
+use App\Services\SavedViewService;
+use App\Services\TaskDependencyService;
 use App\Services\TaskService;
+use App\Services\TaskTimeService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
 class TaskController extends Controller
 {
-    public function __construct(private readonly TaskService $tasks) {}
+    use ReadsTaskFilters;
+
+    private const PER_PAGE = 50;
+
+    public function __construct(
+        private readonly TaskService $tasks,
+        private readonly TaskTimeService $time,
+        private readonly TaskDependencyService $dependencies,
+        private readonly SavedViewService $savedViews,
+    ) {}
+
+    public function index(Request $request): View
+    {
+        $viewer = $request->user();
+        $limited = $viewer->hasLimitedAccess();
+        $teamIds = $limited ? $viewer->currentTeamIds() : null;
+        $filters = $this->taskListFilters($request);
+
+        return view('tasks.index', [
+            'tasks' => $this->tasks->filtered($filters, $viewer)->paginate(self::PER_PAGE)->withQueryString(),
+            'filters' => $filters,
+            'releases' => Release::visibleTo($viewer)->orderBy('year', 'desc')->orderBy('name')->get(),
+            'teams' => Team::when($limited, fn ($q) => $q->whereIn('id', $teamIds))->orderBy('name')->get(),
+            'users' => User::visibleTo($viewer)->active()->orderBy('name')->get(),
+            'labels' => Label::orderBy('name')->get(),
+            'savedViews' => $this->savedViews->forPage($viewer, 'tasks'),
+        ]);
+    }
+
+    public function bulkUpdate(BulkUpdateTasksRequest $request): RedirectResponse
+    {
+        $count = $this->tasks->bulkUpdate($request->tasks(), $request->changes());
+
+        return back()->with('success', $count.' '.Str::plural('task', $count).' updated.');
+    }
 
     public function store(TaskRequest $request, Release $release): RedirectResponse
     {
@@ -46,7 +89,8 @@ class TaskController extends Controller
         $teamIds = $limited ? $viewer->currentTeamIds() : null;
 
         $task->load(['release.project', 'release.team', 'team', 'assignee', 'creator',
-            'subtasks.assignee', 'comments.user', 'parent']);
+            'subtasks.assignee', 'comments.user', 'parent', 'labels']);
+        $this->dependencies->loadLinks($task, $viewer);
 
         return view('tasks.show', [
             'task' => $task,
@@ -59,6 +103,9 @@ class TaskController extends Controller
                 ->whereIn('id', $teamIds)->orWhereKey($task->team_id)))
                 ->orderBy('name')->get(),
             'teamPicker' => ! $limited || $teamIds->count() > 1,
+            'labels' => Label::orderBy('name')->get(),
+            'timeSummary' => $this->time->summary($task),
+            'timeEntries' => $viewer->can('viewEntries', [TaskTimeLog::class, $task]) ? $this->time->entries($task) : collect(),
             // The task's own history. Activity is a planning surface, so it
             // stays hidden from developers and QA, as on release pages.
             'activities' => $limited ? collect() : Activity::query()
@@ -68,6 +115,29 @@ class TaskController extends Controller
                 ->latest()
                 ->limit(10)
                 ->get(),
+        ]);
+    }
+
+    /** The side panel's content; it only makes sense inside its Turbo Frame. */
+    public function panel(Request $request, Task $task): View|RedirectResponse
+    {
+        $this->authorize('view', $task);
+
+        if (! $request->hasHeader('Turbo-Frame')) {
+            return redirect()->route('tasks.show', $task);
+        }
+
+        $viewer = $request->user();
+
+        $task->load(['assignee', 'subtasks', 'comments.user', 'labels', 'team', 'release']);
+        $this->dependencies->loadLinks($task, $viewer);
+
+        return view('tasks.panel', [
+            'task' => $task,
+            'users' => $this->tasks->assignableUsers($task, $viewer),
+            'labels' => Label::orderBy('name')->get(),
+            'timeSummary' => $this->time->summary($task),
+            'timeEntries' => $viewer->can('viewEntries', [TaskTimeLog::class, $task]) ? $this->time->entries($task) : collect(),
         ]);
     }
 

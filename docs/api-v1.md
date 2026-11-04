@@ -288,17 +288,30 @@ serialized, so there is no public URL to leak.
 
 | Method            | Path                                                     |
 | ----------------- | -------------------------------------------------------- |
-| `GET`             | `/tasks` — `?release_id=&team_id=&assignee_id=&status=&phase=&overdue=1&include_subtasks=1` |
+| `GET`             | `/tasks` — `?q=&release_id=&team_id=&assignee_id=&status=&phase=&priority=&label_id=&blocked=1&overdue=1&include_subtasks=1&sort=&direction=`; `sort` is `title`, `status`, `priority`, `assignee`, `due_date` or `updated_at`; `assignee_id=none` selects unassigned |
+| `POST`            | `/tasks/bulk` — `{ ids[], status?, assignee_id?, priority?, add_label_id? }`, up to 200 tasks, all or nothing. `"none"` clears `assignee_id` or `priority`; a field left out or null changes nothing. Returns `updated_ids`. 403 if any task is out of reach; 422 on a bad id or an assignee who doesn't suit every task |
 | `POST`            | `/tasks` — top-level task; `release_id`, `team_id` optional |
-| `GET/PUT/DELETE`  | `/tasks/{id}` — `DELETE` is **admin only**, for a task or a subtask |
+| `GET/PUT/DELETE`  | `/tasks/{id}` — `DELETE` is **admin only**, for a task or a subtask, and moves it to the trash |
+| `GET`             | `/tasks/trash` — **admin only**; deleted tasks, newest first, paginated |
+| `POST`            | `/tasks/restore` — **admin only**; `{ ids[] }`, all or nothing. Returns `restored_ids` |
+| `DELETE`          | `/tasks/trash/{id}` — **admin only**; removes a trashed task for good; 404 if it isn't in the trash |
 | `PATCH`           | `/tasks/{id}/status`                                     |
 | `POST`            | `/tasks/{id}/subtasks` — one level only; 422 on a subtask |
 | `GET/POST`        | `/tasks/{id}/comments`                                   |
+| `GET`             | `/saved-views?page=tasks\|board` — the caller's own views, then shared ones |
+| `POST`            | `/saved-views` — `{ page, name, filters, shared? }`; the same name replaces that view; `shared` is for leads, 403 otherwise; unknown filters are dropped |
+| `DELETE`          | `/saved-views/{id}` — the owner, or a lead for a shared view |
+| `POST/DELETE`     | `/tasks/{id}/block` — `POST { reason }` marks it blocked; `DELETE` clears the flag |
+| `POST`            | `/tasks/{id}/dependencies` — `{ reference }` (`"PM-123"` or `"123"`); the task waits for that one. 422 on a loop, itself, or a task the caller can't see |
+| `DELETE`          | `/tasks/{id}/dependencies/{blockerId}` |
+| `GET`             | `/tasks/{id}/time-logs` — `{ total_minutes, own_minutes, subtask_minutes, estimate_minutes, entries[] }`; totals include subtasks; `entries` (newest 200) omitted for a viewer |
+| `POST`            | `/tasks/{id}/time-logs` — `{ minutes or duration ("1h 30m"), logged_on, note? }`, for the caller; not a viewer |
+| `PUT/DELETE`      | `/time-logs/{id}` — the author for 7 days; an org-level lead or the team's lead at any time |
 | `PUT/DELETE`      | `/comments/{id}` — author or lead                        |
-| `GET`             | `/board` — every status column, even when empty; `?release_id=&team_id=&assignee_id=` |
+| `GET`             | `/board` — every status column, even when empty; `?release_id=&team_id=&assignee_id=&priority=&label_id=`, each also takes `none` |
 | `POST`            | `/board/tasks` — `{ title, status, release_id?, team_id? }` |
 | `PATCH`           | `/board/tasks/{id}` — `{ status, ordered_ids[] }`, atomic |
-| `DELETE`          | `/board/tasks/{id}` — **admin only**; a top-level task, with its subtasks and comments. Returns `deleted_ids`, `subtasks_deleted`. 403 for other roles and on a subtask |
+| `DELETE`          | `/board/tasks/{id}` — **admin only**; moves a top-level task and its subtasks to the trash. Returns `deleted_ids`, `subtasks_deleted`. 403 for other roles and on a subtask |
 | `POST`            | `/board/tasks/bulk-delete` — **admin only**; `{ ids[] }`, up to 1000 top-level task ids, all or nothing. Returns `deleted_ids`, `subtasks_deleted`. 403 for other roles whatever is sent; 422 on any bad id, with nothing deleted |
 | `GET`             | `/events` — `?year=&month=` or `?from=&to=`, `?show=all\|mine\|shared`; returns `events_by_date`. Others' private events are never listed |
 | `POST`            | `/events` — `visibility`: `shared` (default) or `private` (creator + attendees only) |
@@ -311,10 +324,33 @@ serialized, so there is no public URL to leak.
 | `PUT/DELETE`      | `/quick-links/{id}` — **author only**                    |
 | `POST`            | `/quick-links/{id}/pin` — toggles; **anyone who can see it** |
 
-**Deleting from the board.** To clear what a filtered board shows, read `GET /board` with the same
-filters and send those ids to `POST /board/tasks/bulk-delete`. There's no "delete everything
-matching" mode, so a task added after the read is never deleted by accident. Every task delete is
-admin only; `DELETE /tasks/{id}` is the route that also accepts a subtask.
+**Blocked tasks.** `is_blocked` is true while a task is flagged or waits for an unfinished task, and
+is false once it's Done or Archived, which also clears the flag. `blocked_at`, `blocked_reason` and,
+on `GET /tasks/{id}`, `blockers[]` and `blocking[]` give the detail; a caller never sees linked tasks
+outside what they may see, though `is_blocked` still counts them. `?blocked=1` filters `GET /tasks`
+and `GET /board`. Inbox notifications add the kinds `blocked` (to the team lead and assignee) and
+`unblocked` (to the assignee, when the last blocker finishes).
+
+**Task fields.** Tasks carry a `key` such as `PM-123`, derived from the id; `GET /search/tasks` finds
+a task by it.
+
+- **Priority:** `urgent`, `high`, `medium`, `low` or `null`, listed under `task_priorities` in `/meta`.
+  `?priority=none` selects tasks with none.
+- **Estimate:** `estimate_minutes`, or `estimate` as text such as `"4h 30m"`. `null` clears it.
+- **Labels:** `label_ids[]` sets them, `[]` clears them, and leaving the key out keeps them. `labels`
+  comes back on the task. Anyone may read `GET /labels`; `POST /labels` and `PUT/DELETE /labels/{id}`
+  (`{ name, color }`) are for leads.
+- **Time summary:** `GET /tasks/{id}/time-logs` also returns `estimate_minutes`, adding the subtasks'
+  estimates to the task's own.
+
+**The trash.** Deleting a task moves it to the trash with its subtasks, and it behaves as gone: a 404
+on every route, left out of every list and count. Its comments, time and history wait with it.
+Restoring brings back the subtasks that went with it, and restoring a subtask brings back its parent.
+After 30 days, the scheduled `model:prune` removes it for good.
+
+**Time logs.** Entries are in minutes. Backdating is limited to 7 days unless the caller can correct
+the task's time, one person's day can't total more than 24 hours, and a future date is a 422. A
+`can_edit` flag on each entry says whether the caller may change it.
 
 **Tasks without a release.** A release is optional, and `release_id` and `release` are `null`
 on an unlinked task.
@@ -652,7 +688,9 @@ it however suits the client; the web app shows a small toast.
 | Manage user accounts                |  ✅   | ✅  |    ✅     |    ✅     |    ❌     | ❌ |   ❌   |
 | Release **detail**                  |  ✅   | ✅  |    ✅     |    ✅     |    ✅     | ✅ |   ✅   |
 | Tasks, board, calendar, notes       |  ✅   | ✅  |    ✅     |    ✅     |    ✅     | ✅ |   ✅   |
-| Delete tasks and subtasks           |  ✅   | ❌  |    ❌     |    ❌     |    ❌     | ❌ |   ❌   |
+| Delete tasks and subtasks; trash    |  ✅   | ❌  |    ❌     |    ❌     |    ❌     | ❌ |   ❌   |
+| Log own time on tasks               |  ✅   | ✅  |    ✅     |    ✅     |    ✅     | ✅ |   ❌   |
+| Correct anyone's time               |  ✅   | ✅  |    ✅     | own teams |    ❌     | ❌ |   ❌   |
 | Upload release documents            |  ✅   | ✅  |    ✅     |    ✅     |    ✅     | ✅ |   ❌   |
 | Tasksheet — read / own row          |  ✅   | ✅  |    ✅     |    ✅     |    ✅     | ✅ |   ✅   |
 | Tasksheet **feedback**              |  ✅   | ✅  |    ✅     |    ✅     |    ❌     | ❌ |   ❌   |

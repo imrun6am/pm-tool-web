@@ -6,9 +6,11 @@ use App\Models\Comment;
 use App\Models\Task;
 use App\Models\User;
 use App\Notifications\TaskAssigned;
+use App\Notifications\TaskBlocked;
 use App\Notifications\TaskCommented;
 use App\Notifications\TaskDueSoon;
 use App\Notifications\TaskNotification;
+use App\Notifications\TaskUnblocked;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Notifications\DatabaseNotification;
@@ -25,7 +27,7 @@ use Illuminate\Support\Collection;
  */
 class NotificationService
 {
-    public const KINDS = ['assigned', 'commented', 'due_tomorrow', 'overdue'];
+    public const KINDS = ['assigned', 'commented', 'due_tomorrow', 'overdue', 'blocked', 'unblocked'];
 
     /** How many notifications the top-bar dropdown shows. */
     public const DROPDOWN_LIMIT = 8;
@@ -58,6 +60,36 @@ class NotificationService
         }
 
         $this->deliver(User::whereKey($ids->all())->get(), $task, new TaskCommented($task, $comment));
+    }
+
+    /** Tell the task's team lead and its assignee that it's stuck, so someone can step in. */
+    public function taskBlocked(Task $task, ?User $actor): void
+    {
+        $ids = collect([$task->team?->team_lead_id, $task->assignee_id])
+            ->filter()
+            ->unique()
+            ->reject(fn ($id) => (int) $id === $actor?->id);
+
+        if ($ids->isNotEmpty()) {
+            $this->deliver(User::whereKey($ids->all())->get(), $task, new TaskBlocked($task, $actor));
+        }
+    }
+
+    /**
+     * `$finished` is done: tell the assignee of each task that was waiting for
+     * it and now waits for nothing. Someone who finished it themselves still
+     * hears, unless they're that assignee.
+     */
+    public function dependencyFinished(Task $finished, ?User $actor): void
+    {
+        $finished->blocking()
+            ->whereNotIn('tasks.status', Task::DONE_STATUSES)
+            ->whereNotNull('assignee_id')
+            ->whereNull('blocked_at')
+            ->whereDoesntHave('openBlockers')
+            ->get()
+            ->reject(fn (Task $waiting) => (int) $waiting->assignee_id === $actor?->id)
+            ->each(fn (Task $waiting) => $this->deliver(User::whereKey($waiting->assignee_id)->get(), $waiting, new TaskUnblocked($waiting, $finished)));
     }
 
     /**

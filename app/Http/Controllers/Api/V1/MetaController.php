@@ -33,6 +33,7 @@ class MetaController extends ApiController
 
             'task_statuses' => $this->options(Task::STATUSES, Task::STATUS_COLORS),
             'task_done_statuses' => Task::DONE_STATUSES,
+            'task_priorities' => $this->options(Task::PRIORITIES, Task::PRIORITY_COLORS),
 
             'release_phases' => $this->options(Release::PHASES, Release::PHASE_COLORS),
 

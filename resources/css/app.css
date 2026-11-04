@@ -353,7 +353,8 @@
     .board-card.is-selected {
         @apply border-brand-400 bg-brand-50/50 ring-1 ring-brand-400;
     }
-    .board-select {
+    .board-select,
+    .checkbox-sm {
         @apply h-3.5 w-3.5 flex-none cursor-pointer rounded border-slate-300 text-brand-600 focus:ring-brand-500 disabled:cursor-not-allowed disabled:opacity-50;
     }
     .board-delete {

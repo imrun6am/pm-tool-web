@@ -6,6 +6,7 @@ import './engagement';
 import './searchable-select';
 import './poll-region';
 import './ai';
+import './task-panel';
 
 window.Alpine = Alpine;
 

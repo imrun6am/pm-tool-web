@@ -1,7 +1,7 @@
 @php
     use Illuminate\Support\Str;
 
-    $hasFilters = $filters['release_id'] || $filters['team_id'] || $filters['assignee_id'];
+    $hasFilters = $filters['release_id'] || $filters['team_id'] || $filters['assignee_id'] || $filters['priority'] || $filters['label_id'] || $filters['blocked'];
     $me = auth()->user();
 
     // Developers and QA are pinned to their team: no team choice unless they are on several.
@@ -13,6 +13,9 @@
         'release_id' => $filters['release_id'],
         'team_id' => $filters['team_id'],
         'assignee_id' => $mine ? null : $me->id,
+        'priority' => $filters['priority'],
+        'label_id' => $filters['label_id'],
+        'blocked' => $filters['blocked'] ? 1 : null,
     ]));
 
     // Literal classes per status so Tailwind keeps them.
@@ -37,6 +40,9 @@
         $filters['release_id'] === 'none' ? 'No release' : ($release ? 'Release: '.$release->name : null),
         $filters['team_id'] === 'none' ? 'No team' : (is_int($filters['team_id']) ? 'Team: '.($teams->firstWhere('id', $filters['team_id'])?->name ?? 'selected') : null),
         $filters['assignee_id'] ? 'Assignee: '.($users->firstWhere('id', $filters['assignee_id'])?->name ?? 'selected') : null,
+        $filters['priority'] === 'none' ? 'No priority' : ($filters['priority'] ? 'Priority: '.\App\Models\Task::PRIORITIES[$filters['priority']] : null),
+        $filters['label_id'] ? 'Label: '.($labels->firstWhere('id', $filters['label_id'])?->name ?? 'selected') : null,
+        $filters['blocked'] ? 'Blocked' : null,
     ])) : [];
     $filterScope = implode(', ', $filterLabels);
 
@@ -50,9 +56,10 @@
         <x-page-header title="Board" class="!items-center"
                        :breadcrumbs="$release ? [$release->name => route('releases.show', $release), 'Board' => null] : []">
             <x-slot name="actions">
+                @include('partials.saved-views', ['savedViewPage' => 'board'])
                 <x-filter-bar :action="route('board.index')" :active="$hasFilters">
                     <label for="release_id" class="filter-label">Release</label>
-                    <select id="release_id" name="release_id" class="filter-select max-w-[14rem]">
+                    <select id="release_id" name="release_id" class="filter-select max-w-[8.5rem] 2xl:max-w-[14rem]">
                         <option value="">All releases</option>
                         <option value="none" @selected($filters['release_id'] === 'none')>No release</option>
                         @foreach ($releases as $r)
@@ -62,7 +69,7 @@
 
                     @if ($teamChoice)
                         <label for="team_id" class="filter-label">Team</label>
-                        <select id="team_id" name="team_id" class="filter-select max-w-[12rem]">
+                        <select id="team_id" name="team_id" class="filter-select max-w-[7.5rem] 2xl:max-w-[12rem]">
                             <option value="">All teams</option>
                             <option value="none" @selected($filters['team_id'] === 'none')>No team</option>
                             @foreach ($teams as $tm)
@@ -72,10 +79,27 @@
                     @endif
 
                     <label for="assignee_id" class="filter-label">Assignee</label>
-                    <select id="assignee_id" name="assignee_id" class="filter-select max-w-[13rem]">
+                    <select id="assignee_id" name="assignee_id" class="filter-select max-w-[8rem] 2xl:max-w-[13rem]">
                         <option value="">Anyone</option>
                         @foreach ($users as $u)
                             <option value="{{ $u->id }}" @selected($filters['assignee_id'] === $u->id)>{{ $u->name }}</option>
+                        @endforeach
+                    </select>
+
+                    <label for="priority" class="filter-label">Priority</label>
+                    <select id="priority" name="priority" class="filter-select max-w-[7rem] 2xl:max-w-[9rem]">
+                        <option value="">Priority</option>
+                        <option value="none" @selected($filters['priority'] === 'none')>No priority</option>
+                        @foreach (\App\Models\Task::PRIORITIES as $value => $label)
+                            <option value="{{ $value }}" @selected($filters['priority'] === $value)>{{ $label }}</option>
+                        @endforeach
+                    </select>
+
+                    <label for="label_id" class="filter-label">Label</label>
+                    <select id="label_id" name="label_id" class="filter-select max-w-[6.5rem] 2xl:max-w-[9rem]">
+                        <option value="">Label</option>
+                        @foreach ($labels as $l)
+                            <option value="{{ $l->id }}" @selected($filters['label_id'] === $l->id)>{{ $l->name }}</option>
                         @endforeach
                     </select>
 
@@ -127,6 +151,7 @@
                         </label>
                         <span class="text-xs text-slate-500">{{ $filterScope !== '' ? 'Only '.$filterScope : 'Whole board, no filters' }}</span>
                         <span class="board-archive-note text-xs text-slate-500 [&[hidden]]:hidden" hidden></span>
+                        <a href="{{ route('tasks.trash') }}" class="text-xs font-medium text-brand-700 hover:text-brand-800">Trash</a>
 
                         <div class="board-bulk-actions flex items-center gap-2 [&[hidden]]:hidden" hidden>
                             <span class="board-selected-count tabular text-xs font-semibold text-slate-700" aria-live="polite"></span>
@@ -239,6 +264,8 @@
         </div>
     </div>
 
+    @include('tasks._panel-drawer')
+
     <script>
         (function () {
             const csrf = document.querySelector('meta[name="csrf-token"]')?.content ?? '';
@@ -246,7 +273,7 @@
             let dragged = null;
             let origin = null;
 
-            const toast = (type, message) => window.dispatchEvent(new CustomEvent('toast', { detail: { type, message } }));
+            const toast = (type, message, action = null) => window.dispatchEvent(new CustomEvent('toast', { detail: { type, message, action } }));
             const columnOf = (status) => document.querySelector(`.board-column[data-status="${status}"]`);
             const listOf = (status) => columnOf(status)?.querySelector('.board-list');
             const snapshot = (card) => ({ list: card.parentElement, next: card.nextElementSibling });
@@ -409,7 +436,7 @@
                         ? 'This also deletes ' + count(subtasks, 'subtask') + ' and all comments. '
                         : 'Their comments go with them. ')
                         + (scope ? 'Selected from the board filtered to ' + scope + '. ' : '')
-                        + 'This can’t be undone.';
+                        + 'An admin can restore them for ' + @json(\App\Models\Task::TRASH_DAYS) + ' days.';
                 }
 
                 scroller.addEventListener('change', function (e) {
@@ -441,6 +468,19 @@
                     });
                 });
 
+                function undoDelete(ids) {
+                    fetch(@json(route('tasks.restore')), {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
+                        body: JSON.stringify({ ids }),
+                    }).then(function (r) {
+                        if (!r.ok) throw new Error(String(r.status));
+                        window.Turbo?.visit(window.location.href, { action: 'replace' });
+                    }).catch(function () {
+                        toast('error', 'Couldn’t restore. The tasks are still in the trash.');
+                    });
+                }
+
                 function sendDelete(url, method, body, button) {
                     button.disabled = true;
                     fetch(url, {
@@ -454,8 +494,9 @@
                         data.deleted_ids.forEach((id) => scroller.querySelector(`.board-card[data-task-id="${id}"]`)?.remove());
                         refresh();
                         syncSelection();
-                        toast('success', count(data.deleted_ids.length, 'task') + ' deleted'
-                            + (data.subtasks_deleted ? ', with ' + count(data.subtasks_deleted, 'subtask') : '') + '.');
+                        toast('success', count(data.deleted_ids.length, 'task') + ' moved to the trash'
+                            + (data.subtasks_deleted ? ', with ' + count(data.subtasks_deleted, 'subtask') : '') + '.',
+                            { label: 'Undo', run: () => undoDelete(data.deleted_ids) });
                     }).catch(function (error) {
                         // Nothing was deleted: the server takes all of the ids or none.
                         const stale = ['404', '422'].includes(error.message);

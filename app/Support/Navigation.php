@@ -19,6 +19,7 @@ class Navigation
 {
     /** Routes developers/QA (limited access) may see: work surfaces only. */
     private const LIMITED_ROUTES = [
+        'tasks.index',
         'dashboard',
         'board.index',
         'tasksheet.index',
@@ -159,7 +160,8 @@ class Navigation
                 'key' => 'work',
                 'label' => 'Work',
                 'items' => [
-                    ['key' => 'board', 'label' => 'Board', 'route' => 'board.index', 'patterns' => ['board.*', 'tasks.*'], 'icon' => 'view-columns'],
+                    ['key' => 'board', 'label' => 'Board', 'route' => 'board.index', 'patterns' => ['board.*', 'tasks.show', 'tasks.quick', 'labels.*'], 'icon' => 'view-columns'],
+                    ['key' => 'tasks', 'label' => 'All tasks', 'route' => 'tasks.index', 'patterns' => ['tasks.index'], 'icon' => 'queue-list'],
                     ['key' => 'tasksheet', 'label' => 'Tasksheet', 'route' => 'tasksheet.index', 'patterns' => ['tasksheet.*'], 'icon' => 'clipboard-check'],
                     ['key' => 'calendar', 'label' => 'Calendar', 'route' => 'calendar.index', 'patterns' => ['calendar.*', 'events.*'], 'icon' => 'calendar'],
                 ],

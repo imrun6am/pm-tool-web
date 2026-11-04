@@ -7,7 +7,7 @@ use App\Models\User;
 use Illuminate\Support\Collection;
 
 /**
- * Find tasks by title for the ⌘K palette (and the API's search). Only tasks
+ * Find tasks by title or key for the ⌘K palette (and the API's search). Only tasks
  * the viewer may see; open work first, then the most recently touched.
  */
 class TaskSearchService
@@ -21,7 +21,11 @@ class TaskSearchService
     public function search(User $viewer, string $query, int $limit = self::LIMIT): Collection
     {
         $query = trim($query);
-        if (mb_strlen($query) < self::MIN_LENGTH) {
+
+        // "PM-123" or "123" also finds that task by its reference, first.
+        $id = Task::idFromReference($query);
+
+        if ($id === null && mb_strlen($query) < self::MIN_LENGTH) {
             return collect();
         }
 
@@ -32,7 +36,8 @@ class TaskSearchService
         return Task::query()
             ->visibleTo($viewer)
             ->with(['release', 'assignee'])
-            ->whereRaw("title LIKE ? ESCAPE '!'", [$like])
+            ->where(fn ($q) => $q->whereRaw("title LIKE ? ESCAPE '!'", [$like])->when($id, fn ($q) => $q->orWhere('id', $id)))
+            ->when($id, fn ($q) => $q->orderByRaw('CASE WHEN id = ? THEN 0 ELSE 1 END', [$id]))
             ->orderByRaw("CASE WHEN status IN ({$done}) THEN 1 ELSE 0 END")
             ->orderByDesc('updated_at')
             ->orderByDesc('id')

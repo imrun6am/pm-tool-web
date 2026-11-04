@@ -9,6 +9,7 @@ use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\EventImportController;
 use App\Http\Controllers\KpiReportController;
+use App\Http\Controllers\LabelController;
 use App\Http\Controllers\MeetingNoteController;
 use App\Http\Controllers\NoteController;
 use App\Http\Controllers\PerformanceCompetencyController;
@@ -20,9 +21,13 @@ use App\Http\Controllers\QuickLinkController;
 use App\Http\Controllers\ReleaseController;
 use App\Http\Controllers\ReleaseDocumentController;
 use App\Http\Controllers\ReleaseOffDayController;
+use App\Http\Controllers\SavedViewController;
 use App\Http\Controllers\TaskController;
+use App\Http\Controllers\TaskDependencyController;
 use App\Http\Controllers\TasksheetController;
 use App\Http\Controllers\TasksheetExportController;
+use App\Http\Controllers\TaskTimeLogController;
+use App\Http\Controllers\TaskTrashController;
 use App\Http\Controllers\TeamController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
@@ -41,6 +46,12 @@ Route::middleware('auth')->group(function () {
      | `.../edit` resolve before the `{model}` show routes below.
      */
     Route::middleware('lead')->group(function () {
+        // Task labels
+        Route::get('labels', [LabelController::class, 'index'])->name('labels.index');
+        Route::post('labels', [LabelController::class, 'store'])->name('labels.store');
+        Route::put('labels/{label}', [LabelController::class, 'update'])->name('labels.update');
+        Route::delete('labels/{label}', [LabelController::class, 'destroy'])->name('labels.destroy');
+
         // Projects
         Route::get('projects/create', [ProjectController::class, 'create'])->name('projects.create');
         Route::post('projects', [ProjectController::class, 'store'])->name('projects.store');
@@ -137,11 +148,34 @@ Route::middleware('auth')->group(function () {
      | Collaboration — any authenticated user (admin or viewer) may participate.
      */
     // Tasks & subtasks
+    // Saved filter sets for the task list and the board (SavedViewPolicy)
+    Route::post('saved-views', [SavedViewController::class, 'store'])->name('saved-views.store');
+    Route::delete('saved-views/{view}', [SavedViewController::class, 'destroy'])->name('saved-views.destroy');
+
+    // Deleted tasks (admins; TaskPolicy::manageTrash). Before tasks/{task}.
+    Route::get('tasks/trash', [TaskTrashController::class, 'index'])->name('tasks.trash');
+    Route::post('tasks/restore', [TaskTrashController::class, 'restore'])->name('tasks.restore');
+    Route::delete('tasks/trash/{task}', [TaskTrashController::class, 'destroy'])->withTrashed()->name('tasks.trash.destroy');
+
+    Route::get('tasks', [TaskController::class, 'index'])->name('tasks.index');
+    Route::post('tasks/bulk', [TaskController::class, 'bulkUpdate'])->name('tasks.bulk');
     Route::post('tasks/{task}/subtasks', [TaskController::class, 'storeSubtask'])->name('tasks.subtasks.store');
     Route::get('tasks/{task}', [TaskController::class, 'show'])->name('tasks.show');
+    Route::get('tasks/{task}/panel', [TaskController::class, 'panel'])->name('tasks.panel');
     Route::put('tasks/{task}', [TaskController::class, 'update'])->name('tasks.update');
     Route::patch('tasks/{task}/status', [TaskController::class, 'updateStatus'])->name('tasks.status');
     Route::delete('tasks/{task}', [TaskController::class, 'destroy'])->name('tasks.destroy');
+
+    // What holds a task up: the blocked flag and the tasks it waits for
+    Route::post('tasks/{task}/block', [TaskDependencyController::class, 'block'])->name('tasks.block');
+    Route::delete('tasks/{task}/block', [TaskDependencyController::class, 'unblock'])->name('tasks.unblock');
+    Route::post('tasks/{task}/dependencies', [TaskDependencyController::class, 'store'])->name('tasks.dependencies.store');
+    Route::delete('tasks/{task}/dependencies/{blocker}', [TaskDependencyController::class, 'destroy'])->name('tasks.dependencies.destroy');
+
+    // Time logged on tasks (TaskTimeLogPolicy)
+    Route::post('tasks/{task}/time-logs', [TaskTimeLogController::class, 'store'])->name('tasks.time-logs.store');
+    Route::put('time-logs/{timeLog}', [TaskTimeLogController::class, 'update'])->name('time-logs.update');
+    Route::delete('time-logs/{timeLog}', [TaskTimeLogController::class, 'destroy'])->name('time-logs.destroy');
 
     // Comments on tasks (release comments live in the full-access group above)
     Route::post('tasks/{task}/comments', [CommentController::class, 'storeForTask'])->name('tasks.comments.store');

@@ -147,7 +147,7 @@ class TeamService
     /**
      * The team's work in numbers: open and overdue counted tasks, open tasks
      * per assignee (workload), unassigned work, and tasks completed this
-     * month (read from the audit trail by TaskCompletions).
+     * month (read from the status history by TaskCompletions).
      *
      * @return array{open: int, overdue: int, unassigned: int, doneThisMonth: int, byAssignee: Collection<int, int>}
      */

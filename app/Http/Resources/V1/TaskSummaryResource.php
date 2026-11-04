@@ -18,6 +18,7 @@ class TaskSummaryResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'key' => $this->reference(),
             'title' => $this->title,
             'status' => $this->status,
             'status_label' => $this->statusLabel(),
@@ -26,6 +27,7 @@ class TaskSummaryResource extends JsonResource
             'parent_id' => $this->parent_id,
             'release_id' => $this->release_id,
             'team_id' => $this->team_id,
+            'priority' => $this->priority,
             'due_date' => $this->due_date?->toDateString(),
             'position' => $this->position,
             'assignee' => new UserSummaryResource($this->whenLoaded('assignee')),

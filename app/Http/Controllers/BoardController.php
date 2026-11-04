@@ -5,11 +5,13 @@ namespace App\Http\Controllers;
 use App\Http\Controllers\Concerns\ReadsTaskFilters;
 use App\Http\Requests\BoardTaskRequest;
 use App\Http\Requests\BulkDeleteTasksRequest;
+use App\Models\Label;
 use App\Models\Release;
 use App\Models\Task;
 use App\Models\Team;
 use App\Models\User;
 use App\Services\BoardService;
+use App\Services\SavedViewService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -20,13 +22,17 @@ class BoardController extends Controller
 {
     use ReadsTaskFilters;
 
-    public function __construct(private readonly BoardService $board) {}
+    public function __construct(
+        private readonly BoardService $board,
+        private readonly SavedViewService $savedViews,
+    ) {}
 
     public function index(Request $request): View
     {
         $releaseId = $this->idOrNoneFilter($request, 'release_id');
         $teamId = $this->idOrNoneFilter($request, 'team_id');
         $assigneeId = $request->filled('assignee_id') ? (int) $request->integer('assignee_id') : null;
+        $fields = $this->fieldFilters($request);
         $viewer = $request->user();
 
         // Developers and QA only ever see their own teams' work, releases and people.
@@ -38,13 +44,15 @@ class BoardController extends Controller
                 'release_id' => $releaseId,
                 'team_id' => $teamId,
                 'assignee_id' => $assigneeId,
-            ], $viewer),
+            ] + $fields, $viewer),
             'statuses' => Task::STATUSES,
             'release' => is_int($releaseId) ? Release::find($releaseId) : null,
             'releases' => Release::visibleTo($viewer)->orderBy('year', 'desc')->orderBy('name')->get(),
             'teams' => Team::when($limited, fn ($q) => $q->whereIn('id', $teamIds))->orderBy('name')->get(),
             'users' => User::visibleTo($viewer)->orderBy('name')->get(),
-            'filters' => ['release_id' => $releaseId, 'team_id' => $teamId, 'assignee_id' => $assigneeId],
+            'labels' => Label::orderBy('name')->get(),
+            'savedViews' => $this->savedViews->forPage($viewer, 'board'),
+            'filters' => ['release_id' => $releaseId, 'team_id' => $teamId, 'assignee_id' => $assigneeId] + $fields,
         ]);
     }
 

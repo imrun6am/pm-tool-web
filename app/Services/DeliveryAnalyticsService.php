@@ -25,8 +25,8 @@ use Illuminate\Support\Facades\DB;
  * and the timeline above them describe the same slice. Archived tasks are
  * never counted (Task::UNCOUNTED_STATUSES); "open" means not Done/Archive.
  *
- * Throughput, cycle time and rework come from TaskCompletions (the audit
- * trail's status history).
+ * Throughput, cycle time and rework come from TaskCompletions (each task's
+ * status history).
  *
  * Every number comes from an aggregate query or a bounded list (completions
  * in the trend window, capped task lists), about a dozen queries in all,

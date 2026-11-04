@@ -3,10 +3,15 @@
 use App\Http\Controllers\Api\V1\BoardController;
 use App\Http\Controllers\Api\V1\CommentController;
 use App\Http\Controllers\Api\V1\EventController;
+use App\Http\Controllers\Api\V1\LabelController;
 use App\Http\Controllers\Api\V1\MeetingNoteController;
 use App\Http\Controllers\Api\V1\NoteController;
 use App\Http\Controllers\Api\V1\QuickLinkController;
+use App\Http\Controllers\Api\V1\SavedViewController;
 use App\Http\Controllers\Api\V1\TaskController;
+use App\Http\Controllers\Api\V1\TaskDependencyController;
+use App\Http\Controllers\Api\V1\TaskTimeLogController;
+use App\Http\Controllers\Api\V1\TaskTrashController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -25,13 +30,52 @@ use Illuminate\Support\Facades\Route;
 /*
  | Tasks & subtasks.
  */
+// Deleted tasks (admins; TaskPolicy::manageTrash). Before tasks/{task}.
+Route::get('tasks/trash', [TaskTrashController::class, 'index'])->name('tasks.trash');
+Route::post('tasks/restore', [TaskTrashController::class, 'restore'])->name('tasks.restore');
+Route::delete('tasks/trash/{task}', [TaskTrashController::class, 'destroy'])->withTrashed()->name('tasks.trash.destroy');
+
 Route::get('tasks', [TaskController::class, 'index'])->name('tasks.index');
 Route::post('tasks', [TaskController::class, 'store'])->name('tasks.store');
+Route::post('tasks/bulk', [TaskController::class, 'bulkUpdate'])->name('tasks.bulk');
 Route::get('tasks/{task}', [TaskController::class, 'show'])->name('tasks.show');
 Route::put('tasks/{task}', [TaskController::class, 'update'])->name('tasks.update');
 Route::patch('tasks/{task}/status', [TaskController::class, 'updateStatus'])->name('tasks.status');
 Route::delete('tasks/{task}', [TaskController::class, 'destroy'])->name('tasks.destroy');
 Route::post('tasks/{task}/subtasks', [TaskController::class, 'storeSubtask'])->name('tasks.subtasks.store');
+
+/*
+ | Saved filter sets for the task list and the board.
+ */
+Route::get('saved-views', [SavedViewController::class, 'index'])->name('saved-views.index');
+Route::post('saved-views', [SavedViewController::class, 'store'])->name('saved-views.store');
+Route::delete('saved-views/{view}', [SavedViewController::class, 'destroy'])->name('saved-views.destroy');
+
+/*
+ | Task labels. Anyone reads the list; leads change it.
+ */
+Route::get('labels', [LabelController::class, 'index'])->name('labels.index');
+Route::middleware('lead')->group(function () {
+    Route::post('labels', [LabelController::class, 'store'])->name('labels.store');
+    Route::put('labels/{label}', [LabelController::class, 'update'])->name('labels.update');
+    Route::delete('labels/{label}', [LabelController::class, 'destroy'])->name('labels.destroy');
+});
+
+/*
+ | What holds a task up: the blocked flag and the tasks it waits for.
+ */
+Route::post('tasks/{task}/block', [TaskDependencyController::class, 'block'])->name('tasks.block');
+Route::delete('tasks/{task}/block', [TaskDependencyController::class, 'unblock'])->name('tasks.unblock');
+Route::post('tasks/{task}/dependencies', [TaskDependencyController::class, 'store'])->name('tasks.dependencies.store');
+Route::delete('tasks/{task}/dependencies/{blocker}', [TaskDependencyController::class, 'destroy'])->name('tasks.dependencies.destroy');
+
+/*
+ | Time logged on tasks. Totals include subtasks; a viewer gets totals only.
+ */
+Route::get('tasks/{task}/time-logs', [TaskTimeLogController::class, 'index'])->name('tasks.time-logs.index');
+Route::post('tasks/{task}/time-logs', [TaskTimeLogController::class, 'store'])->name('tasks.time-logs.store');
+Route::put('time-logs/{timeLog}', [TaskTimeLogController::class, 'update'])->name('time-logs.update');
+Route::delete('time-logs/{timeLog}', [TaskTimeLogController::class, 'destroy'])->name('time-logs.destroy');
 
 /*
  | Comments on tasks. (Release comments live in the releases routes.)

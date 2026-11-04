@@ -5,12 +5,16 @@ namespace App\Http\Requests;
 use App\Http\Requests\Concerns\KeepsTasksInViewerTeams;
 use App\Models\Release;
 use App\Models\Task;
+use App\Support\Duration;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class TaskRequest extends FormRequest
 {
     use KeepsTasksInViewerTeams;
+
+    /** About a person-year: long enough for anything real, short enough to catch a typo. */
+    private const MAX_ESTIMATE_MINUTES = 125000;
 
     /**
      * Any signed-in user may collaborate on tasks, within the TaskPolicy:
@@ -32,6 +36,16 @@ class TaskRequest extends FormRequest
 
     protected function prepareForValidation(): void
     {
+        // The task page sends the estimate as text such as "1h 30m", and marks
+        // its label checkboxes as sent, since none ticked sends nothing.
+        if ($this->has('estimate')) {
+            $text = $this->input('estimate');
+            $this->merge(['estimate_minutes' => filled($text) ? (Duration::parse($text) ?? 'unreadable') : null]);
+        }
+        if ($this->boolean('label_ids_sent') && ! $this->has('label_ids')) {
+            $this->merge(['label_ids' => []]);
+        }
+
         // A subtask's team is its parent's, and a release's task is the
         // release's team's — only a standalone task or an edit takes one.
         if (! $this->routeIs('*subtasks.store') && ! $this->route('release')) {
@@ -59,6 +73,20 @@ class TaskRequest extends FormRequest
             'assignee_id' => ['nullable', 'integer', Rule::exists('users', 'id'), $this->assigneeOnTeam(...)],
             'due_date' => ['nullable', 'date'],
             'phase' => ['nullable', Rule::in(array_keys(Release::PHASES))],
+            'priority' => ['nullable', Rule::in(array_keys(Task::PRIORITIES))],
+            'estimate_minutes' => ['nullable', 'integer', 'min:1', 'max:'.self::MAX_ESTIMATE_MINUTES],
+            'label_ids' => ['sometimes', 'array'],
+            'label_ids.*' => ['integer', 'distinct', Rule::exists('labels', 'id')],
+        ];
+    }
+
+    /** @return array<string, string> */
+    public function messages(): array
+    {
+        return [
+            'estimate_minutes.integer' => 'Enter the estimate like 4h or 1h 30m.',
+            'estimate_minutes.min' => 'Enter the estimate like 4h or 1h 30m.',
+            'estimate_minutes.max' => 'That estimate is too long. Split the work into smaller tasks.',
         ];
     }
 

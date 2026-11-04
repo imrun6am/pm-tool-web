@@ -2,15 +2,15 @@
 
 namespace App\Services;
 
-use App\Models\Activity;
 use App\Models\Task;
+use App\Models\TaskStatusChange;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
- * When work was finished, read from the RecordsActivity audit trail — tasks
- * carry no started/completed columns of their own.
+ * When work was finished, read from the task's status history
+ * (TaskStatusChange) — tasks carry no started/completed columns of their own.
  *
  *  - completed: the last move into Done from an open status (Archive → Done
  *    is a restore, not a completion). Only tasks currently Done count, so
@@ -38,32 +38,26 @@ class TaskCompletions
 
         $candidates = $done()->get(['id', 'assignee_id', 'due_date', 'created_at', 'updated_at']);
 
-        $history = Activity::query()
-            ->where('subject_type', (new Task)->getMorphClass())
-            ->whereIn('subject_id', $done()->select('id'))
-            ->whereIn('event', ['created', 'updated'])
-            ->whereNotNull('properties->attributes->status')
-            ->orderBy('created_at')
+        $history = TaskStatusChange::query()
+            ->whereIn('task_id', $done()->select('id'))
+            ->orderBy('changed_at')
             ->orderBy('id')
-            ->get(['id', 'subject_id', 'event', 'properties', 'created_at'])
-            ->groupBy('subject_id');
+            ->get(['id', 'task_id', 'from_status', 'to_status', 'changed_at'])
+            ->groupBy('task_id');
 
         return $candidates->map(function (Task $task) use ($history) {
             $startedAt = $completedAt = null;
             $reworked = false;
 
-            foreach ($history->get($task->id, []) as $activity) {
-                $new = $activity->properties['attributes']['status'] ?? null;
-                $old = $activity->event === 'created' ? null : ($activity->properties['old']['status'] ?? null);
-
-                if ($new === 'in_progress' && $startedAt === null) {
-                    $startedAt = $activity->created_at;
+            foreach ($history->get($task->id, []) as $change) {
+                if ($change->to_status === 'in_progress' && $startedAt === null) {
+                    $startedAt = $change->changed_at;
                 }
-                if ($new === 'recheck') {
+                if ($change->to_status === 'recheck') {
                     $reworked = true;
                 }
-                if ($new === 'done' && ! in_array($old, Task::DONE_STATUSES, true)) {
-                    $completedAt = $activity->created_at;
+                if ($change->to_status === 'done' && ! in_array($change->from_status, Task::DONE_STATUSES, true)) {
+                    $completedAt = $change->changed_at;
                 }
             }
 

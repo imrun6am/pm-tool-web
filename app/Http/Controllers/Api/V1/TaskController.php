@@ -3,14 +3,17 @@
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Concerns\ReadsTaskFilters;
+use App\Http\Requests\BulkUpdateTasksRequest;
 use App\Http\Requests\TaskRequest;
 use App\Http\Resources\V1\TaskResource;
 use App\Models\Release;
 use App\Models\Task;
+use App\Services\TaskDependencyService;
 use App\Services\TaskService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 /**
@@ -21,7 +24,10 @@ class TaskController extends ApiController
 {
     use ReadsTaskFilters;
 
-    public function __construct(private readonly TaskService $tasks) {}
+    public function __construct(
+        private readonly TaskService $tasks,
+        private readonly TaskDependencyService $dependencies,
+    ) {}
 
     /**
      * Tasks across releases. Defaults to top-level tasks only, since subtasks
@@ -29,27 +35,37 @@ class TaskController extends ApiController
      */
     public function index(Request $request): AnonymousResourceCollection
     {
-        return $this->paginate($request, $this->tasks->filtered($this->filters($request), $request->user()), TaskResource::class);
+        return $this->paginate($request, $this->tasks->filtered($this->taskListFilters($request), $request->user()), TaskResource::class);
     }
 
     /** One release's task tree. */
     public function indexForRelease(Request $request, Release $release): AnonymousResourceCollection
     {
-        $query = $this->tasks->forRelease($release, $this->filters($request), $request->user());
+        $query = $this->tasks->forRelease($release, $this->taskListFilters($request), $request->user());
 
         return $this->paginate($request, $query, TaskResource::class);
     }
 
-    public function show(Task $task): JsonResponse
+    public function show(Request $request, Task $task): JsonResponse
     {
         $this->authorize('view', $task);
 
+        $this->dependencies->loadLinks($task, $request->user());
+
         $task->load([
             'release.project', 'release.team', 'team', 'assignee', 'creator',
-            'parent', 'subtasks.assignee', 'comments.user',
+            'parent', 'subtasks.assignee', 'comments.user', 'labels',
         ])->loadCount(['comments', 'subtasks']);
 
         return $this->ok(new TaskResource($task));
+    }
+
+    /** Change many tasks at once: all of them or none. */
+    public function bulkUpdate(BulkUpdateTasksRequest $request): JsonResponse
+    {
+        $count = $this->tasks->bulkUpdate($request->tasks(), $request->changes());
+
+        return $this->ok(['updated_ids' => $request->tasks()->pluck('id')->all()], $count.' '.Str::plural('task', $count).' updated.');
     }
 
     /** A top-level task with an optional `release_id`. */
@@ -107,27 +123,10 @@ class TaskController extends ApiController
         return $this->message($wasSubtask ? 'Subtask deleted.' : 'Task deleted.');
     }
 
-    /** @return array<string, mixed> */
-    private function filters(Request $request): array
-    {
-        return [
-            'include_subtasks' => $request->boolean('include_subtasks'),
-            'release_id' => $this->idOrNoneFilter($request, 'release_id'),
-            'team_id' => $this->idOrNoneFilter($request, 'team_id'),
-            'assignee_id' => $this->filterId($request, 'assignee_id'),
-            'parent_id' => $this->filterId($request, 'parent_id'),
-            'status' => $request->input('status'),
-            'phase' => $request->input('phase'),
-            'due_before' => $request->filled('due_before') ? $request->date('due_before') : null,
-            'due_after' => $request->filled('due_after') ? $request->date('due_after') : null,
-            'overdue' => $request->boolean('overdue'),
-        ];
-    }
-
     private function hydrate(Task $task): TaskResource
     {
         return new TaskResource(
-            $task->load(['assignee', 'creator', 'subtasks.assignee', 'release', 'team'])
+            $task->load(['assignee', 'creator', 'subtasks.assignee', 'release', 'team', 'labels'])
                 ->loadCount(['comments', 'subtasks'])
         );
     }

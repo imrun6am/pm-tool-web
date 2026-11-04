@@ -9,6 +9,8 @@
         'commented' => ['icon' => 'chat-bubbles', 'tone' => 'bg-teal-50 text-teal-600'],
         'due_tomorrow' => ['icon' => 'clock', 'tone' => 'bg-amber-50 text-amber-600'],
         'overdue' => ['icon' => 'exclamation-circle', 'tone' => 'bg-rose-50 text-rose-600'],
+        'blocked' => ['icon' => 'exclamation-circle', 'tone' => 'bg-rose-50 text-rose-600'],
+        'unblocked' => ['icon' => 'check', 'tone' => 'bg-emerald-50 text-emerald-600'],
     ];
     $style = $kinds[$kind] ?? $kinds['assigned'];
 @endphp

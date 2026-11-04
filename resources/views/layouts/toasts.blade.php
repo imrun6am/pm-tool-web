@@ -33,6 +33,9 @@
                 </template>
             </span>
             <p class="flex-1 whitespace-pre-line text-sm leading-snug text-slate-700" x-text="t.message"></p>
+            <template x-if="t.action">
+                <button type="button" @click="t.action.run(); dismiss(t.id)" class="flex-none rounded text-sm font-semibold text-brand-700 hover:text-brand-800" x-text="t.action.label"></button>
+            </template>
             <button type="button" @click="dismiss(t.id)" class="flex-none rounded p-0.5 text-slate-300 transition hover:text-slate-600" aria-label="Dismiss">
                 <svg class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"><path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z"/></svg>
             </button>
@@ -63,7 +66,7 @@
             onToast: null,
             boot() {
                 (initial || []).forEach((t) => this.push(t.type, t.message));
-                this.onToast = (e) => this.push(e.detail.type || 'info', e.detail.message);
+                this.onToast = (e) => this.push(e.detail.type || 'info', e.detail.message, e.detail.action);
                 window.addEventListener('toast', this.onToast);
             },
             // Soft navigation swaps <body>; the old toaster must stop listening.
@@ -71,11 +74,12 @@
                 window.removeEventListener('toast', this.onToast);
                 this.toasts.forEach((t) => clearTimeout(t.timer));
             },
-            push(type, message) {
+            // `action` adds a button to the toast: { label, run }.
+            push(type, message, action = null) {
                 if (!message) return;
                 const t = {
                     id: Date.now() + Math.random(),
-                    type, message, show: true,
+                    type, message, show: true, action,
                     icon: ICONS[type] || ICONS.info,
                     iconClass: ICON_CLASS[type] || ICON_CLASS.info,
                     duration: DURATION[type] || 5000,

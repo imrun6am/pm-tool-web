@@ -47,6 +47,10 @@
 
         {{-- At a glance: the properties panel, summarised --}}
         <div class="mt-3 flex flex-wrap items-center gap-2 text-sm">
+            <span class="tabular text-xs font-semibold text-slate-500">{{ $task->reference() }}</span>
+            @if ($task->isBlocked())
+                <span class="badge badge-danger">Blocked</span>
+            @endif
             @include('partials.status-badge', ['status' => $task->status])
             @if ($task->isSubtask())
                 <span class="badge badge-slate">Subtask</span>
@@ -167,6 +171,15 @@
                                 </select>
                             </div>
                             <div class="{{ $row }}">
+                                <label for="task-priority" class="{{ $rowLabel }}"><x-icon name="flag" variant="outline" class="{{ $rowIcon }}" />Priority</label>
+                                <select id="task-priority" name="priority" form="task-form" @invalid('priority') class="field-select field-sm !mt-0">
+                                    <option value="">No priority</option>
+                                    @foreach (Task::PRIORITIES as $val => $label)
+                                        <option value="{{ $val }}" @selected(old('priority', $task->priority) === $val)>{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="{{ $row }}">
                                 <label for="task-assignee" class="{{ $rowLabel }}"><x-icon name="user" class="{{ $rowIcon }}" />Assignee</label>
                                 <select id="task-assignee" name="assignee_id" form="task-form" @invalid('assignee_id') class="field-select field-sm !mt-0">
                                     <option value="">Unassigned</option>
@@ -233,7 +246,32 @@
                                 <input id="task-due" type="date" name="due_date" form="task-form" value="{{ old('due_date', optional($task->due_date)->toDateString()) }}" @invalid('due_date')
                                        @class(['field-input field-sm !mt-0', 'border-danger-300' => $overdue])>
                             </div>
-                            @foreach (['release_id', 'team_id', 'status', 'assignee_id', 'due_date', 'phase'] as $f)
+                            <div class="{{ $row }}">
+                                <label for="task-estimate" class="{{ $rowLabel }}"><x-icon name="clock" variant="outline" class="{{ $rowIcon }}" />Estimate</label>
+                                <input id="task-estimate" name="estimate" form="task-form" placeholder="4h 30m" autocomplete="off" @invalid('estimate_minutes')
+                                       value="{{ old('estimate', $task->estimate_minutes ? \App\Support\Duration::format($task->estimate_minutes) : '') }}"
+                                       class="field-input field-sm !mt-0">
+                            </div>
+                            <div class="px-5 py-3">
+                                <div class="mb-2 flex items-center justify-between gap-2">
+                                    <span class="{{ $rowLabel }}"><x-icon name="tag" variant="outline" class="{{ $rowIcon }}" />Labels</span>
+                                    @if ($me->canManageWorkspace())
+                                        <a href="{{ route('labels.index') }}" class="text-xs font-medium text-brand-700 hover:text-brand-800">Manage</a>
+                                    @endif
+                                </div>
+                                <input type="hidden" name="label_ids_sent" value="1" form="task-form">
+                                <div class="flex flex-wrap gap-x-3 gap-y-1.5">
+                                    @php $chosen = array_map('intval', old('label_ids', $task->labels->pluck('id')->all())); @endphp
+                                    @foreach ($labels as $l)
+                                        <label class="flex cursor-pointer items-center gap-1.5 text-xs text-slate-700">
+                                            <input type="checkbox" name="label_ids[]" value="{{ $l->id }}" form="task-form" @checked(in_array($l->id, $chosen, true)) class="checkbox-sm">
+                                            <span class="h-2 w-2 flex-none rounded-full" style="background-color: {{ $l->color }}" aria-hidden="true"></span>
+                                            {{ $l->name }}
+                                        </label>
+                                    @endforeach
+                                </div>
+                            </div>
+                            @foreach (['release_id', 'team_id', 'status', 'assignee_id', 'due_date', 'phase', 'priority', 'estimate_minutes', 'label_ids'] as $f)
                                 @error($f)
                                     <p id="{{ $f }}-error" class="field-error !mt-0 px-5 py-2.5">
                                         <x-icon name="exclamation-circle" variant="outline" class="h-4 w-4 flex-none" />{{ $message }}
@@ -283,6 +321,8 @@
                     </section>
 
                     {{-- Claude: task writer and comment catch-up --}}
+                    @include('tasks._time-log')
+
                     @include('ai.panels.task', ['task' => $task])
 
                     {{-- Activity (a planning surface — hidden from developers/QA, as on release pages) --}}
@@ -307,6 +347,8 @@
 
                 {{-- Discussion: subtasks + comments --}}
                 <div class="min-w-0 space-y-6 lg:col-start-1 lg:row-start-2">
+                    @include('tasks._blocking')
+
                     @unless ($task->isSubtask())
                         <section id="task-subtasks" class="card" aria-labelledby="subtasks-title">
                             <div class="card-header">

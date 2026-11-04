@@ -30,6 +30,12 @@ class TaskPolicy
         return $user->isAdmin() && $task->isVisibleTo($user);
     }
 
+    /** Seeing the trash, restoring from it and purging it. */
+    public function manageTrash(User $user): bool
+    {
+        return $user->isAdmin();
+    }
+
     /**
      * Deleting cards from the board, singly or in bulk. Without a task this
      * answers whether the user may use the feature at all; with one, whether

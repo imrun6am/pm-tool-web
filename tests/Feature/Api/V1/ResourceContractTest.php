@@ -349,8 +349,8 @@ class ResourceContractTest extends TestCase
         Sanctum::actingAs(User::factory()->create(['role' => User::ROLE_ADMIN]));
         $this->deleteJson("/api/v1/tasks/{$parent}")->assertOk();
 
-        $this->assertDatabaseMissing('tasks', ['id' => $parent]);
-        $this->assertDatabaseMissing('tasks', ['id' => $child]);
+        $this->assertSoftDeleted('tasks', ['id' => $parent]);
+        $this->assertSoftDeleted('tasks', ['id' => $child]);
     }
 
     // -- Board -------------------------------------------------------------

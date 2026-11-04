@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Task;
 use App\Models\TasksheetExport;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -9,8 +10,9 @@ Artisan::command('inspire', function () {
     $this->comment(Inspiring::quote());
 })->purpose('Display an inspiring quote');
 
-// Expired tasksheet exports and their files (TasksheetExport::prunable()).
-Schedule::command('model:prune', ['--model' => [TasksheetExport::class]])->daily();
+// Expired tasksheet exports and their files (TasksheetExport::prunable()), and
+// tasks past their time in the trash (Task::prunable()).
+Schedule::command('model:prune', ['--model' => [TasksheetExport::class, Task::class]])->daily();
 
 // Inbox reminders: tasks due tomorrow, and on their first day overdue.
 Schedule::command('notifications:due-reminders')->dailyAt('08:00');

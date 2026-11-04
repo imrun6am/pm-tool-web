@@ -23,12 +23,15 @@ use Illuminate\Support\Facades\DB;
 class TaskService
 {
     /** The attributes a task write accepts from a request. */
-    private const WRITABLE = ['release_id', 'team_id', 'title', 'description', 'status', 'assignee_id', 'due_date', 'phase'];
+    private const WRITABLE = ['release_id', 'team_id', 'title', 'description', 'status', 'assignee_id', 'due_date', 'phase', 'priority', 'estimate_minutes'];
 
     public const DEFAULT_STATUS = 'todo';
 
     /** The `release_id` / `team_id` filter value that selects tasks with none set. */
     public const NONE = 'none';
+
+    /** What the task list can sort by. */
+    public const SORTS = ['title', 'status', 'priority', 'assignee', 'due_date', 'updated_at'];
 
     /**
      * The cross-release task query, limited to what `$viewer` may see when given.
@@ -40,13 +43,19 @@ class TaskService
     {
         return Task::query()
             ->when($viewer, fn ($q) => $q->visibleTo($viewer))
-            ->with(['release.project', 'team', 'assignee', 'creator'])
+            ->with(['release.project', 'team', 'assignee', 'creator', 'labels'])
             ->withCount(['comments', 'subtasks'])
+            ->withExists('openBlockers as has_open_blockers')
             ->unless($filters['include_subtasks'] ?? false, fn ($q) => $q->whereNull('parent_id'))
+            ->tap(fn ($q) => self::whereFields($q, $filters))
             ->when($filters['release_id'] ?? null, fn ($q, $id) => self::whereIdOrNone($q, 'release_id', $id))
             ->when($filters['team_id'] ?? null, fn ($q, $id) => self::whereIdOrNone($q, 'team_id', $id))
-            ->when($filters['assignee_id'] ?? null, fn ($q, $id) => $q->where('assignee_id', $id))
+            ->when($filters['assignee_id'] ?? null, fn ($q, $id) => self::whereIdOrNone($q, 'assignee_id', $id))
             ->when($filters['parent_id'] ?? null, fn ($q, $id) => $q->where('parent_id', $id))
+            ->when($filters['q'] ?? null, function ($q, $text) {
+                // `!` as the LIKE escape works the same on MySQL and SQLite.
+                $q->whereRaw("title LIKE ? ESCAPE '!'", ['%'.str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $text).'%']);
+            })
             ->when($filters['status'] ?? null, fn ($q, $status) => $q->where('status', $status))
             ->when($filters['phase'] ?? null, fn ($q, $phase) => $q->where('phase', $phase))
             ->when($filters['due_before'] ?? null, fn ($q, $d) => $q->whereDate('due_date', '<=', $d))
@@ -55,8 +64,62 @@ class TaskService
                 ->whereNotIn('status', Task::DONE_STATUSES)
                 ->whereNotNull('due_date')
                 ->whereDate('due_date', '<', now()->toDateString()))
-            ->orderBy('position')
-            ->orderBy('id');
+            ->tap(fn ($q) => self::sorted($q, $filters['sort'] ?? null, $filters['direction'] ?? 'asc'));
+    }
+
+    /**
+     * Sort a task query; with no sort, board order. Status and priority follow
+     * their own order, not the alphabet, and tasks with no value come last.
+     *
+     * @param  Builder<Task>  $query
+     * @return Builder<Task>
+     */
+    private static function sorted(Builder $query, ?string $sort, string $direction): Builder
+    {
+        $direction = $direction === 'desc' ? 'desc' : 'asc';
+        $rank = fn (string $column, array $values) => 'CASE '.$column.' '
+            .collect($values)->values()->map(fn ($value, $i) => "WHEN '{$value}' THEN {$i}")->implode(' ').' ELSE 99 END';
+
+        match ($sort) {
+            'title' => $query->orderBy('title', $direction),
+            'status' => $query->orderByRaw($rank('status', array_keys(Task::STATUSES)).' '.$direction),
+            'priority' => $query->orderByRaw('CASE WHEN priority IS NULL THEN 1 ELSE 0 END')
+                ->orderByRaw($rank('priority', array_keys(Task::PRIORITIES)).' '.$direction),
+            'assignee' => $query->orderByRaw('CASE WHEN assignee_id IS NULL THEN 1 ELSE 0 END')
+                ->orderBy(User::withTrashed()->select('name')->whereColumn('users.id', 'tasks.assignee_id'), $direction),
+            'due_date' => $query->orderByRaw('CASE WHEN due_date IS NULL THEN 1 ELSE 0 END')->orderBy('due_date', $direction),
+            'updated_at' => $query->orderBy('updated_at', $direction),
+            default => $query->orderBy('position'),
+        };
+
+        return $query->orderBy('id');
+    }
+
+    /**
+     * Change many tasks together, all or none. Each goes through the model, so
+     * status history, the activity log and notifications all follow.
+     *
+     * @param  iterable<int, Task>  $tasks
+     * @param  array{attributes?: array<string, mixed>, add_label_id?: int}  $changes
+     * @return int how many tasks were asked for
+     */
+    public function bulkUpdate(iterable $tasks, array $changes): int
+    {
+        return DB::transaction(function () use ($tasks, $changes) {
+            $count = 0;
+
+            foreach ($tasks as $task) {
+                if ($changes['attributes'] ?? []) {
+                    $task->update($changes['attributes']);
+                }
+                if ($changes['add_label_id'] ?? null) {
+                    $task->labels()->syncWithoutDetaching([$changes['add_label_id']]);
+                }
+                $count++;
+            }
+
+            return $count;
+        });
     }
 
     /**
@@ -69,8 +132,9 @@ class TaskService
     {
         return $release->rootTasks()
             ->when($viewer, fn ($q) => $q->visibleTo($viewer))
-            ->with(['assignee', 'creator', 'subtasks.assignee'])
+            ->with(['assignee', 'creator', 'subtasks.assignee', 'labels'])
             ->withCount(['comments', 'subtasks'])
+            ->withExists('openBlockers as has_open_blockers')
             ->when($filters['assignee_id'] ?? null, fn ($q, $id) => $q->where('assignee_id', $id))
             ->when($filters['status'] ?? null, fn ($q, $status) => $q->where('status', $status))
             ->when($filters['phase'] ?? null, fn ($q, $phase) => $q->where('phase', $phase))
@@ -78,8 +142,26 @@ class TaskService
     }
 
     /**
-     * Narrow a task query on `release_id` / `team_id` to one id, or to tasks
-     * with none set for NONE.
+     * Narrow a task query on its `priority` (or NONE for tasks with none), its
+     * `label_id`, and whether it's `blocked`.
+     *
+     * @param  Builder<Task>  $query
+     * @param  array<string, mixed>  $filters
+     * @return Builder<Task>
+     */
+    public static function whereFields(Builder $query, array $filters): Builder
+    {
+        return $query
+            ->when($filters['priority'] ?? null, fn ($q, $priority) => $priority === self::NONE
+                ? $q->whereNull('priority')
+                : $q->where('priority', $priority))
+            ->when($filters['label_id'] ?? null, fn ($q, $id) => $q->whereHas('labels', fn ($l) => $l->whereKey($id)))
+            ->when($filters['blocked'] ?? false, fn ($q) => $q->blocked());
+    }
+
+    /**
+     * Narrow a task query on `release_id` / `team_id` / `assignee_id` to one id,
+     * or to tasks with none set for NONE.
      *
      * @param  Builder<Task>  $query
      * @return Builder<Task>
@@ -101,7 +183,7 @@ class TaskService
     {
         $releaseId = isset($attributes['release_id']) ? (int) $attributes['release_id'] : null;
 
-        return Task::create($this->attributes($attributes, [
+        return $this->withLabels(Task::create($this->attributes($attributes, [
             'release_id' => $releaseId,
             'team_id' => self::teamFor(
                 $releaseId,
@@ -111,7 +193,7 @@ class TaskService
             'parent_id' => null,
             'position' => self::nextPosition($releaseId),
             'created_by' => $author->id,
-        ]));
+        ])), $attributes);
     }
 
     /**
@@ -159,13 +241,13 @@ class TaskService
     {
         abort_if($parent->isSubtask(), 422, 'A subtask cannot have its own subtasks.');
 
-        return $parent->subtasks()->create($this->attributes($attributes, [
+        return $this->withLabels($parent->subtasks()->create($this->attributes($attributes, [
             'release_id' => $parent->release_id,
             'team_id' => $parent->team_id,
             'parent_id' => $parent->id,
             'position' => $parent->subtasks()->count(),
             'created_by' => $author->id,
-        ]));
+        ])), $attributes);
     }
 
     /**
@@ -194,7 +276,25 @@ class TaskService
                 $task->subtasks()->toBase()->update(['release_id' => $task->release_id, 'team_id' => $task->team_id]);
                 $task->unsetRelation('release')->unsetRelation('team');
             }
+
+            $this->withLabels($task, $attributes);
         });
+
+        return $task;
+    }
+
+    /**
+     * Set the task's labels when the request sent any; leaving `label_ids` out
+     * keeps them, and an empty list clears them.
+     *
+     * @param  array<string, mixed>  $attributes
+     */
+    private function withLabels(Task $task, array $attributes): Task
+    {
+        if (array_key_exists('label_ids', $attributes)) {
+            $task->labels()->sync($attributes['label_ids'] ?? []);
+            $task->unsetRelation('labels');
+        }
 
         return $task;
     }
