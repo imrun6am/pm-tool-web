@@ -9,6 +9,7 @@ use App\Models\Task;
 use App\Models\Team;
 use App\Observers\CommentEngagementObserver;
 use App\Observers\TaskEngagementObserver;
+use App\Observers\TaskTasksheetObserver;
 use App\Services\NotificationService;
 use App\Services\OnboardingService;
 use App\Support\PendingCelebration;
@@ -31,6 +32,7 @@ class EngagementServiceProvider extends ServiceProvider
     public function boot(Router $router): void
     {
         Task::observe(TaskEngagementObserver::class);
+        Task::observe(TaskTasksheetObserver::class);
         Comment::observe(CommentEngagementObserver::class);
 
         // Runs inside StartSession, so a flashed celebration is saved with the session.

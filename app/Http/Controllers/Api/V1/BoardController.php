@@ -4,12 +4,15 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Concerns\ReadsTaskFilters;
 use App\Http\Requests\Api\V1\MoveTaskRequest;
+use App\Http\Requests\AssignTaskRequest;
 use App\Http\Requests\BoardTaskRequest;
 use App\Http\Requests\BulkDeleteTasksRequest;
 use App\Http\Resources\V1\TaskResource;
+use App\Http\Resources\V1\UserSummaryResource;
 use App\Models\Release;
 use App\Models\Task;
 use App\Services\BoardService;
+use App\Services\TaskService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
@@ -25,13 +28,16 @@ class BoardController extends ApiController
 {
     use ReadsTaskFilters;
 
-    public function __construct(private readonly BoardService $board) {}
+    public function __construct(
+        private readonly BoardService $board,
+        private readonly TaskService $tasks,
+    ) {}
 
     public function index(Request $request): JsonResponse
     {
         $releaseId = $this->idOrNoneFilter($request, 'release_id');
         $teamId = $this->idOrNoneFilter($request, 'team_id');
-        $assigneeId = $this->filterId($request, 'assignee_id');
+        $assigneeId = $this->idOrNoneFilter($request, 'assignee_id');
         $fields = $this->fieldFilters($request);
 
         $grouped = $this->board->columns([
@@ -77,6 +83,7 @@ class BoardController extends ApiController
             $data['status'],
             $request->user(),
             isset($data['team_id']) ? (int) $data['team_id'] : null,
+            isset($data['assignee_id']) ? (int) $data['assignee_id'] : null,
         );
 
         return $this->created(
@@ -100,6 +107,28 @@ class BoardController extends ApiController
         return $this->ok(
             new TaskResource($task->fresh()->load(['release.project', 'team', 'assignee'])->loadCount('comments')),
             'Card moved.'
+        );
+    }
+
+    /** Who the caller may pick for this card. */
+    public function assignees(Request $request, Task $task): JsonResponse
+    {
+        $this->authorize('update', $task);
+
+        return $this->ok([
+            'assignee_id' => $task->assignee_id,
+            'people' => UserSummaryResource::collection($this->tasks->cardAssignees($task, $request->user()))->resolve($request),
+        ]);
+    }
+
+    /** Set the card's assignee, or clear it with `assignee_id: null`. Nothing else changes. */
+    public function assign(AssignTaskRequest $request, Task $task): JsonResponse
+    {
+        $this->board->assign($task, $request->validated('assignee_id'));
+
+        return $this->ok(
+            new TaskResource($task->load(['release.project', 'team', 'assignee'])->loadCount('comments')),
+            $task->assignee_id ? 'Task assigned.' : 'Task unassigned.'
         );
     }
 

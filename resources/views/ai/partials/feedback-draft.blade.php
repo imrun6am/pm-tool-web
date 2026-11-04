@@ -10,12 +10,12 @@
          x-data="aiPanel({ url: @js(route('ai.tasksheet.feedback')) })">
         <x-ai-button label="Draft feedback" busy-label="Drafting…"
                      click="run({
-                        team_id: {{ $team->id }}, user_id: {{ $rowUser->id }}, date: @js($day->toDateString()),
-                        plan: document.getElementById(@js($idp.'-plan'))?.value ?? '',
-                        result: document.getElementById(@js($idp.'-result'))?.value ?? '',
-                        comment: document.getElementById(@js($idp.'-comment'))?.value ?? '',
-                        tickets: document.getElementById(@js($idp.'-tickets'))?.value ?? '',
-                     }).then((r) => r && window.aiFillField(@js($idp.'-feedback'), r.html, true))" />
+                        team_id: {{ $team->id }}, user_id: {{ $rowUser->id }}, date: {{ Js::from($day->toDateString()) }},
+                        plan: document.getElementById({{ Js::from($idp.'-plan') }})?.value ?? '',
+                        result: document.getElementById({{ Js::from($idp.'-result') }})?.value ?? '',
+                        comment: document.getElementById({{ Js::from($idp.'-comment') }})?.value ?? '',
+                        tickets: document.getElementById({{ Js::from($idp.'-tickets') }})?.value ?? '',
+                     }).then((r) => r && window.aiFillField({{ Js::from($idp.'-feedback') }}, r.html, true))" />
         <span x-show="result && !busy" x-cloak class="text-xs text-slate-600" role="status">Drafted — edit it, then save the row.</span>
         <x-ai-error />
     </div>

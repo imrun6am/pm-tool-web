@@ -51,10 +51,10 @@ class BoardService
      * Returns `[status => Collection<Task>]` so the Blade view can index by
      * status directly; the API adds the label, color, and count around it.
      *
-     * `release_id` and `team_id` are ids, or TaskService::NONE for tasks with
-     * none set. Filters combine, within what `$viewer` may see when given.
+     * `release_id`, `team_id` and `assignee_id` are ids, or TaskService::NONE for
+     * tasks with none set. Filters combine, within what `$viewer` may see when given.
      *
-     * @param  array{release_id?: int|string|null, team_id?: int|string|null, assignee_id?: ?int, priority?: ?string, label_id?: ?int, blocked?: bool}  $filters
+     * @param  array{release_id?: int|string|null, team_id?: int|string|null, assignee_id?: int|string|null, priority?: ?string, label_id?: ?int, blocked?: bool}  $filters
      * @return array<string, Collection<int, Task>>
      */
     public function columns(array $filters = [], ?User $viewer = null): array
@@ -68,7 +68,7 @@ class BoardService
             ->withCount('comments')
             ->when($filters['release_id'] ?? null, fn ($q, $id) => TaskService::whereIdOrNone($q, 'release_id', $id))
             ->when($filters['team_id'] ?? null, fn ($q, $id) => TaskService::whereIdOrNone($q, 'team_id', $id))
-            ->when($filters['assignee_id'] ?? null, fn ($q, $id) => $q->where('assignee_id', $id))
+            ->when($filters['assignee_id'] ?? null, fn ($q, $id) => TaskService::whereIdOrNone($q, 'assignee_id', $id))
             ->orderBy('position')
             ->orderBy('id')
             ->get();
@@ -80,19 +80,33 @@ class BoardService
 
     /**
      * Quick-add straight onto a column, linked to a release or to none. A
-     * linked card takes the release's team; an unlinked one the given team.
+     * linked card takes the release's team; an unlinked one the given team, else
+     * its assignee's when they are on exactly one.
      */
-    public function quickAdd(?Release $release, string $title, string $status, User $author, ?int $teamId = null): Task
+    public function quickAdd(?Release $release, string $title, string $status, User $author, ?int $teamId = null, ?int $assigneeId = null): Task
     {
         return Task::create([
             'release_id' => $release?->id,
-            'team_id' => $release ? $release->team_id : $teamId,
+            'team_id' => TaskService::teamFor($release?->id, $teamId, $assigneeId),
             'title' => $title,
             'status' => $status,
+            'assignee_id' => $assigneeId,
             'parent_id' => null,
             'created_by' => $author->id,
             'position' => TaskService::nextPosition($release?->id),
         ]);
+    }
+
+    /**
+     * Give a card an assignee, or none. Only that column changes:
+     * TaskService::update() would default a missing status back to the first
+     * column. The activity log and the assignment notice follow the model write.
+     */
+    public function assign(Task $task, ?int $assigneeId): Task
+    {
+        $task->update(['assignee_id' => $assigneeId]);
+
+        return $task;
     }
 
     /**

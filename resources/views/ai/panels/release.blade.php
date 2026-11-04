@@ -70,7 +70,7 @@
                     <div class="flex flex-wrap items-center gap-2">
                         @if ($ai->available('release_notes'))
                             <x-ai-button label="Draft with Claude" busy-label="Drafting…"
-                                         click="draft(@js(route('ai.release-notes.draft', $release)), 'release-notes-{{ $release->id }}')" />
+                                         click="draft({{ Js::from(route('ai.release-notes.draft', $release)) }}, 'release-notes-{{ $release->id }}')" />
                         @endif
                         <button type="submit" class="btn btn-primary btn-sm">Save notes</button>
                         <button type="button" @click="editing = false" class="btn btn-ghost btn-sm">Cancel</button>

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\ReadsTaskFilters;
+use App\Http\Requests\AssignTaskRequest;
 use App\Http\Requests\BoardTaskRequest;
 use App\Http\Requests\BulkDeleteTasksRequest;
 use App\Models\Label;
@@ -12,6 +13,7 @@ use App\Models\Team;
 use App\Models\User;
 use App\Services\BoardService;
 use App\Services\SavedViewService;
+use App\Services\TaskService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -24,6 +26,7 @@ class BoardController extends Controller
 
     public function __construct(
         private readonly BoardService $board,
+        private readonly TaskService $tasks,
         private readonly SavedViewService $savedViews,
     ) {}
 
@@ -31,7 +34,7 @@ class BoardController extends Controller
     {
         $releaseId = $this->idOrNoneFilter($request, 'release_id');
         $teamId = $this->idOrNoneFilter($request, 'team_id');
-        $assigneeId = $request->filled('assignee_id') ? (int) $request->integer('assignee_id') : null;
+        $assigneeId = $this->idOrNoneFilter($request, 'assignee_id');
         $fields = $this->fieldFilters($request);
         $viewer = $request->user();
 
@@ -66,6 +69,7 @@ class BoardController extends Controller
             $data['status'],
             $request->user(),
             isset($data['team_id']) ? (int) $data['team_id'] : null,
+            isset($data['assignee_id']) ? (int) $data['assignee_id'] : null,
         );
 
         return back()->with('success', 'Task added to the board.');
@@ -84,6 +88,36 @@ class BoardController extends Controller
         $this->board->move($task, $data['status'], $data['ordered_ids'] ?? [], $request->user());
 
         return response()->json(['ok' => true]);
+    }
+
+    /** Who the viewer may pick for this card; the board's script fetches it when the picker opens. */
+    public function assignees(Request $request, Task $task): JsonResponse
+    {
+        $this->authorize('update', $task);
+
+        return response()->json([
+            'assignee_id' => $task->assignee_id,
+            'people' => $this->tasks->cardAssignees($task, $request->user())
+                ->map(fn (User $user) => ['id' => $user->id, 'name' => $user->name])->all(),
+        ]);
+    }
+
+    /**
+     * Answers JSON for the board's script: the re-rendered control, and whether
+     * the viewer can still see the card (it may have been theirs alone).
+     */
+    public function assign(AssignTaskRequest $request, Task $task): JsonResponse
+    {
+        $this->board->assign($task, $request->validated('assignee_id'));
+        $task->load('assignee');
+
+        return response()->json([
+            'ok' => true,
+            'assignee_id' => $task->assignee_id,
+            'assignee_name' => $task->assignee?->name,
+            'visible' => $task->isVisibleTo($request->user()),
+            'html' => view('partials.board-assignee', ['task' => $task])->render(),
+        ]);
     }
 
     /** Admins only. Answers JSON for the board's script, which updates in place. */

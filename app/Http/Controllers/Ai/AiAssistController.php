@@ -10,14 +10,19 @@ use App\Models\ReleaseDocument;
 use App\Models\Task;
 use App\Models\Team;
 use App\Models\User;
+use App\Services\Ai\AssigneeSuggester;
 use App\Services\Ai\FeedbackDrafter;
 use App\Services\Ai\MeetingActionExtractor;
+use App\Services\Ai\ReleaseRetrospective;
 use App\Services\Ai\ScheduleAssistant;
 use App\Services\Ai\ScoreEvidence;
 use App\Services\Ai\SuggestedTaskStore;
+use App\Services\Ai\TasksheetDrafter;
 use App\Services\Ai\TaskWriter;
 use App\Services\Ai\ThreadCatchUp;
 use App\Services\Ai\WorkspaceAsk;
+use App\Services\TaskService;
+use App\Services\TasksheetService;
 use App\Support\PerformancePeriod;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -205,6 +210,49 @@ class AiAssistController extends Controller
             $data,
             $request->user(),
         ));
+    }
+
+    // -- Tasksheet drafts ---------------------------------------------------
+
+    public function tasksheetDraft(Request $request, TasksheetDrafter $drafter, TasksheetService $tasksheet): JsonResponse
+    {
+        $data = $request->validate([
+            'team_id' => ['required', 'integer', 'exists:teams,id'],
+            'user_id' => ['required', 'integer', 'exists:users,id'],
+            'date' => ['required', 'date'],
+            'kind' => ['required', 'in:plan,result'],
+            'plan' => ['nullable', 'string', 'max:20000'],
+            'result' => ['nullable', 'string', 'max:20000'],
+        ]);
+
+        // Whoever may edit this row may draft it.
+        $this->authorize('update', $tasksheet->resolveEntry($data));
+
+        $team = Team::findOrFail($data['team_id']);
+        $member = User::findOrFail($data['user_id']);
+        $date = Carbon::parse($data['date']);
+
+        return $this->aiJson(fn () => $data['kind'] === 'plan'
+            ? $drafter->plan($team, $member, $date, $request->user())
+            : $drafter->result($team, $member, $date, $data['plan'] ?? null, $request->user(), $data['result'] ?? null));
+    }
+
+    // -- Release retrospective ----------------------------------------------
+
+    public function retrospective(Request $request, Release $release, ReleaseRetrospective $retro): JsonResponse
+    {
+        abort_unless($request->user()->canManageReleases(), 403);
+
+        return $this->aiJson(fn () => $retro->draft($release, $request->user()));
+    }
+
+    // -- Assignee suggestions -----------------------------------------------
+
+    public function suggestAssignee(Request $request, Task $task, AssigneeSuggester $suggester, TaskService $tasks): JsonResponse
+    {
+        $this->authorize('update', $task);
+
+        return $this->aiJson(fn () => $suggester->suggest($task, $tasks->cardAssignees($task, $request->user()), $request->user()));
     }
 
     private static function createdMessage(int $n, string $noun = 'task'): string

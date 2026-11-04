@@ -221,6 +221,7 @@
                                                 <p class="field-hint !mt-1">{{ $hint }}</p>
                                                 <input id="{{ $idp }}-{{ $field }}" type="hidden" name="{{ $field }}" value="{{ $val($field) }}">
                                                 <trix-editor input="{{ $idp }}-{{ $field }}" class="prose-notes"></trix-editor>
+                                                @include('ai.partials.tasksheet-draft', ['kind' => $field, 'idp' => $idp, 'team' => $team ?? null, 'rowUser' => $rowUser, 'day' => $day])
                                             </div>
                                         @endforeach
 

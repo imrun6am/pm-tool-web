@@ -236,6 +236,58 @@ class WebApiParityTest extends TestCase
         );
     }
 
+    public function test_the_unassigned_board_filter_agrees_on_both_surfaces(): void
+    {
+        $release = $this->release();
+        $user = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        Task::create(['release_id' => $release->id, 'title' => 'Open', 'status' => 'todo', 'position' => 0]);
+        Task::create(['release_id' => $release->id, 'title' => 'Open too', 'status' => 'done', 'position' => 1]);
+        Task::create(['release_id' => $release->id, 'title' => 'Taken', 'status' => 'todo', 'position' => 2, 'assignee_id' => $user->id]);
+
+        $web = $this->actingAs($user)->get(route('board.index', ['assignee_id' => 'none']))->assertOk();
+
+        $this->app['auth']->forgetGuards();
+        Sanctum::actingAs($user);
+        $api = $this->getJson('/api/v1/board?assignee_id=none')->assertOk();
+
+        $this->assertSame(
+            collect($web->viewData('columns'))->map(fn ($cards) => $cards->pluck('title')->all())->all(),
+            collect($api->json('data.columns'))->mapWithKeys(fn ($c) => [$c['status'] => collect($c['tasks'])->pluck('title')->all()])->all()
+        );
+        $this->assertSame($web->viewData('filters')['assignee_id'], $api->json('data.filters.assignee_id'));
+    }
+
+    public function test_assigning_a_card_behaves_alike_on_both_surfaces(): void
+    {
+        $release = $this->release();
+        $user = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        $member = User::factory()->create(['role' => User::ROLE_DEVELOPER]);
+        $release->team->members()->attach($member);
+        $outsider = User::factory()->create(['role' => User::ROLE_DEVELOPER]);
+
+        $webCard = Task::create(['release_id' => $release->id, 'title' => 'Web', 'status' => 'recheck', 'position' => 0]);
+        $apiCard = Task::create(['release_id' => $release->id, 'title' => 'Api', 'status' => 'recheck', 'position' => 1]);
+
+        $webPeople = $this->actingAs($user)->getJson(route('board.tasks.assignees', $webCard))->assertOk()->json('people');
+        $this->patchJson(route('board.tasks.assign', $webCard), ['assignee_id' => $member->id])->assertOk();
+        $webRefused = $this->patchJson(route('board.tasks.assign', $webCard), ['assignee_id' => $outsider->id])
+            ->assertStatus(422)->json('errors.assignee_id');
+
+        $this->app['auth']->forgetGuards();
+        Sanctum::actingAs($user);
+        $apiPeople = $this->getJson("/api/v1/board/tasks/{$apiCard->id}/assignees")->assertOk()->json('data.people');
+        $this->patchJson("/api/v1/board/tasks/{$apiCard->id}/assignee", ['assignee_id' => $member->id])->assertOk();
+        $apiRefused = $this->patchJson("/api/v1/board/tasks/{$apiCard->id}/assignee", ['assignee_id' => $outsider->id])
+            ->assertStatus(422)->json('errors.assignee_id');
+
+        $this->assertSame(collect($webPeople)->pluck('id')->all(), collect($apiPeople)->pluck('id')->all());
+        $this->assertSame([$member->id], collect($apiPeople)->pluck('id')->all());
+        $this->assertSame($webRefused, $apiRefused);
+        $this->assertSame($webCard->fresh()->assignee_id, $apiCard->fresh()->assignee_id);
+        $this->assertSame('recheck', $webCard->fresh()->status);
+        $this->assertSame('recheck', $apiCard->fresh()->status);
+    }
+
     public function test_a_board_bulk_delete_behaves_alike_on_both_surfaces(): void
     {
         $makeCard = function (string $title) {

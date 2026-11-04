@@ -236,6 +236,76 @@ export function fillField(id, value, html = false) {
 
 window.aiFillField = fillField;
 
+/*
+ * Add a draft after whatever the field already holds, never over it: `html` for
+ * a Trix editor (by its hidden input id), plain text for any other field.
+ */
+export function appendField(id, value) {
+    const trix = document.querySelector(`trix-editor[input="${id}"]`)?.editor;
+    if (trix) {
+        trix.recordUndoEntry('Claude');
+        const end = trix.getDocument().getLength() - 1;
+        trix.setSelectedRange([end, end]);
+        trix.insertHTML(value);
+        return;
+    }
+    const el = document.getElementById(id);
+    if (el) {
+        el.value = el.value.trim() ? `${el.value.trimEnd()}\n\n${value}` : value;
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+}
+
+window.aiAppendField = appendField;
+
+/*
+ * The assignee suggestions dialog. Opened by an `ai-suggest-assignee` event with
+ * { url, assignUrl, title, trigger }. Assigning goes through the board's endpoint;
+ * on the board the card updates itself from `ai-assigned`, elsewhere the page refreshes.
+ */
+Alpine.data('aiAssignee', () => ({
+    open: false,
+    busy: false,
+    error: '',
+    title: '',
+    assignUrl: '',
+    trigger: null,
+    suggestions: null,
+    assigning: null,
+
+    async show({ url, assignUrl, title, trigger }) {
+        Object.assign(this, { open: true, busy: true, error: '', title, assignUrl, trigger, suggestions: null, assigning: null });
+        const { ok, data, error } = await aiFetch(url);
+        this.busy = false;
+        if (ok) this.suggestions = data.suggestions ?? [];
+        else this.error = error;
+    },
+
+    close() {
+        this.open = false;
+        this.trigger?.focus?.({ preventScroll: true });
+    },
+
+    async assign(person) {
+        if (this.assigning) return;
+        this.assigning = person.id;
+        this.error = '';
+        const { ok, data, error } = await aiFetch(this.assignUrl, { method: 'PATCH', body: { assignee_id: person.id } });
+        this.assigning = null;
+        if (!ok) {
+            this.error = error;
+            return;
+        }
+        const card = this.trigger?.closest('.board-card');
+        this.open = false;
+        if (card) card.dispatchEvent(new CustomEvent('ai-assigned', { bubbles: true, detail: data }));
+        else {
+            toast(`Assigned to ${person.name}.`);
+            refresh();
+        }
+    },
+}));
+
 /* Ask your workspace: a running conversation of question → cited answer. */
 Alpine.data('aiAsk', ({ url } = {}) => ({
     question: '',

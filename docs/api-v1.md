@@ -309,8 +309,10 @@ serialized, so there is no public URL to leak.
 | `PUT/DELETE`      | `/time-logs/{id}` — the author for 7 days; an org-level lead or the team's lead at any time |
 | `PUT/DELETE`      | `/comments/{id}` — author or lead                        |
 | `GET`             | `/board` — every status column, even when empty; `?release_id=&team_id=&assignee_id=&priority=&label_id=`, each also takes `none` |
-| `POST`            | `/board/tasks` — `{ title, status, release_id?, team_id? }` |
+| `POST`            | `/board/tasks` — `{ title, status, release_id?, team_id?, assignee_id? }` |
 | `PATCH`           | `/board/tasks/{id}` — `{ status, ordered_ids[] }`, atomic |
+| `GET`             | `/board/tasks/{id}/assignees` — who the caller may pick for this card. Returns `assignee_id`, `people[]`. 403 on a task they can't update |
+| `PATCH`           | `/board/tasks/{id}/assignee` — `{ assignee_id }`, `null` clears; the key is required and nothing else changes. 403 on a task they can't update; 422 on a person they can't pick |
 | `DELETE`          | `/board/tasks/{id}` — **admin only**; moves a top-level task and its subtasks to the trash. Returns `deleted_ids`, `subtasks_deleted`. 403 for other roles and on a subtask |
 | `POST`            | `/board/tasks/bulk-delete` — **admin only**; `{ ids[] }`, up to 1000 top-level task ids, all or nothing. Returns `deleted_ids`, `subtasks_deleted`. 403 for other roles whatever is sent; 422 on any bad id, with nothing deleted |
 | `GET`             | `/events` — `?year=&month=` or `?from=&to=`, `?show=all\|mine\|shared`; returns `events_by_date`. Others' private events are never listed |
@@ -323,6 +325,17 @@ serialized, so there is no public URL to leak.
 | `GET/POST`        | `/quick-links` — returns `{ mine, shared }`              |
 | `PUT/DELETE`      | `/quick-links/{id}` — **author only**                    |
 | `POST`            | `/quick-links/{id}/pin` — toggles; **anyone who can see it** |
+
+**Assigning from the board.** `GET /board?assignee_id=none` lists the cards with no assignee.
+`GET /board/tasks/{id}/assignees` lists who can be picked: the release team's active members, or
+every active user on an unlinked task, narrowed to teammates for developers and QA, plus the
+current assignee. `PATCH /board/tasks/{id}/assignee` applies the same rules as `PUT /tasks/{id}`
+using the task's own release, and also refuses a newly assigned deactivated user.
+
+**Deleting from the board.** To clear what a filtered board shows, read `GET /board` with the same
+filters and send those ids to `POST /board/tasks/bulk-delete`. There's no "delete everything
+matching" mode, so a task added after the read is never deleted by accident. Every task delete is
+admin only; `DELETE /tasks/{id}` is the route that also accepts a subtask.
 
 **Blocked tasks.** `is_blocked` is true while a task is flagged or waits for an unfinished task, and
 is false once it's Done or Archived, which also clears the flag. `blocked_at`, `blocked_reason` and,

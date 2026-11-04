@@ -13,7 +13,8 @@
  * Enhancement is automatic: on load, after every Turbo render, and for selects
  * added later (Alpine x-for/x-if, fetched dialogs, in-page region updates),
  * via one MutationObserver. Each select is enhanced once (data-ss).
- * Opt out with data-native on the select or on any ancestor.
+ * Opt out with data-native on the select or on any ancestor. A script can open
+ * the panel by dispatching `ss:open` on the select; `ss:close` fires when it closes.
  *
  * The panel is rendered into <body> with fixed positioning so overflow-hidden
  * cards and scrolling tables never clip it; clicks and keys inside it don't
@@ -173,6 +174,7 @@ class SearchableSelect {
         select.addEventListener('change', () => { this.clearInvalid(); this.syncLabel(); });
         // A label's `for` focuses the select; hand focus to the button.
         select.addEventListener('focus', () => trigger.focus());
+        select.addEventListener('ss:open', () => this.open());
         // Native validation can't anchor its bubble to a hidden control, so
         // show the message under the button instead.
         select.addEventListener('invalid', (e) => this.showInvalid(e));
@@ -372,6 +374,7 @@ class SearchableSelect {
         this.trigger.removeAttribute('aria-activedescendant');
         if (current === this) current = null;
         if (restoreFocus) this.trigger.focus({ preventScroll: true });
+        this.select.dispatchEvent(new CustomEvent('ss:close'));
     }
 
     position() {

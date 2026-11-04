@@ -144,6 +144,27 @@ return [
             'effort' => env('AI_FEEDBACK_DRAFT_EFFORT', 'low'),
             'enabled' => true,
         ],
+        'tasksheet_draft' => [
+            'label' => 'Tasksheet drafts',
+            'description' => 'Drafts a member’s morning plan from open tasks and day-end result from board activity.',
+            'model' => env('AI_TASKSHEET_DRAFT_MODEL', $model),
+            'effort' => env('AI_TASKSHEET_DRAFT_EFFORT', 'low'),
+            'enabled' => true,
+        ],
+        'release_retro' => [
+            'label' => 'Release retrospective',
+            'description' => 'Drafts closing notes for a release: what went well, what slipped, what to change.',
+            'model' => env('AI_RELEASE_RETRO_MODEL', $model),
+            'effort' => env('AI_RELEASE_RETRO_EFFORT', 'medium'),
+            'enabled' => true,
+        ],
+        'assignee_suggest' => [
+            'label' => 'Assignee suggestions',
+            'description' => 'Suggests who should take a task, from similar past work, open load and upcoming leave.',
+            'model' => env('AI_ASSIGNEE_SUGGEST_MODEL', $model),
+            'effort' => env('AI_ASSIGNEE_SUGGEST_EFFORT', 'low'),
+            'enabled' => true,
+        ],
     ],
 
     /*

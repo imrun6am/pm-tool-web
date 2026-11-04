@@ -27,7 +27,7 @@ class TaskService
 
     public const DEFAULT_STATUS = 'todo';
 
-    /** The `release_id` / `team_id` filter value that selects tasks with none set. */
+    /** The `release_id` / `team_id` / board `assignee_id` filter value that selects tasks with none set. */
     public const NONE = 'none';
 
     /** What the task list can sort by. */
@@ -320,6 +320,30 @@ class TaskService
             ->merge($task->subtasks->map->assignee)
             ->filter();
 
+        return $this->assignablePool($task, $viewer)->concat($current)
+            ->unique('id')
+            ->sortBy('name')
+            ->values();
+    }
+
+    /**
+     * Who `$viewer` may pick for a board card: the same pool, plus the card's
+     * own assignee. Not its subtasks' assignees, who may be from other teams
+     * and could not be picked anyway.
+     *
+     * @return Collection<int, User>
+     */
+    public function cardAssignees(Task $task, User $viewer): Collection
+    {
+        return $this->assignablePool($task, $viewer)->concat(collect([$task->assignee])->filter())
+            ->unique('id')
+            ->sortBy('name')
+            ->values();
+    }
+
+    /** @return Collection<int, User> */
+    private function assignablePool(Task $task, ?User $viewer): Collection
+    {
         $pool = $task->release
             ? $task->release->team->members()->active()
             : User::active();
@@ -328,11 +352,7 @@ class TaskService
             $pool = $pool->teammatesOf($viewer);
         }
 
-        return $pool->orderBy('name')->get()
-            ->concat($current)
-            ->unique('id')
-            ->sortBy('name')
-            ->values();
+        return $pool->orderBy('name')->get();
     }
 
     /**

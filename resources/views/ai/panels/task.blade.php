@@ -1,6 +1,7 @@
 {{--
     Claude on the task page: task writer (#5: description, acceptance
-    criteria, subtasks, possible duplicates) and comment catch-up (#6).
+    criteria, subtasks, possible duplicates), assignee suggestions and
+    comment catch-up (#6).
     The writer fills the page's description field (#task-description); the
     task is saved only by the page's own Save.
     @include('ai.panels.task', ['task' => $task])
@@ -8,6 +9,7 @@
 @php
     $ai = app(\App\Services\Ai\AiFeatures::class);
     $showWriter = $ai->available('task_writer');
+    $showSuggest = $ai->available('assignee_suggest') && auth()->user()->can('update', $task);
     $showCatchUp = $ai->available('catch_up') && $task->comments->count() >= \App\Services\Ai\ThreadCatchUp::MIN_COMMENTS;
 @endphp
 
@@ -23,7 +25,7 @@
                 <div class="space-y-2">
                     <p class="text-slate-500">Claude drafts a clear description with acceptance criteria{{ $task->isSubtask() ? '' : ', suggests subtasks' }} and checks for duplicates.</p>
                     <x-ai-button label="Draft with Claude" busy-label="Writing…"
-                                 click="run({ title: @js($task->title), description: document.getElementById('task-description')?.value ?? '', task_id: {{ $task->id }} })" />
+                                 click="run({ title: {{ Js::from($task->title) }}, description: document.getElementById('task-description')?.value ?? '', task_id: {{ $task->id }} })" />
                 </div>
             </template>
 
@@ -64,6 +66,21 @@
             <x-ai-error />
         </div>
     </section>
+@endif
+
+@if ($showSuggest)
+    <section class="card" aria-labelledby="ai-assignee-{{ $task->id }}" x-data>
+        <div class="flex items-center gap-2 border-b border-slate-100 px-5 py-4">
+            <x-icon name="sparkles" variant="outline" class="h-4 w-4 text-violet-600" />
+            <h3 id="ai-assignee-{{ $task->id }}" class="text-sm font-semibold text-slate-700">Assignee</h3>
+        </div>
+        <div class="space-y-2 px-5 py-4 text-sm">
+            <p class="text-slate-500">Claude suggests who could take this task, from similar past work, open load and upcoming leave.</p>
+            <x-ai-button label="Suggest someone" busy="false"
+                         click="$dispatch('ai-suggest-assignee', { url: {{ Js::from(route('ai.tasks.suggest-assignee', $task)) }}, assignUrl: {{ Js::from(route('board.tasks.assign', $task)) }}, title: {{ Js::from($task->title) }}, trigger: $el })" />
+        </div>
+    </section>
+    @include('ai.partials.assignee-dialog')
 @endif
 
 @if ($showCatchUp)

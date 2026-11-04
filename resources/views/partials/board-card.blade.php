@@ -103,14 +103,8 @@
     @endif
 
     <div class="mt-3 flex items-center justify-between gap-2 border-t border-slate-100 pt-2.5">
-        @if ($task->assignee)
-            <span class="flex min-w-0 items-center gap-1.5">
-                <x-avatar :user="$task->assignee" size="sm" />
-                <span class="truncate text-xs text-slate-600">{{ $task->assignee->name }}</span>
-            </span>
-        @else
-            <span class="text-xs text-slate-400">Unassigned</span>
-        @endif
+        @include('partials.board-assignee', ['task' => $task])
+        @include('ai.partials.board-suggest', ['task' => $task])
         <span class="tabular flex-none text-[11px] text-slate-400">{{ $task->reference() }}</span>
         @if ($task->comments_count > 0)
             <span class="flex flex-none items-center gap-1 text-xs text-slate-500" title="{{ $task->comments_count }} {{ Str::plural('comment', $task->comments_count) }}">

@@ -377,6 +377,25 @@
         background-position: right 0.25rem center;
         background-size: 1rem;
     }
+    /* A card's assignee: looks like the name it replaced until hovered. The
+       picker takes its place while open, at the same height, so the card holds still. */
+    .board-suggest {
+        @apply mr-auto flex h-6 w-6 flex-none items-center justify-center rounded-full text-violet-600 transition-colors hover:bg-violet-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-500/50;
+    }
+    /* Only an unassigned card offers a suggestion; the assignee control re-renders in place. */
+    .board-assign:not([aria-label^="Unassigned"]) ~ .board-suggest {
+        @apply hidden;
+    }
+    .board-assign {
+        @apply -mx-1 flex h-7 min-w-0 cursor-pointer items-center gap-1.5 rounded-md px-1 text-left transition-colors
+        hover:bg-slate-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 aria-busy:opacity-60;
+    }
+    .board-assign[hidden] {
+        @apply hidden;
+    }
+    .board-assign-select {
+        @apply -mx-1 h-7 min-w-0 flex-1 rounded-md py-0 pl-1.5 text-xs;
+    }
 
     /* Feed list (notes / meeting rows) */
     .list-card {

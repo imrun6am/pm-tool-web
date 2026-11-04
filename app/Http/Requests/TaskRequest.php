@@ -121,7 +121,7 @@ class TaskRequest extends FormRequest
      * the one the request links (none for `release_id: null`), else the task's
      * current one.
      */
-    private function targetRelease(?Task $task): ?Release
+    protected function targetRelease(?Task $task): ?Release
     {
         if ($task && ($this->routeIs('*subtasks.store') || $task->isSubtask())) {
             return $task->release;

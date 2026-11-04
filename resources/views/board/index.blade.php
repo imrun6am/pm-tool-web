@@ -39,16 +39,17 @@
     $filterLabels = $canDelete ? array_values(array_filter([
         $filters['release_id'] === 'none' ? 'No release' : ($release ? 'Release: '.$release->name : null),
         $filters['team_id'] === 'none' ? 'No team' : (is_int($filters['team_id']) ? 'Team: '.($teams->firstWhere('id', $filters['team_id'])?->name ?? 'selected') : null),
-        $filters['assignee_id'] ? 'Assignee: '.($users->firstWhere('id', $filters['assignee_id'])?->name ?? 'selected') : null,
+        $filters['assignee_id'] === 'none' ? 'Unassigned' : ($filters['assignee_id'] ? 'Assignee: '.($users->firstWhere('id', $filters['assignee_id'])?->name ?? 'selected') : null),
         $filters['priority'] === 'none' ? 'No priority' : ($filters['priority'] ? 'Priority: '.\App\Models\Task::PRIORITIES[$filters['priority']] : null),
         $filters['label_id'] ? 'Label: '.($labels->firstWhere('id', $filters['label_id'])?->name ?? 'selected') : null,
         $filters['blocked'] ? 'Blocked' : null,
     ])) : [];
     $filterScope = implode(', ', $filterLabels);
 
-    // Columns share the width on lg so a laptop sees the whole board; narrower
-    // screens scroll sideways, with the next column peeking in.
-    $columnWidth = 'w-[17rem] lg:w-auto lg:min-w-[12.5rem] lg:flex-1 lg:basis-0';
+    // On lg the columns share any spare width, but stay wide enough to read a
+    // card. When they don't all fit they scroll sideways inside the board, with
+    // the next column peeking in. Phones keep their own fixed width.
+    $columnWidth = 'w-[17rem] lg:w-auto lg:min-w-[18rem] lg:flex-1 lg:basis-0';
 @endphp
 <x-app-layout full-height>
     {{-- The title and filters share one row, so short laptop screens keep their height for the cards. --}}
@@ -81,6 +82,7 @@
                     <label for="assignee_id" class="filter-label">Assignee</label>
                     <select id="assignee_id" name="assignee_id" class="filter-select max-w-[8rem] 2xl:max-w-[13rem]">
                         <option value="">Anyone</option>
+                        <option value="none" @selected($filters['assignee_id'] === 'none')>Unassigned</option>
                         @foreach ($users as $u)
                             <option value="{{ $u->id }}" @selected($filters['assignee_id'] === $u->id)>{{ $u->name }}</option>
                         @endforeach
@@ -215,7 +217,8 @@
                             </div>
 
                             {{-- Add a card --}}
-                            <div x-data="{ adding: false }" class="mt-2.5 flex-none">
+                            @php $reopen = $errors->any() && old('status') === $status; @endphp
+                            <div x-data="{ adding: @js($reopen) }" class="mt-2.5 flex-none">
                                 <button type="button" x-show="!adding" @click="adding = true; $nextTick(() => $refs.title.focus())"
                                         class="flex w-full items-center gap-1.5 rounded-lg px-2 py-1.5 text-left text-xs font-medium text-slate-500 transition-colors hover:bg-white/80 hover:text-slate-800">
                                     <x-icon name="plus" variant="outline" class="h-4 w-4" />
@@ -228,7 +231,7 @@
                                     <label for="new-card-{{ $status }}" class="sr-only">New card title</label>
                                     <textarea id="new-card-{{ $status }}" name="title" x-ref="title" rows="2" required maxlength="255" placeholder="What needs doing?"
                                               @keydown.escape="adding = false"
-                                              class="field-control"></textarea>
+                                              class="field-control">{{ $reopen ? old('title') : '' }}</textarea>
                                     @if (is_int($filters['team_id']))
                                         <input type="hidden" name="team_id" value="{{ $filters['team_id'] }}">
                                     @elseif ($me->hasLimitedAccess() && $teamChoice)
@@ -251,6 +254,19 @@
                                             @endforeach
                                         </select>
                                     @endif
+                                    <label for="new-card-assignee-{{ $status }}" class="sr-only">Assignee (optional)</label>
+                                    <select id="new-card-assignee-{{ $status }}" name="assignee_id" data-ss-kind="person" class="field-control field-sm">
+                                        {{-- Developers and QA: their own cards are theirs unless they pick a teammate. --}}
+                                        @unless ($me->hasLimitedAccess())
+                                            <option value="">Unassigned</option>
+                                        @endunless
+                                        @foreach ($users->filter->isActive() as $u)
+                                            <option value="{{ $u->id }}" @selected($reopen ? (int) old('assignee_id') === $u->id : $me->hasLimitedAccess() && $u->id === $me->id)>{{ $u->name }}</option>
+                                        @endforeach
+                                    </select>
+                                    @if ($reopen)
+                                        <p class="text-xs text-danger-600" role="alert">{{ $errors->first() }}</p>
+                                    @endif
                                     <div class="flex items-center gap-2">
                                         <button class="btn-primary btn-sm">Add card</button>
                                         <button type="button" @click="adding = false" class="btn-ghost btn-sm">Cancel</button>
@@ -263,6 +279,10 @@
             </div>
         </div>
     </div>
+
+    @if (app(\App\Services\Ai\AiFeatures::class)->available('assignee_suggest'))
+        @include('ai.partials.assignee-dialog')
+    @endif
 
     @include('tasks._panel-drawer')
 
@@ -367,6 +387,116 @@
             function syncSelect(card) {
                 const select = card.querySelector('.board-move');
                 if (select) select.value = statusOf(card);
+            }
+
+            // Assigning: the card holds a button, and its picker is built only when
+            // opened, because who can be picked depends on the card's release.
+            const assigneeFilter = @json($filters['assignee_id']);
+
+            document.querySelector('.board-scroller').addEventListener('click', function (e) {
+                const button = e.target.closest('.board-assign');
+                if (button) openPicker(button);
+            });
+
+            // An accepted Claude suggestion arrives here (see aiAssignee in resources/js/ai.js).
+            document.querySelector('.board-scroller').addEventListener('ai-assigned', function (e) {
+                const button = e.target.querySelector('.board-assign');
+                if (button) applyAssignee(button, e.detail);
+            });
+
+            function openPicker(button) {
+                if (button.getAttribute('aria-busy') === 'true') return;
+                button.setAttribute('aria-busy', 'true');
+
+                fetch(button.dataset.url, { headers: { 'Accept': 'application/json' } }).then(function (r) {
+                    if (!r.ok) throw new Error(String(r.status));
+                    return r.json();
+                }).then(function (data) {
+                    if (button.isConnected) showPicker(button, data);
+                }).catch(function (error) {
+                    toast('error', error.message === '403'
+                        ? 'You can’t change this task.'
+                        : 'Couldn’t load the people. Please try again.');
+                }).finally(function () {
+                    button.removeAttribute('aria-busy');
+                });
+            }
+
+            function showPicker(button, data) {
+                const select = document.createElement('select');
+                select.className = 'board-assign-select';
+                select.dataset.ssKind = 'person';
+                select.setAttribute('aria-label', 'Assignee of “' + button.dataset.title + '”');
+                select.add(new Option('Unassigned', ''));
+                data.people.forEach((person) => select.add(new Option(person.name, person.id)));
+                select.value = data.assignee_id ?? '';
+
+                let saving = false;
+                let refocus = false;
+                const holdsFocus = () => select.parentElement?.contains(document.activeElement);
+                const dismiss = function () {
+                    refocus ||= holdsFocus();
+                    select.remove();
+                    button.hidden = false;
+                    if (refocus) button.focus({ preventScroll: true });
+                };
+
+                // The dropdown closes before it reports the change, so wait a tick to see if a save began.
+                select.addEventListener('ss:close', () => setTimeout(() => { if (!saving) dismiss(); }));
+                select.addEventListener('change', function () {
+                    saving = true;
+                    const assigneeId = select.value === '' ? null : Number(select.value);
+                    // Disabling it drops focus, so note now where focus should return.
+                    refocus = holdsFocus();
+                    select.disabled = true;
+                    saveAssignee(button, assigneeId, dismiss);
+                });
+
+                button.hidden = true;
+                button.after(select);
+                // The searchable-select observer enhances it first; a native select just shows.
+                setTimeout(() => select.dispatchEvent(new CustomEvent('ss:open')));
+            }
+
+            function saveAssignee(button, assigneeId, dismiss) {
+                fetch(button.dataset.assignUrl, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
+                    body: JSON.stringify({ assignee_id: assigneeId }),
+                }).then(function (r) {
+                    return r.json().catch(() => ({})).then((data) => ({ status: r.status, data }));
+                }).then(function ({ status, data }) {
+                    if (status === 422) throw new Error(data.errors?.assignee_id?.[0] ?? 'That person can’t be assigned here.');
+                    if (status === 403) throw new Error('You can’t change this task.');
+                    if (status < 200 || status >= 300) throw new Error('Couldn’t save the assignee. Please try again.');
+
+                    dismiss();
+                    applyAssignee(button, data);
+                }).catch(function (error) {
+                    dismiss();
+                    toast('error', error.message);
+                });
+            }
+
+            function applyAssignee(button, data) {
+                const said = data.assignee_name ? 'Assigned to ' + data.assignee_name : 'Unassigned';
+                const matches = assigneeFilter === null
+                    || (assigneeFilter === 'none' ? data.assignee_id === null : data.assignee_id === assigneeFilter);
+
+                const card = button.closest('.board-card');
+
+                if (data.visible && matches) {
+                    const hadFocus = document.activeElement === button;
+                    button.outerHTML = data.html;
+                    if (hadFocus) card.querySelector('.board-assign').focus({ preventScroll: true });
+                    toast('success', said + '.');
+                    return;
+                }
+
+                card.remove();
+                refresh();
+                @if ($canDelete) syncSelection(); @endif
+                toast('success', said + '. It no longer matches this view.');
             }
 
             function refresh() {

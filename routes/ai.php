@@ -31,6 +31,7 @@ Route::middleware('auth')->group(function () {
             Route::middleware('release-visible')->group(function () {
                 Route::post('releases/{release}/notes/draft', [ReleaseNotesController::class, 'draft'])->name('release-notes.draft'); // #1
                 Route::post('releases/{release}/catch-up', [AiAssistController::class, 'catchUpRelease'])->name('catch-up.release'); // #6
+                Route::post('releases/{release}/retrospective', [AiAssistController::class, 'retrospective'])->name('release-retro');
             });
 
             Route::post('meeting-notes/{meetingNote}/actions', [AiAssistController::class, 'meetingActions'])->name('meeting-actions'); // #2
@@ -40,6 +41,8 @@ Route::middleware('auth')->group(function () {
             Route::post('ask', [AiAssistController::class, 'ask'])->name('ask'); // #9
             Route::post('performance/evidence', [AiAssistController::class, 'scoreEvidence'])->middleware('lead')->name('performance.evidence'); // #10
             Route::post('tasksheet/feedback', [AiAssistController::class, 'feedbackDraft'])->middleware('lead')->name('tasksheet.feedback'); // #11
+            Route::post('tasksheet/draft', [AiAssistController::class, 'tasksheetDraft'])->name('tasksheet.draft');
+            Route::post('tasks/{task}/suggest-assignee', [AiAssistController::class, 'suggestAssignee'])->name('tasks.suggest-assignee');
         });
 
         // Writes of what Claude proposed (no model call).

@@ -486,6 +486,7 @@
                                 <label for="completion_notes" class="field-label">Notes<span class="field-optional">Optional</span></label>
                                 <textarea id="completion_notes" name="completion_notes" rows="4" class="field-textarea" aria-describedby="completion_notes-hint" placeholder="What shipped, known issues, follow-ups…"></textarea>
                                 <p id="completion_notes-hint" class="field-hint">Markdown is supported.</p>
+                                @include('ai.partials.release-retro', ['release' => $release])
                                 <div class="mt-3 flex items-center gap-2">
                                     <button class="btn-primary btn-sm">Confirm</button>
                                     <button type="button" @click="open = false" class="btn-ghost btn-sm">Cancel</button>

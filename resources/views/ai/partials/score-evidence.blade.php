@@ -13,7 +13,7 @@
                 Evidence from {{ $member->name }}’s record — it never suggests a score.
             </p>
             <x-ai-button x-show="!result" label="Show evidence" busy-label="Reading the record…"
-                         click="run({ team_id: {{ $team->id }}, user_id: {{ $member->id }}, cadence: @js($period['type']), date: @js($period['start']->toDateString()) })" />
+                         click="run({ team_id: {{ $team->id }}, user_id: {{ $member->id }}, cadence: {{ Js::from($period['type']) }}, date: {{ Js::from($period['start']->toDateString()) }} })" />
         </div>
         <template x-if="result">
             <div class="mt-3 space-y-3 text-sm">
