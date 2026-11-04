@@ -4,6 +4,9 @@
 
     // Requires $task (release.project, assignee, subtasks loaded; comments_count) and $statuses.
     // The release is optional; an unlinked card gets no chip and a neutral stripe.
+    // $canDelete (admins) adds the selection checkbox and the delete button.
+    $canDelete ??= false;
+    $subtaskCount = $task->subtasks->count();
     $progress = $task->subtaskProgress();
     $isDone = in_array($task->status, Task::DONE_STATUSES, true);
     $overdue = $task->due_date && ! $isDone && $task->due_date->lt(today());
@@ -14,7 +17,11 @@
     {{-- Project color stripe --}}
     <span class="absolute inset-y-0 left-0 w-1" style="background-color: {{ $projectColor }}" aria-hidden="true"></span>
 
-    <div class="flex items-center justify-between gap-2">
+    <div class="flex min-h-6 items-center gap-2">
+        @if ($canDelete)
+            <input type="checkbox" class="board-select" value="{{ $task->id }}" data-subtasks="{{ $subtaskCount }}"
+                   aria-label="Select “{{ $task->title }}”">
+        @endif
         {{-- Release chip only when the task is linked to one --}}
         @if ($task->release)
             <a href="{{ route('releases.show', $task->release) }}" draggable="false"
@@ -23,12 +30,25 @@
                 <span class="truncate">{{ $task->release->name }}</span>
             </a>
         @endif
-        <label for="move-{{ $task->id }}" class="sr-only">Move “{{ $task->title }}” to</label>
-        <select id="move-{{ $task->id }}" class="board-move ml-auto flex-none" draggable="false">
-            @foreach ($statuses as $value => $label)
-                <option value="{{ $value }}" @selected($task->status === $value)>{{ $label }}</option>
-            @endforeach
-        </select>
+        {{-- Over the chip until hovered, so a narrow column still shows the release. --}}
+        <div class="board-card-tools">
+            <label for="move-{{ $task->id }}" class="sr-only">Move “{{ $task->title }}” to</label>
+            <select id="move-{{ $task->id }}" class="board-move flex-none" draggable="false">
+                @foreach ($statuses as $value => $label)
+                    <option value="{{ $value }}" @selected($task->status === $value)>{{ $label }}</option>
+                @endforeach
+            </select>
+            @if ($canDelete)
+                <form method="POST" action="{{ route('board.tasks.destroy', $task) }}" class="board-delete-form flex-none"
+                      data-confirm-title="Delete this task?" data-confirm-verb="Delete task"
+                      data-confirm="“{{ Str::limit($task->title, 80) }}” will be permanently deleted, along with {{ $subtaskCount > 0 ? 'its '.$subtaskCount.' '.Str::plural('subtask', $subtaskCount).' and all comments' : 'its comments' }}. This can’t be undone.">
+                    @csrf @method('DELETE')
+                    <button class="board-delete" aria-label="Delete “{{ $task->title }}”" title="Delete task">
+                        <x-icon name="trash" variant="outline" class="h-3.5 w-3.5" />
+                    </button>
+                </form>
+            @endif
+        </div>
     </div>
 
     <a href="{{ route('tasks.show', $task) }}" draggable="false"

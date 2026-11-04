@@ -5,12 +5,14 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Concerns\ReadsTaskFilters;
 use App\Http\Requests\Api\V1\MoveTaskRequest;
 use App\Http\Requests\BoardTaskRequest;
+use App\Http\Requests\BulkDeleteTasksRequest;
 use App\Http\Resources\V1\TaskResource;
 use App\Models\Release;
 use App\Models\Task;
 use App\Services\BoardService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 /**
  * The kanban board.
@@ -98,5 +100,27 @@ class BoardController extends ApiController
             new TaskResource($task->fresh()->load(['release.project', 'team', 'assignee'])->loadCount('comments')),
             'Card moved.'
         );
+    }
+
+    /** Admins only. Its subtasks and comments go with it. */
+    public function destroy(Task $task): JsonResponse
+    {
+        $this->authorize('deleteFromBoard', $task);
+
+        return $this->deleted($this->board->deleteCards([$task]));
+    }
+
+    /** Admins only; all of the ids or none. The request checks the role, then every id. */
+    public function bulkDestroy(BulkDeleteTasksRequest $request): JsonResponse
+    {
+        return $this->deleted($this->board->deleteCards($request->tasks()));
+    }
+
+    /** @param  array{deleted_ids: array<int, int>, subtasks_deleted: int}  $result */
+    private function deleted(array $result): JsonResponse
+    {
+        $count = count($result['deleted_ids']);
+
+        return $this->ok($result, $count.' '.Str::plural('task', $count).' deleted.');
     }
 }

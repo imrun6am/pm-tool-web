@@ -47,6 +47,9 @@ Route::delete('comments/{comment}', [CommentController::class, 'destroy'])->name
 Route::get('board', [BoardController::class, 'index'])->name('board.index');
 Route::post('board/tasks', [BoardController::class, 'storeTask'])->name('board.tasks.store');
 Route::patch('board/tasks/{task}', [BoardController::class, 'move'])->name('board.move');
+// Admins only (TaskPolicy::deleteFromBoard)
+Route::delete('board/tasks/{task}', [BoardController::class, 'destroy'])->name('board.tasks.destroy');
+Route::post('board/tasks/bulk-delete', [BoardController::class, 'bulkDestroy'])->name('board.tasks.bulk-destroy');
 
 /*
  | Calendar events.

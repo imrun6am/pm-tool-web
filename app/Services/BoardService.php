@@ -18,6 +18,33 @@ use Illuminate\Support\Facades\DB;
  */
 class BoardService
 {
+    /** The most cards one bulk delete may take, to bound its transaction. */
+    public const MAX_BULK_DELETE = 1000;
+
+    /**
+     * Delete cards together: all of them or none. Each goes through Eloquent so
+     * the model's hook removes its subtasks and comments and every deleted task
+     * is written to the activity log.
+     *
+     * @param  iterable<int, Task>  $tasks
+     * @return array{deleted_ids: array<int, int>, subtasks_deleted: int}
+     */
+    public function deleteCards(iterable $tasks): array
+    {
+        return DB::transaction(function () use ($tasks) {
+            $deletedIds = [];
+            $subtasks = 0;
+
+            foreach ($tasks as $task) {
+                $subtasks += $task->subtasks()->count();
+                $task->delete();
+                $deletedIds[] = $task->id;
+            }
+
+            return ['deleted_ids' => $deletedIds, 'subtasks_deleted' => $subtasks];
+        });
+    }
+
     /**
      * The board's cards grouped into columns, keyed by status.
      *

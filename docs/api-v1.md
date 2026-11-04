@@ -298,6 +298,8 @@ serialized, so there is no public URL to leak.
 | `GET`             | `/board` — every status column, even when empty; `?release_id=&team_id=&assignee_id=` |
 | `POST`            | `/board/tasks` — `{ title, status, release_id?, team_id? }` |
 | `PATCH`           | `/board/tasks/{id}` — `{ status, ordered_ids[] }`, atomic |
+| `DELETE`          | `/board/tasks/{id}` — **admin only**; a top-level task, with its subtasks and comments. Returns `deleted_ids`, `subtasks_deleted`. 403 for other roles and on a subtask |
+| `POST`            | `/board/tasks/bulk-delete` — **admin only**; `{ ids[] }`, up to 1000 top-level task ids, all or nothing. Returns `deleted_ids`, `subtasks_deleted`. 403 for other roles whatever is sent; 422 on any bad id, with nothing deleted |
 | `GET`             | `/events` — `?year=&month=` or `?from=&to=`, `?show=all\|mine\|shared`; returns `events_by_date`. Others' private events are never listed |
 | `POST`            | `/events` — `visibility`: `shared` (default) or `private` (creator + attendees only) |
 | `GET/PUT/DELETE`  | `/events/{id}` — 403 on someone else's private event; **creator only** may edit; `DELETE` also by an admin on a shared event |
@@ -308,6 +310,11 @@ serialized, so there is no public URL to leak.
 | `GET/POST`        | `/quick-links` — returns `{ mine, shared }`              |
 | `PUT/DELETE`      | `/quick-links/{id}` — **author only**                    |
 | `POST`            | `/quick-links/{id}/pin` — toggles; **anyone who can see it** |
+
+**Deleting from the board.** To clear what a filtered board shows, read `GET /board` with the same
+filters and send those ids to `POST /board/tasks/bulk-delete`. There's no "delete everything
+matching" mode, so a task added after the read is never deleted by accident. `DELETE /tasks/{id}` is
+a separate, older route and isn't limited to admins.
 
 **Tasks without a release.** A release is optional, and `release_id` and `release` are `null`
 on an unlinked task.
@@ -645,6 +652,7 @@ it however suits the client; the web app shows a small toast.
 | Manage user accounts                |  ✅   | ✅  |    ✅     |    ✅     |    ❌     | ❌ |   ❌   |
 | Release **detail**                  |  ✅   | ✅  |    ✅     |    ✅     |    ✅     | ✅ |   ✅   |
 | Tasks, board, calendar, notes       |  ✅   | ✅  |    ✅     |    ✅     |    ✅     | ✅ |   ✅   |
+| Delete from the board (single, bulk) |  ✅   | ❌  |    ❌     |    ❌     |    ❌     | ❌ |   ❌   |
 | Upload release documents            |  ✅   | ✅  |    ✅     |    ✅     |    ✅     | ✅ |   ❌   |
 | Tasksheet — read / own row          |  ✅   | ✅  |    ✅     |    ✅     |    ✅     | ✅ |   ✅   |
 | Tasksheet **feedback**              |  ✅   | ✅  |    ✅     |    ✅     |    ❌     | ❌ |   ❌   |

@@ -29,70 +29,86 @@
     $counts = collect($statuses)->map(fn ($label, $status) => $columns[$status]->count());
     $total = $counts->sum();
     $donePct = $total > 0 ? (int) round(($counts['done'] ?? 0) / $total * 100) : 0;
+
+    $canDelete = $me->can('deleteFromBoard', \App\Models\Task::class);
+
+    // Names the active filters beside "select all", so its reach is plain.
+    $filterLabels = $canDelete ? array_values(array_filter([
+        $filters['release_id'] === 'none' ? 'No release' : ($release ? 'Release: '.$release->name : null),
+        $filters['team_id'] === 'none' ? 'No team' : (is_int($filters['team_id']) ? 'Team: '.($teams->firstWhere('id', $filters['team_id'])?->name ?? 'selected') : null),
+        $filters['assignee_id'] ? 'Assignee: '.($users->firstWhere('id', $filters['assignee_id'])?->name ?? 'selected') : null,
+    ])) : [];
+    $filterScope = implode(', ', $filterLabels);
+
+    // Columns share the width on lg so a laptop sees the whole board; narrower
+    // screens scroll sideways, with the next column peeking in.
+    $columnWidth = 'w-[17rem] lg:w-auto lg:min-w-[12.5rem] lg:flex-1 lg:basis-0';
 @endphp
 <x-app-layout full-height>
+    {{-- The title and filters share one row, so short laptop screens keep their height for the cards. --}}
     <x-slot name="header">
-        <x-page-header title="Board" description="Drag cards between columns, or use a card's Move menu, to change status."
-                       :breadcrumbs="$release ? [$release->name => route('releases.show', $release), 'Board' => null] : []" />
+        <x-page-header title="Board" class="!items-center"
+                       :breadcrumbs="$release ? [$release->name => route('releases.show', $release), 'Board' => null] : []">
+            <x-slot name="actions">
+                <x-filter-bar :action="route('board.index')" :active="$hasFilters">
+                    <label for="release_id" class="filter-label">Release</label>
+                    <select id="release_id" name="release_id" class="filter-select max-w-[14rem]">
+                        <option value="">All releases</option>
+                        <option value="none" @selected($filters['release_id'] === 'none')>No release</option>
+                        @foreach ($releases as $r)
+                            <option value="{{ $r->id }}" @selected($filters['release_id'] === $r->id)>{{ $r->name }}</option>
+                        @endforeach
+                    </select>
+
+                    @if ($teamChoice)
+                        <label for="team_id" class="filter-label">Team</label>
+                        <select id="team_id" name="team_id" class="filter-select max-w-[12rem]">
+                            <option value="">All teams</option>
+                            <option value="none" @selected($filters['team_id'] === 'none')>No team</option>
+                            @foreach ($teams as $tm)
+                                <option value="{{ $tm->id }}" @selected($filters['team_id'] === $tm->id)>{{ $tm->name }}</option>
+                            @endforeach
+                        </select>
+                    @endif
+
+                    <label for="assignee_id" class="filter-label">Assignee</label>
+                    <select id="assignee_id" name="assignee_id" class="filter-select max-w-[13rem]">
+                        <option value="">Anyone</option>
+                        @foreach ($users as $u)
+                            <option value="{{ $u->id }}" @selected($filters['assignee_id'] === $u->id)>{{ $u->name }}</option>
+                        @endforeach
+                    </select>
+
+                    <a href="{{ $mineUrl }}" role="button" aria-pressed="{{ $mine ? 'true' : 'false' }}" @keydown.space.prevent="$el.click()"
+                       @class([
+                           'inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-medium ring-1 ring-inset transition-colors',
+                           'bg-brand-600 text-white ring-brand-600 hover:bg-brand-700' => $mine,
+                           'bg-white text-slate-700 ring-slate-300 hover:bg-slate-50' => ! $mine,
+                       ])>
+                        <x-avatar :user="$me" size="xs" @class(['ring-1 ring-white/60' => $mine]) />
+                        My tasks
+                    </a>
+                </x-filter-bar>
+            </x-slot>
+        </x-page-header>
     </x-slot>
 
     {{-- full-height: on lg the board fills the viewport; columns scroll their own cards
          and the horizontal scrollbar stays in view. Phones keep normal page scroll. --}}
-    <div class="py-6 sm:py-8 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:pb-4">
-        <div class="app-container space-y-4 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
+    <div class="py-3 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:pb-2">
+        <div class="app-container-tight space-y-3 lg:flex lg:min-h-0 lg:flex-1 lg:flex-col">
 
-            {{-- Filters --}}
-            <x-filter-bar :action="route('board.index')" :active="$hasFilters" class="lg:flex-none">
-                <label for="release_id" class="filter-label">Release</label>
-                <select id="release_id" name="release_id" class="filter-select max-w-[14rem]">
-                    <option value="">All releases</option>
-                    <option value="none" @selected($filters['release_id'] === 'none')>No release</option>
-                    @foreach ($releases as $r)
-                        <option value="{{ $r->id }}" @selected($filters['release_id'] === $r->id)>{{ $r->name }}</option>
-                    @endforeach
-                </select>
-
-                @if ($teamChoice)
-                    <label for="team_id" class="filter-label">Team</label>
-                    <select id="team_id" name="team_id" class="filter-select max-w-[12rem]">
-                        <option value="">All teams</option>
-                        <option value="none" @selected($filters['team_id'] === 'none')>No team</option>
-                        @foreach ($teams as $tm)
-                            <option value="{{ $tm->id }}" @selected($filters['team_id'] === $tm->id)>{{ $tm->name }}</option>
-                        @endforeach
-                    </select>
-                @endif
-
-                <label for="assignee_id" class="filter-label">Assignee</label>
-                <select id="assignee_id" name="assignee_id" class="filter-select max-w-[13rem]">
-                    <option value="">Anyone</option>
-                    @foreach ($users as $u)
-                        <option value="{{ $u->id }}" @selected($filters['assignee_id'] === $u->id)>{{ $u->name }}</option>
-                    @endforeach
-                </select>
-
-                <a href="{{ $mineUrl }}" role="button" aria-pressed="{{ $mine ? 'true' : 'false' }}" @keydown.space.prevent="$el.click()"
-                   @class([
-                       'inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-medium ring-1 ring-inset transition-colors',
-                       'bg-brand-600 text-white ring-brand-600 hover:bg-brand-700' => $mine,
-                       'bg-white text-slate-700 ring-slate-300 hover:bg-slate-50' => ! $mine,
-                   ])>
-                    <x-avatar :user="$me" size="xs" @class(['ring-1 ring-white/60' => $mine]) />
-                    My tasks
-                </a>
-            </x-filter-bar>
-
-            {{-- Summary --}}
-            <div class="card flex flex-none flex-wrap items-center gap-x-6 gap-y-3 px-5 py-3.5">
-                <p class="flex items-baseline gap-1.5">
-                    <span class="board-total tabular text-xl font-semibold tracking-tight text-slate-900">{{ $total }}</span>
+            {{-- Summary and, for admins, bulk selection: one slim row --}}
+            <div class="card flex flex-none flex-wrap items-center gap-x-4 gap-y-1.5 px-3.5 py-2">
+                <p class="flex items-baseline gap-1">
+                    <span class="board-total tabular text-base font-semibold tracking-tight text-slate-900">{{ $total }}</span>
                     <span class="board-total-label text-sm text-slate-500">{{ Str::plural('task', $total) }}</span>
                 </p>
-                <p class="flex items-baseline gap-1.5">
-                    <span class="board-done-pct tabular text-xl font-semibold tracking-tight text-emerald-600">{{ $donePct }}%</span>
+                <p class="flex items-baseline gap-1">
+                    <span class="board-done-pct tabular text-base font-semibold tracking-tight text-emerald-600">{{ $donePct }}%</span>
                     <span class="text-sm text-slate-500">done</span>
                 </p>
-                <div class="flex min-w-[12rem] flex-1 items-center gap-3">
+                <div class="flex min-w-[6rem] flex-1 items-center">
                     <div class="board-progress flex h-2 flex-1 gap-0.5 overflow-hidden rounded-full bg-slate-100" role="img"
                          aria-label="Tasks by status">
                         @foreach ($statuses as $status => $label)
@@ -102,20 +118,42 @@
                         @endforeach
                     </div>
                 </div>
+
+                @if ($canDelete)
+                    <div id="board-bulk" class="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-sm" data-filter-scope="{{ $filterScope }}">
+                        <label class="flex cursor-pointer items-center gap-2 font-medium text-slate-700">
+                            <input type="checkbox" class="board-select board-select-all">
+                            <span>Select all <span class="board-shown-count tabular">0</span> shown</span>
+                        </label>
+                        <span class="text-xs text-slate-500">{{ $filterScope !== '' ? 'Only '.$filterScope : 'Whole board, no filters' }}</span>
+                        <span class="board-archive-note text-xs text-slate-500 [&[hidden]]:hidden" hidden></span>
+
+                        <div class="board-bulk-actions flex items-center gap-2 [&[hidden]]:hidden" hidden>
+                            <span class="board-selected-count tabular text-xs font-semibold text-slate-700" aria-live="polite"></span>
+                            <button type="button" class="board-clear btn-ghost btn-sm">Clear</button>
+                            <form id="board-bulk-form" method="POST" action="{{ route('board.tasks.bulk-destroy') }}" data-confirm="">
+                                @csrf
+                                <button class="board-bulk-delete btn-sm btn bg-rose-600 text-white shadow-sm hover:bg-rose-700 disabled:opacity-50">Delete</button>
+                            </form>
+                        </div>
+                    </div>
+                @endif
             </div>
 
             {{-- Columns --}}
-            <div class="board-scroller flex items-start gap-4 pb-3 lg:min-h-0 lg:flex-1 lg:items-stretch">
+            <div class="board-scroller flex items-start gap-3 pb-2 lg:min-h-0 lg:flex-1 lg:items-stretch">
                 @foreach ($statuses as $status => $label)
                     @php $cards = $columns[$status]; $t = $tone($status); $isArchive = $status === 'archive'; @endphp
-                    <section @class(['board-column lg:min-h-0', $t['col'], 'w-[19rem]' => ! $isArchive])
+                    <section @class(['board-column lg:min-h-0', $t['col'], $columnWidth => ! $isArchive])
                              data-status="{{ $status }}" aria-labelledby="col-{{ $status }}"
                              @if ($isArchive)
                                  x-data="{
                                      collapsed: (() => { try { return localStorage.getItem('rp.board.archive') !== 'open'; } catch (e) { return true; } })(),
-                                     toggle() { this.collapsed = ! this.collapsed; try { localStorage.setItem('rp.board.archive', this.collapsed ? 'closed' : 'open'); } catch (e) {} },
+                                     toggle() { this.collapsed = ! this.collapsed; try { localStorage.setItem('rp.board.archive', this.collapsed ? 'closed' : 'open'); } catch (e) {} this.$nextTick(() => this.$dispatch('board-archive-toggled')); },
                                  }"
-                                 :class="collapsed ? 'w-12 !px-1.5' : 'w-[19rem]'"
+                                 x-init="$nextTick(() => $dispatch('board-archive-toggled'))"
+                                 data-collapsed="true" :data-collapsed="collapsed ? 'true' : 'false'"
+                                 :class="collapsed ? 'w-12 !px-1.5' : '{{ $columnWidth }}'"
                              @endif>
 
                         @if ($isArchive)
@@ -142,7 +180,7 @@
 
                             <div id="col-list-{{ $status }}" class="board-list board-cards flex min-h-[72px] flex-1 flex-col gap-2.5">
                                 @foreach ($cards as $task)
-                                    @include('partials.board-card', ['task' => $task, 'statuses' => $statuses])
+                                    @include('partials.board-card', ['task' => $task, 'statuses' => $statuses, 'canDelete' => $canDelete])
                                 @endforeach
                                 <p class="board-empty flex flex-none flex-col items-center gap-1 rounded-xl border-2 border-dashed border-slate-300/70 px-3 py-6 text-center text-xs font-medium text-slate-400"
                                    @if ($cards->count()) style="display:none" @endif>
@@ -323,6 +361,115 @@
                     seg.style.width = (total ? (counts[seg.dataset.status] || 0) / total * 100 : 0) + '%';
                 });
             }
+
+            @if ($canDelete)
+                // Deleting: the checkboxes hold the selection, and everything else is
+                // worked out from them, so a restored Turbo snapshot just works.
+                const bulk = document.getElementById('board-bulk');
+                const bulkForm = document.getElementById('board-bulk-form');
+                const selectAll = bulk.querySelector('.board-select-all');
+                const bulkDelete = bulk.querySelector('.board-bulk-delete');
+                const scroller = document.querySelector('.board-scroller');
+                const count = (n, word) => n + ' ' + word + (n === 1 ? '' : 's');
+
+                const cardBoxes = () => [...scroller.querySelectorAll('.board-select')];
+                // Cards in a collapsed Archive column aren't "shown". This reads the column's
+                // state, not the layout: x-show only applies on the next frame.
+                const isShown = (box) => !box.closest('[data-collapsed="true"]');
+
+                function syncSelection() {
+                    const boxes = cardBoxes();
+                    // Collapsing Archive drops its cards from the selection: nothing hidden can be deleted.
+                    boxes.forEach((box) => { if (box.checked && !isShown(box)) box.checked = false; });
+
+                    const shown = boxes.filter(isShown);
+                    const selected = shown.filter((box) => box.checked);
+                    const left = boxes.length - shown.length;
+
+                    boxes.forEach((box) => box.closest('.board-card').classList.toggle('is-selected', box.checked));
+                    selectAll.disabled = shown.length === 0;
+                    selectAll.checked = shown.length > 0 && selected.length === shown.length;
+                    selectAll.indeterminate = selected.length > 0 && selected.length < shown.length;
+                    bulk.querySelector('.board-shown-count').textContent = shown.length;
+
+                    const note = bulk.querySelector('.board-archive-note');
+                    note.hidden = left === 0;
+                    note.textContent = left ? left + ' archived not included (column collapsed)' : '';
+
+                    bulk.querySelector('.board-bulk-actions').hidden = selected.length === 0;
+                    bulk.querySelector('.board-selected-count').textContent = selected.length + ' selected';
+                    bulkDelete.textContent = 'Delete ' + selected.length;
+
+                    // The confirm modal reads these attributes when the form submits.
+                    const subtasks = selected.reduce((sum, box) => sum + Number(box.dataset.subtasks), 0);
+                    const scope = bulk.dataset.filterScope;
+                    bulkForm.dataset.confirmTitle = 'Delete ' + count(selected.length, 'task') + '?';
+                    bulkForm.dataset.confirmVerb = 'Delete ' + count(selected.length, 'task');
+                    bulkForm.dataset.confirm = (subtasks
+                        ? 'This also deletes ' + count(subtasks, 'subtask') + ' and all comments. '
+                        : 'Their comments go with them. ')
+                        + (scope ? 'Selected from the board filtered to ' + scope + '. ' : '')
+                        + 'This can’t be undone.';
+                }
+
+                scroller.addEventListener('change', function (e) {
+                    if (e.target.classList.contains('board-select')) syncSelection();
+                });
+                scroller.addEventListener('board-archive-toggled', syncSelection);
+                selectAll.addEventListener('change', function () {
+                    cardBoxes().filter(isShown).forEach((box) => { box.checked = selectAll.checked; });
+                    syncSelection();
+                });
+                bulk.querySelector('.board-clear').addEventListener('click', function () {
+                    cardBoxes().forEach((box) => { box.checked = false; });
+                    syncSelection();
+                });
+
+                // The confirm modal stops the first submit and re-submits once confirmed.
+                // That second one reaches here unprevented; stopping it keeps Turbo out.
+                bulkForm.addEventListener('submit', function (e) {
+                    if (e.defaultPrevented) return;
+                    e.preventDefault();
+                    const ids = cardBoxes().filter((box) => box.checked).map((box) => Number(box.value));
+                    sendDelete(bulkForm.action, 'POST', { ids }, bulkDelete);
+                });
+                scroller.querySelectorAll('.board-delete-form').forEach(function (form) {
+                    form.addEventListener('submit', function (e) {
+                        if (e.defaultPrevented) return;
+                        e.preventDefault();
+                        sendDelete(form.action, 'DELETE', null, form.querySelector('button'));
+                    });
+                });
+
+                function sendDelete(url, method, body, button) {
+                    button.disabled = true;
+                    fetch(url, {
+                        method,
+                        headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
+                        body: body ? JSON.stringify(body) : undefined,
+                    }).then(function (r) {
+                        if (!r.ok) throw new Error(String(r.status));
+                        return r.json();
+                    }).then(function (data) {
+                        data.deleted_ids.forEach((id) => scroller.querySelector(`.board-card[data-task-id="${id}"]`)?.remove());
+                        refresh();
+                        syncSelection();
+                        toast('success', count(data.deleted_ids.length, 'task') + ' deleted'
+                            + (data.subtasks_deleted ? ', with ' + count(data.subtasks_deleted, 'subtask') : '') + '.');
+                    }).catch(function (error) {
+                        // Nothing was deleted: the server takes all of the ids or none.
+                        const stale = ['404', '422'].includes(error.message);
+                        const denied = error.message === '403';
+                        toast('error', stale ? 'Some of these tasks are no longer on the board. Reload it and try again.'
+                            : denied ? 'You don’t have permission to delete these tasks.'
+                            : 'Couldn’t delete. Please try again.');
+                    }).finally(function () {
+                        button.disabled = false;
+                    });
+                }
+
+                syncSelection();
+            @endif
         })();
     </script>
 </x-app-layout>

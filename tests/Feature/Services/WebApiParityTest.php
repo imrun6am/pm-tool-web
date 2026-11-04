@@ -236,6 +236,37 @@ class WebApiParityTest extends TestCase
         );
     }
 
+    public function test_a_board_bulk_delete_behaves_alike_on_both_surfaces(): void
+    {
+        $makeCard = function (string $title) {
+            $card = Task::create(['title' => $title, 'status' => 'todo', 'position' => 0]);
+            Task::create(['parent_id' => $card->id, 'title' => $title.' sub', 'status' => 'todo', 'position' => 0]);
+
+            return $card;
+        };
+        $webCard = $makeCard('Web');
+        $apiCard = $makeCard('Api');
+        $kept = $makeCard('Kept');
+
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+
+        $web = $this->actingAs($admin)
+            ->postJson(route('board.tasks.bulk-destroy'), ['ids' => [$webCard->id]])
+            ->assertOk()->json();
+
+        $this->app['auth']->forgetGuards();
+        Sanctum::actingAs($admin);
+        $api = $this->postJson('/api/v1/board/tasks/bulk-delete', ['ids' => [$apiCard->id]])
+            ->assertOk()->json('data');
+
+        $this->assertSame([$webCard->id], $web['deleted_ids']);
+        $this->assertSame([$apiCard->id], $api['deleted_ids']);
+        $this->assertSame($web['subtasks_deleted'], $api['subtasks_deleted']);
+        $this->assertSame(1, $api['subtasks_deleted']);
+        $this->assertSame(['Kept', 'Kept sub'], Task::orderBy('id')->pluck('title')->all());
+        $this->assertSame($kept->id, Task::whereNull('parent_id')->sole()->id);
+    }
+
     public function test_the_activity_roll_ups_agree_on_both_surfaces(): void
     {
         $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);

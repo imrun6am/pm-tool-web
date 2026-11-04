@@ -62,14 +62,15 @@
                         'lg:flex-none' => $fullHeight,
                         'sticky top-16 z-30 shadow-sm' => $stickyHeader,
                     ])>
-                        <div class="app-container py-4 sm:py-5">
+                        {{-- A full-height page keeps its height for the content below. --}}
+                        <div @class(['app-container-tight py-2.5 sm:py-3' => $fullHeight, 'app-container py-4 sm:py-5' => ! $fullHeight])>
                             {{ $header }}
                         </div>
                     </header>
                 @endisset
 
                 {{-- Inline validation summary (page-scoped, persists while fixing) --}}
-                <div @class(['app-container', 'lg:flex-none' => $fullHeight])>
+                <div @class(['app-container' => ! $fullHeight, 'app-container-tight lg:flex-none' => $fullHeight])>
                     @include('layouts.flash')
                 </div>
 

@@ -44,6 +44,10 @@
     .app-container {
         @apply mx-auto w-full px-4 sm:px-6 lg:px-8 xl:px-10;
     }
+    /* For a full-height page: the width goes to its content. */
+    .app-container-tight {
+        @apply mx-auto w-full px-4 sm:px-6;
+    }
 
     /* Surfaces */
     .card {
@@ -346,10 +350,29 @@
     .board-card.is-dragging {
         @apply rotate-1 opacity-50 shadow-lg;
     }
+    .board-card.is-selected {
+        @apply border-brand-400 bg-brand-50/50 ring-1 ring-brand-400;
+    }
+    .board-select {
+        @apply h-3.5 w-3.5 flex-none cursor-pointer rounded border-slate-300 text-brand-600 focus:ring-brand-500 disabled:cursor-not-allowed disabled:opacity-50;
+    }
+    .board-delete {
+        @apply flex h-6 w-6 items-center justify-center rounded-md text-slate-400 transition
+        hover:bg-rose-50 hover:text-rose-600 focus:ring-2 focus:ring-rose-500
+        disabled:cursor-not-allowed disabled:opacity-50;
+    }
+    /* A card's Move menu and delete button. With a pointer they float over the
+       release chip on hover, so they take no room from it; on touch they stay
+       in the row, always visible. */
+    .board-card-tools {
+        @apply ml-auto flex flex-none items-center gap-1 transition-opacity
+        [@media(hover:hover)]:absolute [@media(hover:hover)]:right-3 [@media(hover:hover)]:top-3
+        [@media(hover:hover)]:rounded-md [@media(hover:hover)]:bg-white [@media(hover:hover)]:opacity-0
+        [@media(hover:hover)]:focus-within:opacity-100 [@media(hover:hover)]:group-hover:opacity-100;
+    }
     .board-move {
         @apply h-6 cursor-pointer rounded-md border-0 bg-slate-100 py-0 pl-2 pr-6 text-[11px] font-medium text-slate-600
-        opacity-0 transition-opacity focus:opacity-100 focus:ring-2 focus:ring-brand-500 group-hover:opacity-100
-        [@media(hover:none)]:opacity-100;
+        focus:ring-2 focus:ring-brand-500;
         background-position: right 0.25rem center;
         background-size: 1rem;
     }

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Http\Controllers\Concerns\ReadsTaskFilters;
 use App\Http\Requests\BoardTaskRequest;
+use App\Http\Requests\BulkDeleteTasksRequest;
 use App\Models\Release;
 use App\Models\Task;
 use App\Models\Team;
@@ -75,5 +76,19 @@ class BoardController extends Controller
         $this->board->move($task, $data['status'], $data['ordered_ids'] ?? [], $request->user());
 
         return response()->json(['ok' => true]);
+    }
+
+    /** Admins only. Answers JSON for the board's script, which updates in place. */
+    public function destroy(Task $task): JsonResponse
+    {
+        $this->authorize('deleteFromBoard', $task);
+
+        return response()->json(['ok' => true] + $this->board->deleteCards([$task]));
+    }
+
+    /** Admins only; the request checks the role, then every id. */
+    public function bulkDestroy(BulkDeleteTasksRequest $request): JsonResponse
+    {
+        return response()->json(['ok' => true] + $this->board->deleteCards($request->tasks()));
     }
 }

@@ -8,7 +8,8 @@ use App\Models\User;
 
 /**
  * Tasks are open to every signed-in user, except that developers and QA are
- * kept to their own teams' work (see Task::scopeVisibleTo).
+ * kept to their own teams' work (see Task::scopeVisibleTo), and only admins
+ * may delete.
  */
 class TaskPolicy
 {
@@ -23,9 +24,20 @@ class TaskPolicy
         return $task->isVisibleTo($user);
     }
 
+    /** Deleting a task or subtask, from any page or the API: admins only. */
     public function delete(User $user, Task $task): bool
     {
-        return $task->isVisibleTo($user);
+        return $user->isAdmin() && $task->isVisibleTo($user);
+    }
+
+    /**
+     * Deleting cards from the board, singly or in bulk. Without a task this
+     * answers whether the user may use the feature at all; with one, whether
+     * this task can go. Only top-level tasks are cards.
+     */
+    public function deleteFromBoard(User $user, ?Task $task = null): bool
+    {
+        return $task ? ! $task->isSubtask() && $this->delete($user, $task) : $user->isAdmin();
     }
 
     /**
