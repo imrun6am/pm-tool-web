@@ -1,5 +1,5 @@
 {{--
-    Claude on the task page: task writer (#5: description, acceptance
+    AI on the task page: task writer (#5: description, acceptance
     criteria, subtasks, possible duplicates), assignee suggestions and
     comment catch-up (#6).
     The writer fills the page's description field (#task-description); the
@@ -23,8 +23,8 @@
         <div class="space-y-3 px-5 py-4 text-sm">
             <template x-if="!result">
                 <div class="space-y-2">
-                    <p class="text-slate-500">Claude drafts a clear description with acceptance criteria{{ $task->isSubtask() ? '' : ', suggests subtasks' }} and checks for duplicates.</p>
-                    <x-ai-button label="Draft with Claude" busy-label="Writing…"
+                    <p class="text-slate-500">AI drafts a clear description with acceptance criteria{{ $task->isSubtask() ? '' : ', suggests subtasks' }} and checks for duplicates.</p>
+                    <x-ai-button label="Draft with AI" busy-label="Writing…"
                                  click="run({ title: {{ Js::from($task->title) }}, description: document.getElementById('task-description')?.value ?? '', task_id: {{ $task->id }} })" />
                 </div>
             </template>
@@ -75,7 +75,7 @@
             <h3 id="ai-assignee-{{ $task->id }}" class="text-sm font-semibold text-slate-700">Assignee</h3>
         </div>
         <div class="space-y-2 px-5 py-4 text-sm">
-            <p class="text-slate-500">Claude suggests who could take this task, from similar past work, open load and upcoming leave.</p>
+            <p class="text-slate-500">AI suggests who could take this task, from similar past work, open load and upcoming leave.</p>
             <x-ai-button label="Suggest someone" busy="false"
                          click="$dispatch('ai-suggest-assignee', { url: {{ Js::from(route('ai.tasks.suggest-assignee', $task)) }}, assignUrl: {{ Js::from(route('board.tasks.assign', $task)) }}, title: {{ Js::from($task->title) }}, trigger: $el })" />
         </div>

@@ -1,7 +1,7 @@
 <x-app-layout>
     <x-slot name="header">
         <x-page-header title="KPI reports"
-                       description="Per-member KPI review built from the tasksheet. Claude counts tasks and drafts the review notes; generation runs in the background, one member at a time." />
+                       description="Per-member KPI review built from the tasksheet. AI counts tasks and drafts the review notes; generation runs in the background, one member at a time." />
     </x-slot>
 
     <div class="py-6 sm:py-8">
@@ -150,7 +150,7 @@
                 @endif
             </x-poll-region>
             <p class="text-xs text-slate-400">
-                Columns marked “draft” are written by Claude and must be reviewed by the Team Lead before use.
+                Columns marked “draft” are written by AI and must be reviewed by the Team Lead before use.
                 The queue worker must be running (<code class="font-mono">php artisan queue:work</code>).
             </p>
         </div>

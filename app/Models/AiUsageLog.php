@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\MassPrunable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-/** One Claude call made through AiGateway: who, which feature, tokens, outcome. */
+/** One AI call made through AiGateway: who, which feature, tokens, outcome. */
 class AiUsageLog extends Model
 {
     use MassPrunable;

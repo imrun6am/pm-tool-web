@@ -18,7 +18,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\Validation\Rule;
 
 /**
- * Background Claude results: request one, poll its status, and fetch its
+ * Background AI results: request one, poll its status, and fetch its
  * rendered card once ready. The partials in resources/views/ai/ drive these.
  */
 class AiInsightController extends Controller

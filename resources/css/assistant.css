@@ -1,0 +1,433 @@
+/* The assistant's popup. Loads with resources/js/assistant.js, so pages don't
+   carry it until someone opens the assistant. Colours come from the app's theme:
+   deep brand ink for the frame, violet only for the AI's own marks (the spark,
+   citations), and emerald for a change that has become real. */
+
+.assistant-panel {
+    position: fixed;
+    right: max(1rem, env(safe-area-inset-right));
+    bottom: 5rem;
+    z-index: 40;
+    display: flex;
+    flex-direction: column;
+    width: 26rem;
+    height: min(40rem, calc(100dvh - 7rem));
+    overflow: hidden;
+    border-radius: 1.25rem;
+    background: theme('colors.slate.50');
+    box-shadow: 0 24px 60px -16px rgb(12 36 82 / 0.45), 0 0 0 1px rgb(12 36 82 / 0.1);
+    transform-origin: bottom right;
+    view-transition-name: assistant-panel;
+}
+.assistant-enter {
+    animation: assistant-in 180ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.assistant-leave {
+    animation: assistant-in 110ms ease-in reverse both;
+}
+@keyframes assistant-in {
+    from { opacity: 0; transform: translateY(8px) scale(0.97); }
+}
+
+.assistant-header {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 0.625rem;
+    padding: 0.75rem 0.625rem 0.75rem 1rem;
+    background: theme('colors.brand.950');
+}
+.assistant-icon-button {
+    display: grid;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 0.625rem;
+    color: theme('colors.brand.200');
+    transition: background-color 120ms ease-out, color 120ms ease-out;
+}
+.assistant-icon-button:hover {
+    color: #fff;
+    background: rgb(255 255 255 / 0.1);
+}
+.assistant-icon-button:focus-visible {
+    outline: 2px solid theme('colors.brand.300');
+    outline-offset: -2px;
+    box-shadow: none;
+}
+
+.assistant-log {
+    display: flex;
+    flex: 1 1 0%;
+    flex-direction: column;
+    gap: 0.875rem;
+    min-height: 0;
+    padding: 1rem;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    scrollbar-width: thin;
+    scrollbar-color: theme('colors.slate.300') transparent;
+}
+
+.assistant-empty {
+    margin-block: auto;
+}
+.assistant-greeting {
+    font-size: 1.25rem;
+    font-weight: 600;
+    line-height: 1.25;
+    letter-spacing: -0.015em;
+    color: theme('colors.brand.950');
+}
+.assistant-suggestion {
+    display: flex;
+    align-items: center;
+    gap: 0.625rem;
+    width: 100%;
+    min-height: 2.5rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid theme('colors.slate.200');
+    border-radius: 0.75rem;
+    font-size: 0.875rem;
+    text-align: left;
+    color: theme('colors.slate.700');
+    background: #fff;
+    transition: border-color 120ms ease-out, color 120ms ease-out, background-color 120ms ease-out;
+}
+.assistant-suggestion:hover {
+    border-color: theme('colors.brand.300');
+    color: theme('colors.brand.800');
+    background: theme('colors.brand.50');
+}
+
+.assistant-you {
+    max-width: 85%;
+    padding: 0.5rem 0.75rem;
+    border-radius: 1rem 1rem 0.25rem 1rem;
+    overflow-wrap: anywhere;
+    white-space: pre-line;
+    font-size: 0.875rem;
+    line-height: 1.45;
+    color: #fff;
+    background: theme('colors.brand.600');
+}
+
+/* Answers sit on the surface, like a console, not in a bubble. */
+.assistant-answer {
+    overflow-wrap: anywhere;
+    font-size: 0.875rem;
+    line-height: 1.55;
+    color: theme('colors.slate.800');
+}
+.assistant-answer > * + * {
+    margin-top: 0.5rem;
+}
+.assistant-answer ul {
+    padding-left: 1.125rem;
+    list-style: disc;
+}
+.assistant-answer li + li {
+    margin-top: 0.25rem;
+}
+.assistant-answer strong {
+    font-weight: 600;
+    color: theme('colors.slate.900');
+}
+.assistant-answer .ai-ref {
+    padding: 0.0625rem 0.25rem;
+    border-radius: 0.25rem;
+    font-family: theme('fontFamily.mono');
+    font-size: 0.6875rem;
+    font-weight: 500;
+    color: theme('colors.violet.700');
+    background: theme('colors.violet.50');
+}
+.assistant-answer .ai-ref:hover {
+    background: theme('colors.violet.100');
+}
+
+.assistant-status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.8125rem;
+    color: theme('colors.violet.700');
+}
+.assistant-status-spark {
+    width: 0.875rem;
+    height: 0.875rem;
+    animation: assistant-twinkle 1.2s ease-in-out infinite;
+}
+@keyframes assistant-twinkle {
+    50% { opacity: 0.45; transform: rotate(45deg) scale(0.8); }
+}
+
+.assistant-error {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.5rem;
+    padding: 0.625rem 0.75rem;
+    border-radius: 0.75rem;
+    font-size: 0.8125rem;
+    color: theme('colors.rose.800');
+    background: theme('colors.rose.50');
+}
+
+/* ---- The draft that becomes real ------------------------------------------
+   A proposal is drawn as the record itself in a dashed outline. Confirming traces
+   the outline solid, once round, and the card settles. */
+@property --assistant-trace {
+    syntax: '<angle>';
+    inherits: false;
+    initial-value: 0deg;
+}
+.assistant-draft {
+    position: relative;
+    padding: 0.75rem;
+    border: 1.5px dashed theme('colors.brand.300');
+    border-radius: 0.875rem;
+    background: rgb(238 245 255 / 0.65);
+    transition: background-color 300ms ease-out, border-color 300ms ease-out, opacity 200ms ease-out;
+}
+.assistant-draft-line {
+    position: absolute;
+    inset: -1.5px;
+    border: 1.5px solid theme('colors.emerald.500');
+    border-radius: inherit;
+    opacity: 0;
+    pointer-events: none;
+}
+.assistant-draft.is-done {
+    border-color: transparent;
+    background: #fff;
+    animation: assistant-settle 420ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+.assistant-draft.is-done .assistant-draft-line {
+    opacity: 1;
+    -webkit-mask: conic-gradient(#000 var(--assistant-trace), transparent 0);
+    mask: conic-gradient(#000 var(--assistant-trace), transparent 0);
+    animation: assistant-trace 520ms cubic-bezier(0.45, 0, 0.2, 1) both;
+}
+@keyframes assistant-trace {
+    from { --assistant-trace: 0deg; }
+    to { --assistant-trace: 360deg; }
+}
+@keyframes assistant-settle {
+    0% { transform: scale(1); }
+    40% { transform: scale(0.985); }
+    100% { transform: scale(1); }
+}
+.assistant-draft.is-running {
+    opacity: 0.75;
+}
+.assistant-draft.is-cancelled,
+.assistant-draft.is-expired {
+    border-color: theme('colors.slate.300');
+    background: transparent;
+    opacity: 0.7;
+}
+.assistant-draft.is-failed {
+    border-color: theme('colors.rose.300');
+    background: rgb(255 241 242 / 0.6);
+}
+.assistant-draft-title {
+    overflow-wrap: anywhere;
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.35;
+    color: theme('colors.slate.900');
+}
+.assistant-draft-body {
+    margin-top: 0.5rem;
+    padding-left: 0.625rem;
+    border-left: 2px solid theme('colors.slate.200');
+    overflow-wrap: anywhere;
+    white-space: pre-line;
+    font-size: 0.8125rem;
+    line-height: 1.5;
+    color: theme('colors.slate.600');
+}
+.assistant-draft-result {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    margin-top: 0.625rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: theme('colors.emerald.700');
+}
+
+/* A calendar leaf. */
+.assistant-tile {
+    display: flex;
+    flex: none;
+    flex-direction: column;
+    align-items: center;
+    width: 3.25rem;
+    overflow: hidden;
+    border: 1px solid theme('colors.slate.200');
+    border-radius: 0.625rem;
+    font-variant-numeric: tabular-nums;
+    background: #fff;
+}
+.assistant-tile-month {
+    width: 100%;
+    padding-block: 0.0625rem;
+    font-size: 0.625rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-align: center;
+    text-transform: uppercase;
+    color: #fff;
+    background: theme('colors.brand.600');
+}
+.assistant-tile-day {
+    padding-top: 0.125rem;
+    font-size: 1.375rem;
+    font-weight: 700;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+    color: theme('colors.brand.950');
+}
+.assistant-tile-weekday {
+    padding-bottom: 0.1875rem;
+    font-size: 0.625rem;
+    font-weight: 500;
+    color: theme('colors.slate.500');
+}
+
+/* A board card: the priority shows as its edge, as on the board. */
+.assistant-card {
+    padding: 0.625rem 0.75rem;
+    border: 1px solid theme('colors.slate.200');
+    border-left-width: 3px;
+    border-radius: 0.5rem;
+    background: #fff;
+}
+.assistant-card[data-priority='urgent'] { border-left-color: theme('colors.rose.500'); }
+.assistant-card[data-priority='high'] { border-left-color: theme('colors.amber.500'); }
+.assistant-card[data-priority='medium'] { border-left-color: theme('colors.brand.500'); }
+.assistant-card[data-priority='low'] { border-left-color: theme('colors.slate.300'); }
+.assistant-chip {
+    display: inline-flex;
+    padding: 0.0625rem 0.4375rem;
+    border-radius: 9999px;
+    font-weight: 500;
+    color: theme('colors.slate.700');
+    background: theme('colors.slate.100');
+}
+.assistant-avatar {
+    display: grid;
+    place-items: center;
+    width: 1.375rem;
+    height: 1.375rem;
+    border-radius: 9999px;
+    font-size: 0.625rem;
+    font-weight: 600;
+    color: theme('colors.brand.800');
+    background: theme('colors.brand.100');
+}
+
+/* Lines on a sheet. */
+.assistant-sheet {
+    margin-top: 0.5rem;
+    border-top: 1px solid theme('colors.slate.200');
+    background: #fff;
+}
+.assistant-sheet li {
+    padding: 0.3125rem 0.5rem;
+    border-bottom: 1px solid theme('colors.slate.200');
+    overflow-wrap: anywhere;
+    font-size: 0.8125rem;
+    line-height: 1.4;
+    color: theme('colors.slate.800');
+}
+
+.assistant-composer {
+    display: flex;
+    flex: none;
+    align-items: flex-end;
+    gap: 0.5rem;
+    margin: 0 0.75rem;
+    padding: 0.375rem 0.375rem 0.375rem 0.75rem;
+    border: 1px solid theme('colors.slate.300');
+    border-radius: 0.875rem;
+    background: #fff;
+    transition: border-color 120ms ease-out, box-shadow 120ms ease-out;
+}
+.assistant-composer:focus-within {
+    border-color: theme('colors.brand.500');
+    box-shadow: 0 0 0 3px rgb(47 124 248 / 0.15);
+}
+.assistant-input {
+    flex: 1 1 0%;
+    max-height: 8rem;
+    min-height: 2.25rem;
+    padding: 0.4375rem 0;
+    border: 0;
+    resize: none;
+    font-size: 0.875rem;
+    line-height: 1.45;
+    background: transparent;
+}
+.assistant-input:focus {
+    outline: none;
+    box-shadow: none;
+}
+.assistant-send {
+    display: grid;
+    flex: none;
+    place-items: center;
+    width: 2.25rem;
+    height: 2.25rem;
+    border-radius: 0.625rem;
+    color: #fff;
+    background: theme('colors.brand.600');
+    transition: background-color 120ms ease-out;
+}
+.assistant-send:hover {
+    background: theme('colors.brand.700');
+}
+.assistant-send:disabled {
+    cursor: not-allowed;
+    color: theme('colors.slate.400');
+    background: theme('colors.slate.100');
+}
+.assistant-footnote {
+    flex: none;
+    padding: 0.375rem 0.75rem 0.5rem;
+    font-size: 0.6875rem;
+    text-align: center;
+    color: theme('colors.slate.500');
+}
+
+/* Phones: the whole screen. The input is 16px so iOS doesn't zoom. */
+@media (max-width: 639px) {
+    .assistant-panel {
+        inset: 0;
+        width: auto;
+        height: 100dvh;
+        border-radius: 0;
+        padding-bottom: env(safe-area-inset-bottom);
+    }
+    .assistant-input {
+        font-size: 1rem;
+    }
+    .assistant-launcher.is-open {
+        display: none;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .assistant-enter,
+    .assistant-leave,
+    .assistant-status-spark,
+    .assistant-draft.is-done,
+    .assistant-draft.is-done .assistant-draft-line {
+        animation: none;
+    }
+    .assistant-draft.is-done .assistant-draft-line {
+        -webkit-mask: none;
+        mask: none;
+    }
+}

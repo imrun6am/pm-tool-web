@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\ServiceProvider;
 
 /**
- * Wiring for the Claude features that go through AiGateway: the transport,
+ * Wiring for the AI features that go through AiGateway: the transport,
  * the gateway, their rate limit and their routes (routes/ai.php).
  */
 class AiServiceProvider extends ServiceProvider
@@ -35,7 +35,7 @@ class AiServiceProvider extends ServiceProvider
 
     public function boot(): void
     {
-        // Each click on a Claude button is a paid model call.
+        // Each click on an AI button is a paid model call.
         RateLimiter::for('ai', fn (Request $request) => Limit::perMinute(20)->by('user:'.$request->user()?->id));
 
         // Importing requests: each upload can mean several paid model calls.

@@ -40,7 +40,7 @@ class TriageImportRequest extends FormRequest
             }
 
             if (! app(TriageImportService::class)->available()) {
-                $validator->errors()->add('document', 'Claude isn’t available to read files right now. You can still send a request with the form.');
+                $validator->errors()->add('document', 'AI isn’t available to read files right now. You can still send a request with the form.');
             }
         }];
     }

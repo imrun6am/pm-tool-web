@@ -3,10 +3,12 @@
 use App\Http\Controllers\Api\V1\BoardController;
 use App\Http\Controllers\Api\V1\CapacityController;
 use App\Http\Controllers\Api\V1\CommentController;
+use App\Http\Controllers\Api\V1\DailyStandupController;
 use App\Http\Controllers\Api\V1\EventController;
 use App\Http\Controllers\Api\V1\LabelController;
 use App\Http\Controllers\Api\V1\MeetingNoteController;
 use App\Http\Controllers\Api\V1\NoteController;
+use App\Http\Controllers\Api\V1\PeopleReportController;
 use App\Http\Controllers\Api\V1\QuickLinkController;
 use App\Http\Controllers\Api\V1\RecurringTaskController;
 use App\Http\Controllers\Api\V1\ReleaseTemplateController;
@@ -92,6 +94,11 @@ Route::middleware('lead')->group(function () {
     Route::get('reports/time', [ReportController::class, 'time'])->name('reports.time');
     Route::get('reports/time/export', [ReportController::class, 'timeExport'])->name('reports.time.export');
 });
+Route::middleware('admin')->group(function () {
+    Route::get('reports/people', [PeopleReportController::class, 'index'])->name('reports.people');
+    Route::get('reports/people/export', [PeopleReportController::class, 'export'])->name('reports.people.export');
+    Route::get('reports/people/{user}', [PeopleReportController::class, 'show'])->whereNumber('user')->withTrashed()->name('reports.people.show');
+});
 Route::middleware('lead')->group(function () {
     Route::get('recurring-tasks', [RecurringTaskController::class, 'index'])->name('recurring-tasks.index');
     Route::post('recurring-tasks', [RecurringTaskController::class, 'store'])->name('recurring-tasks.store');
@@ -173,6 +180,7 @@ Route::post('meeting-notes', [MeetingNoteController::class, 'store'])->name('mee
 Route::get('meeting-notes/{meetingNote}', [MeetingNoteController::class, 'show'])->name('meeting-notes.show');
 Route::put('meeting-notes/{meetingNote}', [MeetingNoteController::class, 'update'])->name('meeting-notes.update');
 Route::delete('meeting-notes/{meetingNote}', [MeetingNoteController::class, 'destroy'])->name('meeting-notes.destroy');
+Route::post('standups', [DailyStandupController::class, 'store'])->name('standups.store');
 
 /*
  | Quick links.

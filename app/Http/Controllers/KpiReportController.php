@@ -16,7 +16,7 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 /**
  * Admin-only KPI review exports. Generation is queued (one job per member)
  * and only one report runs at a time, so a request never ties up a web
- * worker and the queue never runs several Claude-heavy reports at once.
+ * worker and the queue never runs several AI-heavy reports at once.
  */
 class KpiReportController extends Controller
 {

@@ -660,13 +660,13 @@ class RequestImportTest extends AiTestCase
     public function test_when_claude_is_unavailable_the_import_goes_and_the_form_stays(callable $makeUnavailable): void
     {
         Queue::fake();
-        $this->actingAs($this->dev)->get(route('triage.index'))->assertSee('Create requests with Claude')->assertSee('Upload a file');
+        $this->actingAs($this->dev)->get(route('triage.index'))->assertSee('Create requests with AI')->assertSee('Upload a file');
 
         $makeUnavailable();
 
         $this->actingAs($this->dev)->get(route('triage.index'))
             ->assertOk()
-            ->assertDontSee('Create requests with Claude')->assertDontSee('Upload a file')->assertDontSee('Paste text')
+            ->assertDontSee('Create requests with AI')->assertDontSee('Upload a file')->assertDontSee('Paste text')
             ->assertSee('Send a request');
 
         $this->actingAs($this->dev)->post(route('triage.imports.store'), ['document' => $this->pdf()])->assertSessionHasErrors('document');
@@ -759,11 +759,11 @@ class RequestImportTest extends AiTestCase
     {
         $this->claude->respond([], 'refusal');
         $this->actingAs($this->dev)->post(route('triage.imports.text'), ['text' => 'Fix it'])->assertRedirect();
-        $this->assertSame('Claude declined this request.', TriageImport::latest('id')->first()->error);
+        $this->assertSame('The AI declined this request.', TriageImport::latest('id')->first()->error);
 
         $this->claude->respond([], 'max_tokens');
         $this->actingAs($this->dev)->post(route('triage.imports.text'), ['text' => 'Fix it too'])->assertRedirect();
-        $this->assertSame('Claude’s answer was cut off. Try with less content.', TriageImport::latest('id')->first()->error);
+        $this->assertSame('The AI’s answer was cut off. Try with less content.', TriageImport::latest('id')->first()->error);
     }
 
     public function test_a_file_the_api_rejects_fails_at_once_with_a_helpful_message(): void

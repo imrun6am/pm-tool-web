@@ -9,7 +9,7 @@ use Illuminate\Validation\Validator;
 
 class EventImportRequest extends FormRequest
 {
-    /** Claude's per-image limit. */
+    /** The model's per-image limit. */
     private const MAX_IMAGE_KB = 5120;
 
     public function authorize(): bool
@@ -45,10 +45,10 @@ class EventImportRequest extends FormRequest
                 $validator->errors()->add('document', 'Images may not be larger than 5 MB.');
             }
 
-            // Only .ics files can be read without Claude.
+            // Only .ics files can be read without AI.
             if ($file && strtolower($file->getClientOriginalExtension()) !== 'ics'
                 && ! $validator->errors()->has('document') && ! app(AiFeatures::class)->available('calendar_import')) {
-                $validator->errors()->add('document', 'Claude isn’t available to read files right now. Only .ics calendar files can be imported.');
+                $validator->errors()->add('document', 'AI isn’t available to read files right now. Only .ics calendar files can be imported.');
             }
         }];
     }

@@ -20,7 +20,7 @@ class GenerateStandupDigests extends Command
 {
     protected $signature = 'ai:standup-digests {--date= : Day to summarize (Y-m-d); defaults to the previous weekday}';
 
-    protected $description = 'Queue Claude standup digests for teams with tasksheet entries on a day';
+    protected $description = 'Queue AI standup digests for teams with tasksheet entries on a day';
 
     public function handle(AiInsightService $insights): int
     {

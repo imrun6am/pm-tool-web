@@ -7,7 +7,7 @@ use App\Support\HtmlSanitizer;
 use RuntimeException;
 
 /**
- * "Enhance with Claude": rewrites a note or meeting minutes into clean,
+ * "Enhance with AI": rewrites a note or meeting minutes into clean,
  * organized text without changing what they say. One short request through
  * AiGateway with structured JSON output; the result is sanitized to the tags
  * the Trix editor understands.
@@ -66,7 +66,7 @@ class ClaudeTextEnhancer implements TextEnhancer
 
         $clean = HtmlSanitizer::clean(is_string($out['html'] ?? null) ? $out['html'] : '');
         if (HtmlSanitizer::isEmpty($clean)) {
-            throw new RuntimeException('Claude returned an unreadable response.');
+            throw new RuntimeException('The AI returned an unreadable response.');
         }
 
         return $clean;

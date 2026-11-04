@@ -27,9 +27,11 @@
         <x-dropdown align="left" width="w-60" contentClasses="py-1.5 bg-white">
             <x-slot name="trigger">
                 <button type="button" class="btn-primary sidebar-create w-full lg:sidebar-collapsed:px-0" aria-haspopup="menu"
+                        :aria-expanded="open.toString()" aria-expanded="false"
                         @mouseenter="showTip($el)" @mouseleave="hideTip()" @focus="showTip($el)" @blur="hideTip()">
-                    <x-icon name="plus" variant="outline" class="h-[18px] w-[18px]" />
+                    <span class="sidebar-create-icon"><x-icon name="plus" variant="outline" class="h-[18px] w-[18px]" /></span>
                     <span class="nav-label">Create</span>
+                    <x-icon name="chevron-down" class="sidebar-create-chevron" />
                 </button>
             </x-slot>
             <x-slot name="content">

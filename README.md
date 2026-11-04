@@ -34,11 +34,17 @@ proposal, specs, design, and task list this implementation follows.
   for 30 days, after which it's removed for good.
 - **Release progress** — each release shows a burn-up of total against finished tasks, and a forecast from
   the team's last 12 weeks: a likely date, a fairly safe date and the chance of the planned end.
-- **Release status updates** — leads post on track, at risk or off track with a note, drafted by Claude if
+- **AI assistant** — a chat button on every page. It answers from what you may see and drafts events, tasks, tasksheet plans, assignments, comments, time and notes as cards you confirm; leads also get team overviews and release status drafts. Nothing changes until you click, and every change passes the same form rules and policies as its page. Press `A` to open it.
+- **Release status updates** — leads post on track, at risk or off track with a note, drafted by AI if
   they like. Updates stay as history, and moving to at risk or off track tells the team's lead and org leads.
 - **Reports** — flow for leads and viewers (work in each status, tasks added against finished, days to
   finish, work taking longer than usual; no people-level figures), and time for leads (hours by release,
   team and person, estimate accuracy, CSV export; never feeds performance scores).
+- **People analytics** — for admins, one report per team and per person for any period: tasks finished,
+  on-time rate, cycle time, rework, open and overdue work, blocked time, time against estimates, tasksheet
+  habits, requests, meetings, ratings and KPI results, with CSV and PDF exports. A rate with too little data
+  behind it says so. There's no department field, so teams stand in for departments. Nothing is combined
+  into a score.
 - **Capacity** — for leads, each team member's available time per week against the estimated work
   due that week, allowing for weekends, off-days and leave.
 - **Board flow** — per-team limits on columns, an age marker on cards that have sat still, and
@@ -71,7 +77,7 @@ proposal, specs, design, and task list this implementation follows.
     (create, set role, reset password, deactivate).
   - **Performance** is lead-only. Admin, CTO, and Tech Lead oversee every team and own the
     competency catalog; a Team Lead sees only the teams they are the assigned lead of.
-  - **KPI review reports** are Admin only.
+  - **KPI review reports** and **People analytics** are Admin only.
   - **Developer and QA** have limited access: no projects, teams, releases list, or activity
     feed, and a personal member dashboard. They can still open a release's detail page and
     upload documents to it.
@@ -130,7 +136,9 @@ Scheduled work only runs if the server calls Laravel's scheduler every minute. A
 * * * * * cd /path/to/pm-tool && php artisan schedule:run >> /dev/null 2>&1
 ```
 
-This runs the due-date reminders and standup digests, and the daily cleanup. The cleanup removes
+This runs the due-date reminders, standup digests, each team's daily standup note, and the daily
+cleanup. To generate standup notes by hand, run `php artisan standup:generate`, with `--date=`,
+`--team=` or `--restore` if needed. The cleanup removes
 expired tasksheet exports, trashed tasks past 30 days, and logs older than `LOG_RETENTION_MONTHS`
 (3 by default):
 

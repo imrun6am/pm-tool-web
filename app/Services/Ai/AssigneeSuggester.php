@@ -11,7 +11,7 @@ use Illuminate\Support\Str;
 
 /**
  * Suggests who should take a task, from the people the caller says this viewer
- * may pick. Claude answers with ids from that closed list, and the numbers shown
+ * may pick. The AI answers with ids from that closed list, and the numbers shown
  * beside a suggestion come from the database. Scores, lead feedback and the type
  * of a leave are never sent. Nothing is assigned here: accepting goes through
  * the board's assign endpoint, which validates again.
@@ -95,7 +95,7 @@ class AssigneeSuggester
             ->all();
 
         if ($suggestions === []) {
-            throw new AiException('Claude couldn’t recommend anyone for this task. Please pick someone yourself.', false);
+            throw new AiException('The AI couldn’t recommend anyone for this task. Please pick someone yourself.', false);
         }
 
         return ['suggestions' => $suggestions];

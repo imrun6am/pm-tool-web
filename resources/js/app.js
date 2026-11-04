@@ -7,6 +7,8 @@ import './searchable-select';
 import './poll-region';
 import './ai';
 import './task-panel';
+import './people-table';
+import './assistant-launcher';
 
 window.Alpine = Alpine;
 
@@ -427,7 +429,7 @@ Alpine.data('settingsNav', (ids = []) => ({
 }));
 
 /*
- * "Enhance with Claude" (x-ai-enhance): sends a Trix editor's content to the
+ * "Enhance with AI" (x-ai-enhance): sends a Trix editor's content to the
  * server and swaps in the polished version. Nothing is saved; the swap is a
  * normal undoable edit (⌘Z) and the Undo link restores the exact original.
  */
@@ -497,7 +499,7 @@ Alpine.data('aiEnhance', ({ input, kind, url, titleField = null, typeField = nul
 
             el.setAttribute('contenteditable', 'true');
             this.previous = body;
-            el.editor.recordUndoEntry('Enhance with Claude');
+            el.editor.recordUndoEntry('Enhance with AI');
             el.editor.setSelectedRange([0, el.editor.getDocument().getLength()]);
             el.editor.insertHTML(data.html);
             this.done = true;

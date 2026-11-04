@@ -7,7 +7,7 @@ use App\Services\Kpi\MissingApiKeyException;
 use RuntimeException;
 
 /**
- * Asks Claude to split a member's morning plan into individual board tasks.
+ * Asks the AI to split a member's morning plan into individual board tasks.
  *
  * One short request through AiGateway with structured JSON output. The plan is
  * passed as data inside tags; the system prompt says what to do with it.
@@ -53,7 +53,7 @@ class ClaudePlanTaskExtractor implements PlanTaskExtractor
         // Through AiGateway: switchable, refusal-safe, and logged on the AI usage page.
         $out = $this->ai->json('plan_to_board', self::SYSTEM, $prompt, self::schema(), auth()->user(), timeout: 60);
         if (! isset($out['tasks']) || ! is_array($out['tasks'])) {
-            throw new RuntimeException('Claude returned an unreadable response.');
+            throw new RuntimeException('The AI returned an unreadable response.');
         }
 
         return [

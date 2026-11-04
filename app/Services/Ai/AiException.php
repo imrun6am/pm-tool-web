@@ -5,7 +5,7 @@ namespace App\Services\Ai;
 use RuntimeException;
 
 /**
- * A Claude call that could not produce a usable answer. The message is safe to
+ * An AI call that could not produce a usable answer. The message is safe to
  * show the user; `retryable` says whether trying again might help.
  */
 class AiException extends RuntimeException
@@ -22,6 +22,6 @@ class AiException extends RuntimeException
 
     public static function notConfigured(): self
     {
-        return new self('Claude isn’t configured (ANTHROPIC_API_KEY).', false);
+        return new self('AI isn’t configured (ANTHROPIC_API_KEY).', false);
     }
 }

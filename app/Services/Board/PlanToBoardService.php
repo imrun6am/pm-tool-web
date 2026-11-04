@@ -13,14 +13,14 @@ use Illuminate\Support\Facades\DB;
 /**
  * Tasksheet "Add to board": turns a row's morning plan into To Do cards on
  * the board, assigned to the row's member, in the chosen release or in none.
- * Work the member still has open there (matched by meaning through Claude and
+ * Work the member still has open there (matched by meaning through the AI and
  * by exact title here) or repeated within the batch is skipped, so editing the
  * plan and pressing again only adds new items. Done and archived tasks don't
  * count: the same work can come round again.
  */
 class PlanToBoardService
 {
-    /** How many of the member's existing titles are shown to Claude for dedupe. */
+    /** How many of the member's existing titles are shown to the AI for dedupe. */
     private const EXISTING_LIMIT = 200;
 
     public function __construct(
@@ -43,7 +43,7 @@ class PlanToBoardService
             ->limit(self::EXISTING_LIMIT)
             ->pluck('title');
 
-        // Claude leaves out plan items an existing task already covers, even when
+        // The AI leaves out plan items an existing task already covers, even when
         // worded differently; the exact-title check below is a safety net.
         $result = $this->extractor->extract(
             self::plainText((string) $entry->plan),

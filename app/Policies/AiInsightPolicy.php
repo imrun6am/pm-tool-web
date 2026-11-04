@@ -10,7 +10,7 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * Who may read and who may (re)generate each kind of background Claude result.
+ * Who may read and who may (re)generate each kind of background AI result.
  *
  * - Release risk brief: a planning surface, so every full-access role reads
  *   it; generating it (a paid call) is for those who plan releases.

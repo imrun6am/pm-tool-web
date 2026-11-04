@@ -11,7 +11,7 @@ use Illuminate\Support\Collection;
  * Task writer: turns a one-line title into a description, acceptance
  * criteria and suggested subtasks, and flags open tasks that may already
  * cover the same work. Duplicate candidates are found here (keyword match
- * among tasks the user may see) and Claude only picks among them by id, so
+ * among tasks the user may see) and the AI only picks among them by id, so
  * it can never point at a task the user cannot open.
  */
 class TaskWriter

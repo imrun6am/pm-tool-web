@@ -15,6 +15,17 @@ class Metric
     }
 
     /**
+     * A figure with how much data stands behind it. Below the minimum it isn't
+     * fit to quote: callers say so rather than present it as a score.
+     *
+     * @return array{value: int|float|null, sample: int, enough: bool}
+     */
+    public static function measure(int|float|null $value, int $sample, int $minimum): array
+    {
+        return ['value' => $value, 'sample' => $sample, 'enough' => $value !== null && $sample >= $minimum];
+    }
+
+    /**
      * A value beside its comparison. `change` is null when either side is.
      *
      * @return array{current: int|float|null, previous: int|float|null, change: int|float|null}

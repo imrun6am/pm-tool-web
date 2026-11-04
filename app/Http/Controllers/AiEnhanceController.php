@@ -11,7 +11,7 @@ use Illuminate\Validation\Rule;
 use Throwable;
 
 /**
- * "Enhance with Claude" for the note and meeting-note editors. Returns the
+ * "Enhance with AI" for the note and meeting-note editors. Returns the
  * polished HTML for the editor to show; nothing is saved here.
  */
 class AiEnhanceController extends Controller
@@ -35,11 +35,11 @@ class AiEnhanceController extends Controller
                 'type' => $data['type'] ?? null,
             ]);
         } catch (MissingApiKeyException) {
-            return response()->json(['message' => 'Claude isn’t configured (ANTHROPIC_API_KEY). Your text is unchanged.'], 503);
+            return response()->json(['message' => 'AI isn’t configured (ANTHROPIC_API_KEY). Your text is unchanged.'], 503);
         } catch (Throwable $e) {
             report($e);
 
-            return response()->json(['message' => 'Claude couldn’t enhance this right now. Your text is unchanged — please try again.'], 503);
+            return response()->json(['message' => 'The AI couldn’t enhance this right now. Your text is unchanged — please try again.'], 503);
         }
 
         return response()->json(['html' => $html]);

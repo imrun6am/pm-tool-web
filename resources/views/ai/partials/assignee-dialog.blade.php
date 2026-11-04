@@ -14,7 +14,7 @@
                 </div>
                 <p class="mt-1 line-clamp-2 text-xs text-slate-500" x-text="title"></p>
 
-                <p x-show="busy" class="mt-4 text-sm text-slate-500" role="status">Claude is looking at recent work and current load…</p>
+                <p x-show="busy" class="mt-4 text-sm text-slate-500" role="status">AI is looking at recent work and current load…</p>
 
                 <ul x-show="suggestions" class="mt-4 space-y-2">
                     <template x-for="person in suggestions ?? []" :key="person.id">

@@ -34,6 +34,9 @@ class MeetingNoteService
     /** The attributes a meeting-note write accepts. */
     private const WRITABLE = ['title', 'type', 'meeting_date', 'release_id', 'event_id', 'body', 'visibility'];
 
+    /** All that may change on a generated standup: its type and date identify it, and a release would show it to other teams. */
+    private const STANDUP_WRITABLE = ['title', 'body'];
+
     /**
      * Notes the viewer may see, narrowed by any combination of filters.
      *
@@ -56,7 +59,7 @@ class MeetingNoteService
         $release = $filters['release'] ?? null;
 
         return MeetingNote::query()
-            ->with(['author', 'release'])
+            ->with(['author', 'release', 'standup.team'])
             ->withCount('attendees')
             ->visibleTo($viewer)
             ->when($filters['mine'] ?? false, fn ($q) => $q->where(fn (Builder $own) => $own
@@ -73,6 +76,7 @@ class MeetingNoteService
                 fn (Builder $s) => $s
                     ->whereRaw('title LIKE ? ESCAPE \''.self::LIKE_ESCAPE.'\'', [$term])
                     ->orWhereRaw('body LIKE ? ESCAPE \''.self::LIKE_ESCAPE.'\'', [$term])
+                    ->orWhereHas('standup', fn (Builder $g) => $g->whereRaw('search_text LIKE ? ESCAPE \''.self::LIKE_ESCAPE.'\'', [$term]))
             ))
             ->when($filters['from'] ?? null, fn ($q, $date) => $q->whereDate('meeting_date', '>=', $date))
             ->when($filters['to'] ?? null, fn ($q, $date) => $q->whereDate('meeting_date', '<=', $date))
@@ -119,9 +123,17 @@ class MeetingNoteService
     public function update(MeetingNote $note, array $attributes, array $attendeeIds): MeetingNote
     {
         $before = $note->attendees()->pluck('users.id')->all();
+        $standup = $note->standup;
 
-        $note->update($this->writable($attributes));
+        $note->update($standup
+            ? array_intersect_key($attributes, array_flip(self::STANDUP_WRITABLE))
+            : $this->writable($attributes));
         $note->attendees()->sync($attendeeIds);
+
+        // From here on the list is theirs, and the generator leaves it alone.
+        if ($standup && collect($attendeeIds)->map(fn ($id) => (int) $id)->sort()->values()->all() !== collect($before)->sort()->values()->all()) {
+            $standup->update(['attendees_edited_at' => now()]);
+        }
 
         $this->notifications->meetingAttendeesAdded($note, array_diff($attendeeIds, $before), Auth::user());
 

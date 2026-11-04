@@ -156,7 +156,7 @@
                             <h2 class="text-sm font-semibold text-slate-900">
                                 {{ count($rows) }} {{ Str::plural('event', count($rows)) }} found
                                 <span class="font-normal text-slate-500">
-                                    · {{ $import->source === EventImport::SOURCE_ICS ? 'read directly from the calendar '.($import->isPasted() ? 'data' : 'file') : 'found by Claude — check dates and times' }}
+                                    · {{ $import->source === EventImport::SOURCE_ICS ? 'read directly from the calendar '.($import->isPasted() ? 'data' : 'file') : 'found by AI — check dates and times' }}
                                 </span>
                             </h2>
                             @if ($import->reference_date)

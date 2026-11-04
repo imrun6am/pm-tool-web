@@ -1,5 +1,5 @@
 {{--
-    "Draft with Claude" under a tasksheet row's plan or result editor. The draft
+    "Draft with AI" under a tasksheet row's plan or result editor. The draft
     is added after what the editor already holds, and the row is saved by its own
     Save. A result sends the plan as it is now, so unsaved edits count.
     @include('ai.partials.tasksheet-draft', ['kind' => 'plan', 'idp' => $idp, 'team' => $team, 'rowUser' => $rowUser, 'day' => $day])

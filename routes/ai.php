@@ -3,17 +3,18 @@
 use App\Http\Controllers\Ai\AiAssistController;
 use App\Http\Controllers\Ai\AiInsightController;
 use App\Http\Controllers\Ai\AiUsageController;
+use App\Http\Controllers\Ai\AssistantController;
 use App\Http\Controllers\Ai\ReleaseNotesController;
 use App\Http\Controllers\Ai\ReleaseStatusDraftController;
 use Illuminate\Support\Facades\Route;
 
 /*
 |--------------------------------------------------------------------------
-| Claude features
+| AI features
 |--------------------------------------------------------------------------
 |
 | Loaded by AiServiceProvider under the `web` middleware group. Every
-| endpoint that calls Claude is throttled by the `ai` limiter; each
+| endpoint that calls the AI is throttled by the `ai` limiter; each
 | controller authorizes against the record it reads, and release-scoped
 | routes also pass `release-visible` (developers/QA: own teams only).
 |
@@ -22,6 +23,19 @@ use Illuminate\Support\Facades\Route;
 Route::middleware('auth')->group(function () {
     // #9 Ask your workspace (page).
     Route::get('ask', [AiAssistController::class, 'askPage'])->name('ai.ask.page');
+
+    // The floating assistant. Only a person's confirm runs a change.
+    Route::prefix('assistant')->name('assistant.')->group(function () {
+        Route::get('panel', [AssistantController::class, 'panel'])->name('panel');
+        Route::get('conversation', [AssistantController::class, 'conversation'])->name('conversation');
+        Route::delete('conversation', [AssistantController::class, 'destroy'])->name('reset');
+        Route::middleware('throttle:ai')->group(function () {
+            Route::post('messages', [AssistantController::class, 'message'])->name('message');
+            Route::post('continue', [AssistantController::class, 'resume'])->name('continue');
+        });
+        Route::post('actions/{action}/confirm', [AssistantController::class, 'confirm'])->name('actions.confirm');
+        Route::post('actions/{action}/cancel', [AssistantController::class, 'cancel'])->name('actions.cancel');
+    });
 
     Route::prefix('ai')->name('ai.')->group(function () {
         // Calls that spend tokens.
@@ -47,7 +61,7 @@ Route::middleware('auth')->group(function () {
             Route::post('tasks/{task}/suggest-assignee', [AiAssistController::class, 'suggestAssignee'])->name('tasks.suggest-assignee');
         });
 
-        // Writes of what Claude proposed (no model call).
+        // Writes of what the AI proposed (no model call).
         Route::put('releases/{release}/notes', [ReleaseNotesController::class, 'update'])->middleware('release-visible')->name('release-notes.update');
         Route::post('meeting-notes/{meetingNote}/tasks', [AiAssistController::class, 'storeMeetingTasks'])->name('meeting-actions.store');
         Route::post('tasks/{task}/subtasks', [AiAssistController::class, 'storeSubtasks'])->name('tasks.subtasks');

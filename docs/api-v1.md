@@ -313,8 +313,8 @@ serialized, so there is no public URL to leak.
 | `POST`            | `/requests/{id}/accept` — **leads**; `{ team_id?, release_id?, assignee_id?, priority?, due_date? }` creates a task, filed by the reporter. 409 if already decided |
 | `POST`            | `/requests/{id}/decline` — **leads**; `{ reason }`. 409 if already decided |
 | `GET`             | `/requests/{id}/source` — the file a request was imported from (`source_name` on the request names it), for its reporter and whoever may decide it |
-| `GET`             | `/requests/imports` — the caller's imports, as `{ available, imports[] }`. `available` is false when `request_import` is switched off or Claude isn't configured |
-| `POST`            | `/requests/imports` — multipart `document`: PDF, PNG, JPG, GIF, WebP, DOCX, XLSX, CSV, TXT or MD, up to 20 MB (images 5 MB). Claude reads it in the background. 20/hour |
+| `GET`             | `/requests/imports` — the caller's imports, as `{ available, imports[] }`. `available` is false when `request_import` is switched off or AI isn't configured |
+| `POST`            | `/requests/imports` — multipart `document`: PDF, PNG, JPG, GIF, WebP, DOCX, XLSX, CSV, TXT or MD, up to 20 MB (images 5 MB). AI reads it in the background. 20/hour |
 | `POST`            | `/requests/imports/text` — `{ text }`, up to 100,000 characters. Otherwise as above |
 | `GET`             | `/requests/imports/{id}` — `{ import, proposals[] }`. Poll until `import.is_running` is false. Proposals are empty until then. Owner only |
 | `GET`             | `/requests/imports/{id}/file` — the original. Owner only |
@@ -331,6 +331,9 @@ serialized, so there is no public URL to leak.
 | `GET`             | `/reports/flow` — **leads and viewers**; `?team_id=`. The last 12 weeks: `weeks[]`, `flow[]` (tasks per status at each week's end), `arrivals[]`, `completions[]`, `cycle[]` (days from starting to finishing, latest 300), `cycle_p50`, `cycle_p85`, `finished`, `in_progress`, `aging[]`. Names no people. |
 | `GET`             | `/reports/time` — **leads** (team leads: teams they lead; another `team_id` is 403); `?from=&to=&team_id=&release_id=`, default the last 30 days. `total_minutes`, `by_release[]`, `by_team[]`, `by_person[]` (`id`, `name`, `minutes`), `accuracy` (`tasks`, `estimated_minutes`, `logged_minutes`, `ratio`, `misses[]`). Never feeds performance scores. |
 | `GET`             | `/reports/time/export` — **leads**; same filters. CSV of every entry. Text a spreadsheet would run as a formula starts with `'`. |
+| `GET`             | `/reports/people` — **admins**; `?from=&to=&team_id=`, default the last 30 days, a year at most, never past today. `from`, `to`, `team_id`, `working_days`, `blocked_history_from` (blocked time can't be seen before this date, or null), `summary`, `compare` (headline figures against the same length of time just before), `teams[]` (`id`, null for "No team"; `name`, `color`, `lead`, `people`, `archived`, `record`; empty when a team is chosen), `people[]` (`id`, `name`, `role`, `status`, `teams[]`, `tag`: `Left` or `Not a member` on a team's view; `record`), `trend` (`unit`: `week` or `month`, `buckets[]`). A `record` groups figures as `delivery`, `quality`, `workload`, `time`, `tasksheet`, `requests`, `collaboration`, `ratings` and `kpi`. A rate is `{ value, sample, enough }`: when `enough` is false there's too little data to quote it. Work counts for its own team, else the person's team if they're on exactly one, else "No team". Open, overdue and blocked counts are as of today. Tasksheet feedback, rating notes and private events are left out. |
+| `GET`             | `/reports/people/{id}` — **admins**; same filters. One person, deleted people included: the same `record`, `categories[]`, `compare`, `by_team[]`, `trend`, and every task behind it as `finished[]` and `open[]`. |
+| `GET`             | `/reports/people/export` — **admins**; same filters, plus `level=teams` for one row per team. CSV of every figure, with the counts behind each rate. A rate with too little data is blank. Text a spreadsheet would run as a formula starts with `'`. |
 | `GET`             | `/releases/{id}/progress` — anyone who can see the release. `burn_up[]` (`date`, `scope`, `done`, top-level tasks, at most 25 points) and `forecast`: `remaining`, `enough_history`, `dates` (`p50`, `p85`, `p95`, or null when there's nothing left, too little history or the release is completed), `on_time_pct`, `weeks_sampled`, `avg_per_week`. |
 | `GET`             | `/releases/{id}/status-updates` — anyone who can see the release. Newest first, latest 20: `status`, `status_label`, `note`, `author`, `created_at`. |
 | `POST`            | `/releases/{id}/status-updates` — **leads**. `status` (`on_track`, `at_risk`, `off_track`), `note` (≤ 2000). Moving into at risk or off track notifies the team's lead and org-level leads, except the author. Notifications of this kind are `release_status` and carry `release_id`. |
@@ -348,6 +351,7 @@ serialized, so there is no public URL to leak.
 | `GET/PUT/DELETE`  | `/notes/{id}` — **author only**, leads included          |
 | `GET/POST`        | `/meeting-notes` — filters below                         |
 | `GET/PUT/DELETE`  | `/meeting-notes/{id}` — author edits; author or lead deletes |
+| `POST`            | `/standups` — generate or refresh a team's standup; see below |
 | `GET/POST`        | `/quick-links` — returns `{ mine, shared }`              |
 | `PUT/DELETE`      | `/quick-links/{id}` — **author only**                    |
 | `POST`            | `/quick-links/{id}/pin` — toggles; **anyone who can see it** |
@@ -510,6 +514,26 @@ A meeting note carries a `type` (`type_label` and `type_color` come along for re
 list is server-defined: read it from `meeting_note_types` at `GET /meta` rather than hard-coding it,
 so a type added server-side reaches your client without a release. A note whose stored type has
 since been retired still returns a readable `type_label`.
+
+**Daily standups.** Each working day, a team with something to report gets one meeting note of type
+`standup`, generated from its tasksheets and refreshed through the day. On these notes:
+
+- `standup` is an object (it's `null` on any other note). It holds `team_id`, `team_name`, `date`,
+  `previous_date`, `generated_at`, `attendees_edited`, `can_refresh`, `counts`, `people`, `on_leave`,
+  `not_filled` and `ai`.
+- Each entry in `people` has `previous` (`result`, `tickets`, `comment`, `leave`) and `today` (`plan`,
+  `result`, `tickets`, `comment`, `leave`). Fields with nothing in them are left out, and text is
+  sanitized HTML.
+- `ai` is `null` unless a finished AI digest exists. Otherwise it's `{covers, summary, blockers}`.
+- `author` is `null` and `body` holds only what people wrote, which may be empty.
+- A developer or QA sees one only for a team they're on now, even if listed as an attendee.
+- Leads and the team's current members may edit it with `PUT`. Only `title`, `body` and `attendees`
+  change; any other field is ignored. Changing `attendees` stops the generator updating them.
+
+`POST /standups` takes `team_id` and an optional `date` (today by default; not in the future). It
+returns the note with **201** when it was created, including one that had been deleted, and **200**
+when it already existed. It returns **422** with a `message` for a day off or a day with nothing to
+report, and **403** for anyone but a lead or a current member of the team.
 
 ### Tasksheet
 

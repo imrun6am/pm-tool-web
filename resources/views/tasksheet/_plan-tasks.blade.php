@@ -1,4 +1,4 @@
-{{-- Adds one of this person's open tasks to the plan, with no Claude call. Requires
+{{-- Adds one of this person's open tasks to the plan, with no AI call. Requires
      $tasks, $input (the plan's trix input id) and $plan (its current HTML). --}}
 @if ($tasks->isNotEmpty())
     <div class="mt-2" x-data="{

@@ -320,7 +320,7 @@
                         </dl>
                     </section>
 
-                    {{-- Claude: task writer and comment catch-up --}}
+                    {{-- AI: task writer and comment catch-up --}}
                     @include('tasks._time-log')
 
                     @include('ai.panels.task', ['task' => $task])

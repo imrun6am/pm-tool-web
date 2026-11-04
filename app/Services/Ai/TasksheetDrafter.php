@@ -184,7 +184,7 @@ class TasksheetDrafter
         $items = $clean($out['items'] ?? []);
 
         if ($items === []) {
-            throw new AiException('Claude returned an empty draft. Please try again.');
+            throw new AiException('The AI returned an empty draft. Please try again.');
         }
 
         return [

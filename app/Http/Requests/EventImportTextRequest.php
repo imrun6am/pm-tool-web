@@ -36,10 +36,10 @@ class EventImportTextRequest extends FormRequest
                 $validator->errors()->add('text', 'There is no text to read. Paste the message or schedule itself.');
             }
 
-            // Only iCalendar data can be read without Claude.
+            // Only iCalendar data can be read without AI.
             if (is_string($text) && ! $validator->errors()->has('text')
                 && ! EventImportService::isIcs($text) && ! app(AiFeatures::class)->available('calendar_import')) {
-                $validator->errors()->add('text', 'Claude isn’t available to read text right now. Only iCalendar (.ics) data can be imported.');
+                $validator->errors()->add('text', 'AI isn’t available to read text right now. Only iCalendar (.ics) data can be imported.');
             }
         }];
     }

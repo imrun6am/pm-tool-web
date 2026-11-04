@@ -50,6 +50,7 @@
                 @foreach ([
                     ['keys' => ['⌘', 'K'], 'label' => 'Search pages and tasks'],
                     ['keys' => ['C'], 'label' => 'Add a task from anywhere'],
+                    ['keys' => ['A'], 'label' => 'Open the assistant'],
                     ['keys' => ['?'], 'label' => 'Show these shortcuts'],
                     ['keys' => ['Esc'], 'label' => 'Close a dialog or menu'],
                 ] as $shortcut)

@@ -32,7 +32,7 @@ class TriageImportTextRequest extends FormRequest
             if (EventImportService::pastedText($this->input('text')) === '') {
                 $validator->errors()->add('text', 'There is no text to read. Paste the message itself.');
             } elseif (! app(TriageImportService::class)->available()) {
-                $validator->errors()->add('text', 'Claude isn’t available to read text right now. You can still send a request with the form.');
+                $validator->errors()->add('text', 'AI isn’t available to read text right now. You can still send a request with the form.');
             }
         }];
     }

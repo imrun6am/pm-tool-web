@@ -136,7 +136,7 @@
                 <x-icon name="exclamation-circle" variant="outline" class="h-4 w-4 flex-none" />The end date must be on or after the start date.
             </p>
 
-            {{-- Claude: suggest phase dates (reads start/end/teamId/offDays, writes phases) --}}
+            {{-- AI: suggest phase dates (reads start/end/teamId/offDays, writes phases) --}}
             @include('ai.partials.schedule-assistant', ['release' => $release])
 
             {{-- Live timeline preview — mirrors the release detail page --}}

@@ -94,7 +94,7 @@ class MeetingNoteController extends Controller
     {
         $this->authorize('view', $meetingNote);
 
-        $meetingNote->load(['author', 'release', 'event', 'attendees']);
+        $meetingNote->load(['author', 'release', 'event', 'attendees', 'standup.team']);
 
         return view('meeting-notes.show', compact('meetingNote'));
     }

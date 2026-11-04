@@ -33,7 +33,7 @@ class EventImportController extends Controller
         return view('calendar.imports.index', [
             'imports' => EventImport::where('user_id', $request->user()->id)->latest('id')->limit(25)->get(),
             'apiKeyMissing' => blank(config('services.anthropic.key')),
-            'claudeAvailable' => $features->available('calendar_import'),
+            'aiAvailable' => $features->available('calendar_import'),
         ]);
     }
 
@@ -74,7 +74,7 @@ class EventImportController extends Controller
         $data = $request->validate(['timezone' => ['nullable', 'string', 'timezone:all']]);
 
         if (! $features->available('calendar_import')) {
-            return back()->with('error', 'Finding calendar events with Claude isn’t available right now.');
+            return back()->with('error', 'Finding calendar events with AI isn’t available right now.');
         }
 
         $import = $this->imports->startFromNote($request->user(), $note, $data['timezone'] ?? null);

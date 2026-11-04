@@ -101,14 +101,14 @@ class KpiReportExporter
         return [
             sprintf('%s · review period %s – %s. Full-day leave (casual/sick) is excluded; half-day leave counts as a working day. Team leads are not scored.',
                 $report->coverageLabel(), $report->period_start->format('j M Y'), $report->period_end->format('j M Y')),
-            'KPI / Task = planned + added tasks; Actual Result = completed tasks; Completion % = Actual ÷ KPI. Claude counted the tasks from each day’s Plan and Result.',
+            'KPI / Task = planned + added tasks; Actual Result = completed tasks; Completion % = Actual ÷ KPI. AI counted the tasks from each day’s Plan and Result.',
             'Overall Status: Excellent ≥ 90% · Good 85–89% · Satisfactory 80–84% · Needs Improvement < 80%.',
             'Success Measure uses the same bands: Fully ≥ 90% · Largely 85–89% · Mostly 80–84% · Partially < 80%.',
             'Progress / Outcome compares completion % in the second half of the period with the first half (within ±2 points = Stable).',
             ...($report->teamFilter() ? ['Team report: only tasksheet rows logged on this team are counted.'] : []),
-            'Work mix and Work breakdown: Claude sorted each day’s tasks into fixed categories; the totals are summed from those daily counts.',
-            'Work habits come straight from the tasksheet (standup marks, when rows were saved, filled fields, work points) – not from Claude.',
-            'Columns marked (draft), the Insights sheet and the suggested rating were written by Claude and must be reviewed by the Team Lead. Expected Target / Deadline is left for the Team Lead.',
+            'Work mix and Work breakdown: AI sorted each day’s tasks into fixed categories; the totals are summed from those daily counts.',
+            'Work habits come straight from the tasksheet (standup marks, when rows were saved, filled fields, work points) – not from AI.',
+            'Columns marked (draft), the Insights sheet and the suggested rating were written by AI and must be reviewed by the Team Lead. Expected Target / Deadline is left for the Team Lead.',
         ];
     }
 
@@ -242,7 +242,7 @@ class KpiReportExporter
     }
 
     /**
-     * The Claude insights as plain text blocks, shared by the Excel cells and the PDF.
+     * The AI insights as plain text blocks, shared by the Excel cells and the PDF.
      *
      * @return array{rating: string, rationale: string, contributions: string, recurring: string, carried: string, positive: string, concerns: string}
      */

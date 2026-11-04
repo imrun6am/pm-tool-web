@@ -59,7 +59,7 @@
                     <div class="flex flex-wrap items-center gap-2">
                         <button class="btn-primary btn-sm">Post update</button>
                         @if ($canDraft)
-                            <x-ai-button label="Draft with Claude" busy-label="Drafting…"
+                            <x-ai-button label="Draft with AI" busy-label="Drafting…"
                                          click="run().then((d) => { if (d) { $refs.status.value = d.status; $refs.note.value = d.note; $refs.note.focus(); } })" />
                         @endif
                     </div>

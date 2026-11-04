@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Storage;
  * Document → requirements. Reads a release document and returns a summary,
  * key points, requirements, open questions, risks and suggested tasks.
  *
- * PDFs and images go to Claude as they are; Word, Excel, CSV and text files
+ * PDFs and images go to the AI as they are; Word, Excel, CSV and text files
  * are converted to text first and, when long, read chunk by chunk, after
  * which one more call consolidates the per-chunk results into one answer.
  */
@@ -73,7 +73,7 @@ class DocumentInsightGenerator implements InsightGenerator
 
         if (isset(self::NATIVE[$mime])) {
             if ($document->size > self::MAX_INLINE_BYTES || ($mime !== 'application/pdf' && $document->size > 5 * 1024 * 1024)) {
-                throw new AiException('This file is too large for Claude to read in one go. Upload a smaller PDF or a text version.', false);
+                throw new AiException('This file is too large for the AI to read in one go. Upload a smaller PDF or a text version.', false);
             }
 
             $out = $this->ai->json(self::FEATURE, self::SYSTEM, [
@@ -86,7 +86,7 @@ class DocumentInsightGenerator implements InsightGenerator
 
         $extension = strtolower(pathinfo($document->original_name, PATHINFO_EXTENSION));
         if (! in_array($extension, DocumentTextConverter::EXTENSIONS, true)) {
-            throw new AiException('Claude can read PDF, PNG, JPG, Word (.docx), Excel (.xlsx), CSV and text files. Convert this file to one of those.', false);
+            throw new AiException('The AI can read PDF, PNG, JPG, Word (.docx), Excel (.xlsx), CSV and text files. Convert this file to one of those.', false);
         }
 
         try {

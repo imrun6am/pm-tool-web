@@ -199,7 +199,7 @@ class ReleaseStatusUpdateTest extends AiTestCase
         $release = $this->release();
         $lead = $this->user(User::ROLE_ADMIN);
 
-        $this->actingAs($lead)->get(route('releases.show', $release))->assertSee('Draft with Claude');
+        $this->actingAs($lead)->get(route('releases.show', $release))->assertSee('Draft with AI');
 
         config(['services.anthropic.key' => null]);
         $this->get(route('releases.show', $release))->assertDontSee(route('ai.release-status.draft', $release));

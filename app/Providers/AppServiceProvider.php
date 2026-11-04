@@ -39,7 +39,7 @@ class AppServiceProvider extends ServiceProvider
             $app->make(AiFeatures::class)->get('kpi_review')['effort'],
         ));
 
-        // These two call Claude through AiGateway (model/effort in config/ai.php).
+        // These two call the AI through AiGateway (model/effort in config/ai.php).
         $this->app->bind(PlanTaskExtractor::class, ClaudePlanTaskExtractor::class);
         $this->app->bind(TextEnhancer::class, ClaudeTextEnhancer::class);
 
@@ -113,7 +113,7 @@ class AppServiceProvider extends ServiceProvider
                 ? 'token:'.$request->user()->currentAccessToken()->id
                 : 'ip:'.$request->ip()));
 
-        // "Enhance with Claude": each click is a paid model call.
+        // "Enhance with AI": each click is a paid model call.
         RateLimiter::for('ai-enhance', fn (Request $request) => Limit::perMinute(10)->by('user:'.$request->user()?->id));
 
         // Calendar "Import from file": each upload can mean several paid model calls.

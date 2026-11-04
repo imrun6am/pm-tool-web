@@ -11,7 +11,7 @@ use Anthropic\Client;
 use RuntimeException;
 
 /**
- * Asks Claude to count each day's planned / added / completed tasks from the
+ * Asks the AI to count each day's planned / added / completed tasks from the
  * free-text Plan and Result, and to draft the Team Lead's review notes.
  *
  * One request per member. The response is streamed (long inputs, adaptive
@@ -106,22 +106,22 @@ class ClaudeKpiAnalyzer implements KpiAnalyzer
         }
 
         if ($stopReason === 'refusal') {
-            throw new RuntimeException('Claude declined to analyse this member.');
+            throw new RuntimeException('The AI declined to analyse this member.');
         }
         if ($stopReason === 'max_tokens') {
-            throw new RuntimeException('Claude ran out of output tokens.');
+            throw new RuntimeException('The AI ran out of output tokens.');
         }
 
         $out = json_decode($json, true);
         if (! is_array($out) || ! isset($out['days'], $out['months'], $out['overall'])) {
-            throw new RuntimeException('Claude returned an unreadable response.');
+            throw new RuntimeException('The AI returned an unreadable response.');
         }
 
         $expected = collect($input['entries'])->map(fn ($e) => $e['date'].'|'.$e['team']);
         $returned = collect($out['days'])->map(fn ($d) => $d['date'].'|'.$d['team']);
         $missing = $expected->diff($returned);
         if ($missing->isNotEmpty()) {
-            throw new RuntimeException("Claude skipped {$missing->count()} day(s), e.g. {$missing->first()}.");
+            throw new RuntimeException("The AI skipped {$missing->count()} day(s), e.g. {$missing->first()}.");
         }
 
         return $out + ['usage' => $usage];

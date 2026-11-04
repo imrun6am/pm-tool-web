@@ -5,7 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 
 /**
- * An admin's overrides for one Claude feature (see config/ai.php): on/off,
+ * An admin's overrides for one AI feature (see config/ai.php): on/off,
  * model and effort. A null column keeps the config default.
  */
 class AiFeatureSetting extends Model

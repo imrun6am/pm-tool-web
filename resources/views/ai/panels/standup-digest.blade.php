@@ -1,5 +1,5 @@
 {{--
-    Claude's standup digest (#4) for the team and day the tasksheet shows.
+    The AI standup digest (#4) for the team and day the tasksheet shows.
     Leads only (org-level leads: any team; a team lead: teams they lead).
     Generated automatically each working day at 08:30 for the previous working day.
     @include('ai.panels.standup-digest', ['team' => $team, 'day' => $day])
@@ -33,7 +33,7 @@
                 'refresh' => 'Summarize again',
                 'empty' => $day->isToday()
                     ? 'Today’s digest is best generated once the team has filled the tasksheet.'
-                    : 'Claude summarizes the day’s tasksheet and board movement: highlights, blockers and follow-ups.',
+                    : 'AI summarizes the day’s tasksheet and board movement: highlights, blockers and follow-ups.',
             ])
         </div>
     </section>

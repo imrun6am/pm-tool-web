@@ -10,7 +10,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Throwable;
 
-/** Generates one background Claude result (risk brief, standup digest, document insights). */
+/** Generates one background AI result (risk brief, standup digest, document insights). */
 class GenerateAiInsight implements ShouldQueue
 {
     use Queueable;
@@ -50,7 +50,7 @@ class GenerateAiInsight implements ShouldQueue
 
     public function failed(?Throwable $e): void
     {
-        $message = $e instanceof AiException ? $e->getMessage() : 'Claude couldn’t finish this. Please try again.';
+        $message = $e instanceof AiException ? $e->getMessage() : 'The AI couldn’t finish this. Please try again.';
 
         $updated = AiInsight::whereKey($this->insightId)
             ->whereIn('status', [AiInsight::STATUS_PENDING, AiInsight::STATUS_PROCESSING])

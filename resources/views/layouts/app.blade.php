@@ -99,6 +99,9 @@
         {{-- Floating toasts + confirmation modal --}}
         @include('layouts.toasts')
         @include('layouts.confirm')
+
+        {{-- The floating assistant: a button; the rest loads when it's first opened. --}}
+        @include('assistant.launcher')
     </body>
 </html>
 

@@ -26,6 +26,18 @@ class MeetingNoteRequest extends FormRequest
      */
     protected function prepareForValidation(): void
     {
+        // A generated standup keeps these whatever is sent; MeetingNoteService ignores them too.
+        if ($this->isGeneratedStandup()) {
+            $note = $this->route('meetingNote');
+            $this->merge([
+                'type' => $note->type,
+                'meeting_date' => $note->meeting_date->toDateString(),
+                'release_id' => $note->release_id,
+                'event_id' => $note->event_id,
+                'visibility' => $note->visibility,
+            ]);
+        }
+
         if (! $this->filled('type')) {
             $this->merge([
                 'type' => $this->route('meetingNote')?->type ?? MeetingNote::TYPE_DEFAULT,
@@ -52,11 +64,17 @@ class MeetingNoteRequest extends FormRequest
                 new VisibleRelease($this->user(), $keptReleaseId),
             ],
             'event_id' => ['nullable', 'integer', 'exists:events,id', $this->eventIsVisible(...)],
-            'body' => ['required', 'string', 'max:20000'],
+            // The listing is the note's content, so what people add is optional there.
+            'body' => [$this->isGeneratedStandup() ? 'nullable' : 'required', 'string', 'max:20000'],
             'visibility' => ['nullable', Rule::in(array_keys(MeetingNote::VISIBILITIES))],
             'attendees' => ['nullable', 'array'],
             'attendees.*' => ['integer', 'exists:users,id', new VisiblePerson($this->user(), $keptAttendees)],
         ];
+    }
+
+    private function isGeneratedStandup(): bool
+    {
+        return (bool) $this->route('meetingNote')?->isGeneratedStandup();
     }
 
     /** A note may only be linked to an event the author can see. */
@@ -79,7 +97,7 @@ class MeetingNoteRequest extends FormRequest
     public function withValidator(Validator $validator): void
     {
         $validator->after(function (Validator $validator) {
-            if (! $validator->errors()->has('body') && HtmlSanitizer::isEmpty($this->input('body'))) {
+            if (! $this->isGeneratedStandup() && ! $validator->errors()->has('body') && HtmlSanitizer::isEmpty($this->input('body'))) {
                 $validator->errors()->add('body', 'The note cannot be empty.');
             }
         });

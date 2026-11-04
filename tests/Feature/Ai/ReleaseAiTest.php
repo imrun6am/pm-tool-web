@@ -109,9 +109,9 @@ class ReleaseAiTest extends AiTestCase
         $release = $this->release();
 
         $this->actingAs($this->user(User::ROLE_ADMIN))->get(route('releases.show', $release))
-            ->assertOk()->assertSee('Risk brief')->assertSee('Assess risk with Claude')->assertSee('Release notes');
+            ->assertOk()->assertSee('Risk brief')->assertSee('Assess risk with AI')->assertSee('Release notes');
         $this->actingAs($this->user(User::ROLE_DEVELOPER, $this->team))->get(route('releases.show', $release))
-            ->assertOk()->assertDontSee('Risk brief')->assertDontSee('Assess risk with Claude');
+            ->assertOk()->assertDontSee('Risk brief')->assertDontSee('Assess risk with AI');
     }
 
     // -- #6 Catch me up (release) ----------------------------------------------

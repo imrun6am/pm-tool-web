@@ -28,7 +28,7 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
-    // KPI review reports: Claude reads tasksheet plans/results (KpiReportController).
+    // KPI review reports: the AI reads tasksheet plans/results (KpiReportController).
     'anthropic' => [
         'key' => env('ANTHROPIC_API_KEY'),
         'model' => env('KPI_REVIEW_MODEL', 'claude-sonnet-5-5'),
@@ -36,7 +36,7 @@ return [
         // Tasksheet "Add to board": splits a day's plan into board tasks.
         'board_tasks_model' => env('BOARD_TASKS_MODEL', 'claude-sonnet-5-5'),
         'board_tasks_effort' => env('BOARD_TASKS_EFFORT', 'low'),
-        // "Enhance with Claude" on notes and meeting notes.
+        // "Enhance with AI" on notes and meeting notes.
         'enhance_model' => env('ENHANCE_MODEL', 'claude-sonnet-5-5'),
         'enhance_effort' => env('ENHANCE_EFFORT', 'low'),
         // Calendar "Import from file": extracts events from uploaded documents.

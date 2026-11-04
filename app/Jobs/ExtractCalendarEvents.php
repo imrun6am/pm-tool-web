@@ -52,8 +52,8 @@ class ExtractCalendarEvents implements ShouldQueue
     public function failed(?Throwable $e): void
     {
         $message = match (true) {
-            $e instanceof MissingApiKeyException => 'Claude is not configured: set ANTHROPIC_API_KEY in .env. (.ics files import without it.)',
-            $e instanceof BadRequestException => 'Claude could not read this file: '.$e->getMessage(),
+            $e instanceof MissingApiKeyException => 'AI is not configured: set ANTHROPIC_API_KEY in .env. (.ics files import without it.)',
+            $e instanceof BadRequestException => 'The AI could not read this file: '.$e->getMessage(),
             default => $e?->getMessage() ?? 'Unknown error',
         };
 

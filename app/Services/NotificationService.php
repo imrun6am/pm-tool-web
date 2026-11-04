@@ -507,8 +507,8 @@ class NotificationService
             : ['release', $release?->id, ['release_id' => $release?->id]];
 
         $row = $succeeded
-            ? new InboxNotification('insight_ready', "Claude’s {$label} for {$about} is ready", $type, $id, null, $extra)
-            : new InboxNotification('insight_failed', "Claude couldn’t finish the {$label} for {$about}", $type, $id, null, $extra);
+            ? new InboxNotification('insight_ready', "The AI {$label} for {$about} is ready", $type, $id, null, $extra)
+            : new InboxNotification('insight_failed', "The AI couldn’t finish the {$label} for {$about}", $type, $id, null, $extra);
 
         $this->sendTo([$insight->requested_by], $row, null, fn (User $user) => AiInsightPolicy::canView($user, $insight->kind, $subject));
     }

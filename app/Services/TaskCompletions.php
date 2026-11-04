@@ -30,13 +30,13 @@ class TaskCompletions
 {
     /**
      * @param  \Closure(): Builder  $tasks  a fresh, scoped Task query per call
-     * @return Collection<int, array{taskId: int, assigneeId: ?int, completedAt: Carbon, startedAt: ?Carbon, reworked: bool, estimated: bool, dueDate: ?Carbon, createdAt: Carbon}>
+     * @return Collection<int, array{taskId: int, assigneeId: ?int, teamId: ?int, estimateMinutes: ?int, completedAt: Carbon, startedAt: ?Carbon, reworked: bool, estimated: bool, dueDate: ?Carbon, createdAt: Carbon}>
      */
     public function since(\Closure $tasks, Carbon $from): Collection
     {
         $done = fn (): Builder => $tasks()->where('status', 'done')->where('updated_at', '>=', $from);
 
-        $candidates = $done()->get(['id', 'assignee_id', 'due_date', 'created_at', 'updated_at']);
+        $candidates = $done()->get(['id', 'assignee_id', 'team_id', 'estimate_minutes', 'due_date', 'created_at', 'updated_at']);
 
         $history = TaskStatusChange::query()
             ->whereIn('task_id', $done()->select('id'))
@@ -64,6 +64,8 @@ class TaskCompletions
             return [
                 'taskId' => $task->id,
                 'assigneeId' => $task->assignee_id,
+                'teamId' => $task->team_id,
+                'estimateMinutes' => $task->estimate_minutes,
                 'completedAt' => $completedAt ?? $task->updated_at,
                 'startedAt' => $startedAt && $completedAt && $startedAt->lte($completedAt) ? $startedAt : null,
                 'reworked' => $reworked,

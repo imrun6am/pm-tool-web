@@ -3,7 +3,7 @@
 namespace App\Services\Calendar;
 
 /**
- * Splits document text into pieces small enough for one Claude call each, so
+ * Splits document text into pieces small enough for one AI call each, so
  * a long spreadsheet or agenda can't blow the token or memory budget of a
  * single request. Breaks fall on paragraph, then line boundaries where
  * possible; only a single over-long line is cut mid-text.

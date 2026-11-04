@@ -104,8 +104,9 @@
                 <ul class="list-card">
                     @foreach ($notes as $note)
                         @php
+                            $standupCounts = $note->standup?->content['counts'] ?? null;
                             $excerpt = \App\Support\HtmlSanitizer::isEmpty($note->body)
-                                ? null
+                                ? ($standupCounts ? "{$standupCounts['filled']} of {$standupCounts['people']} filled in · {$standupCounts['on_leave']} on leave" : null)
                                 // Break block-level tags into spaces so "Monday.</div><ul><li>QA" reads "Monday. QA".
                                 : Str::limit(trim(preg_replace('/\s+/', ' ', strip_tags(preg_replace('#</(div|p|li|h[1-6]|blockquote)>|<br\s*/?>#i', ' ', (string) $note->bodyPreviewHtml())))), 160);
                         @endphp
@@ -128,7 +129,9 @@
                                 </div>
 
                                 <div class="flex flex-none flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500 sm:justify-end">
-                                    @if ($note->release)
+                                    @if ($note->standup)
+                                        <span class="badge badge-slate max-w-[12rem] truncate">{{ $note->standup->team?->name }}</span>
+                                    @elseif ($note->release)
                                         <span class="badge badge-brand max-w-[12rem] truncate">{{ $note->release->name }}</span>
                                     @else
                                         <span class="badge badge-slate">General</span>
@@ -137,10 +140,14 @@
                                     @if ($note->attendees_count)
                                         <span class="whitespace-nowrap">{{ $note->attendees_count }} {{ Str::plural('attendee', $note->attendees_count) }}</span>
                                     @endif
-                                    <span class="flex items-center gap-1.5 whitespace-nowrap" title="Written by {{ $note->author->name ?? 'Unknown' }}">
-                                        <x-avatar :user="$note->author" :name="$note->author->name ?? '?'" size="sm" />
-                                        <span class="hidden max-w-[8rem] truncate text-slate-600 lg:inline">{{ $note->author->name ?? 'Unknown' }}</span>
-                                    </span>
+                                    @if ($note->standup && ! $note->author)
+                                        <span class="whitespace-nowrap text-slate-600">From the tasksheet</span>
+                                    @else
+                                        <span class="flex items-center gap-1.5 whitespace-nowrap" title="Written by {{ $note->author->name ?? 'Unknown' }}">
+                                            <x-avatar :user="$note->author" :name="$note->author->name ?? '?'" size="sm" />
+                                            <span class="hidden max-w-[8rem] truncate text-slate-600 lg:inline">{{ $note->author->name ?? 'Unknown' }}</span>
+                                        </span>
+                                    @endif
                                 </div>
                             </a>
                         </li>

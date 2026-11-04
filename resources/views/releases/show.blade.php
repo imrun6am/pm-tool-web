@@ -384,7 +384,7 @@
                     {{-- A lead's word on how it's going --}}
                     @include('releases._status')
 
-                    {{-- Claude: risk brief, release notes, catch-up, document insights --}}
+                    {{-- AI: risk brief, release notes, catch-up, document insights --}}
                     @include('ai.panels.release', ['release' => $release])
 
                     {{-- Details (planning metadata — hidden from developers/QA) --}}

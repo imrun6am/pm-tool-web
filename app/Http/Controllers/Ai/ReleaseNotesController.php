@@ -11,7 +11,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
-/** Release notes: Claude drafts them, a release planner edits and saves them. */
+/** Release notes: the AI drafts them, a release planner edits and saves them. */
 class ReleaseNotesController extends Controller
 {
     use RespondsWithAi;

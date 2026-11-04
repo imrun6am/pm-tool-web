@@ -9,7 +9,7 @@ use App\Services\Board\PlanToBoardService;
 use Illuminate\Support\Collection;
 
 /**
- * Meeting notes → board tasks. Claude finds the action items in the minutes
+ * Meeting notes → board tasks. The AI finds the action items in the minutes
  * and names their owner and due date as written; owners are then matched to
  * the people the viewer may assign, and anything already on the board for the
  * note's release is skipped.

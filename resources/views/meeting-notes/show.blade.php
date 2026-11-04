@@ -22,10 +22,14 @@
             <x-meeting-note-type :note="$meetingNote" />
             <span>{{ $meetingNote->meeting_date->format('l, F j, Y') }}</span>
             <span aria-hidden="true" class="text-slate-300">·</span>
-            <span class="flex items-center gap-1.5">
-                <x-avatar :user="$meetingNote->author" :name="$meetingNote->author->name ?? '?'" size="sm" />
-                {{ $meetingNote->author->name ?? 'Unknown' }}@include('partials.user-tag', ['tagUser' => $meetingNote->author])
-            </span>
+            @if ($meetingNote->standup && ! $meetingNote->author)
+                <span>Generated from the tasksheet</span>
+            @else
+                <span class="flex items-center gap-1.5">
+                    <x-avatar :user="$meetingNote->author" :name="$meetingNote->author->name ?? '?'" size="sm" />
+                    {{ $meetingNote->author->name ?? 'Unknown' }}@include('partials.user-tag', ['tagUser' => $meetingNote->author])
+                </span>
+            @endif
         </div>
     </x-slot>
 
@@ -34,26 +38,43 @@
             <div class="mx-auto grid max-w-6xl items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
 
                 {{-- Document --}}
-                <article class="card card-pad sm:p-8">
-                    @if (\App\Support\HtmlSanitizer::isEmpty($meetingNote->body))
-                        <p class="text-sm text-slate-500">No notes were written for this meeting.</p>
-                    @else
-                        <div class="prose-notes max-w-prose text-[15px] leading-7 text-slate-700 [&>*:first-child]:mt-0">
-                            {!! $meetingNote->bodyHtml() !!}
-                        </div>
+                <div class="min-w-0 space-y-4">
+                    @if ($meetingNote->standup)
+                        @include('meeting-notes._standup', ['standup' => $meetingNote->standup])
                     @endif
-                </article>
+
+                    <article class="card card-pad sm:p-8" @if ($meetingNote->standup) aria-labelledby="standup-notes-title" @endif>
+                        @if ($meetingNote->standup)
+                            <h2 id="standup-notes-title" class="mb-2 text-sm font-semibold text-slate-900">Meeting notes</h2>
+                        @endif
+                        @if (\App\Support\HtmlSanitizer::isEmpty($meetingNote->body))
+                            <p class="text-sm text-slate-500">
+                                {{ $meetingNote->standup ? 'Nothing added yet. What you write here is kept when the tasksheet listing updates.' : 'No notes were written for this meeting.' }}
+                            </p>
+                        @else
+                            <div class="prose-notes max-w-prose text-[15px] leading-7 text-slate-700 [&>*:first-child]:mt-0">
+                                {!! $meetingNote->bodyHtml() !!}
+                            </div>
+                        @endif
+                    </article>
+                </div>
 
                 {{-- Details --}}
                 <aside class="space-y-4">
-                    {{-- Claude: action items → board tasks --}}
+                    {{-- AI: action items → board tasks --}}
                     @include('ai.panels.meeting-note', ['meetingNote' => $meetingNote])
-                    {{-- Claude: dates in the minutes → calendar events --}}
+                    {{-- AI: dates in the minutes → calendar events --}}
                     @include('ai.panels.meeting-note-events', ['meetingNote' => $meetingNote])
 
                     <section class="card">
                         <h2 class="card-header card-title">Details</h2>
                         <dl class="divide-y divide-slate-100 text-sm">
+                            @if ($meetingNote->standup)
+                                <div class="flex items-center justify-between gap-3 px-5 py-3">
+                                    <dt class="text-slate-500">Team</dt>
+                                    <dd class="min-w-0 truncate text-right font-medium text-slate-700">{{ $meetingNote->standup->team?->name }}</dd>
+                                </div>
+                            @else
                             <div class="flex items-center justify-between gap-3 px-5 py-3">
                                 <dt class="text-slate-500">Release</dt>
                                 <dd class="min-w-0 truncate text-right">
@@ -64,10 +85,13 @@
                                     @endif
                                 </dd>
                             </div>
+                            @endif
                             <div class="flex items-center justify-between gap-3 px-5 py-3">
                                 <dt class="text-slate-500">Visibility</dt>
                                 <dd>
-                                    @if ($meetingNote->isAttendeesOnly())
+                                    @if ($meetingNote->standup)
+                                        <span class="badge badge-info" title="Visible to whoever can see this team’s tasksheet"><x-icon name="user-group" variant="outline" class="h-3 w-3" />Tasksheet viewers</span>
+                                    @elseif ($meetingNote->isAttendeesOnly())
                                         <span class="badge badge-warning" title="Visible to attendees, the author, and team leads only">
                                             <x-icon name="lock-closed" variant="outline" class="h-3 w-3" />Attendees only
                                         </span>

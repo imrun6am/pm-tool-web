@@ -25,7 +25,7 @@ use Illuminate\Support\Str;
  * review → confirm. The same shape as calendar import, sharing its readers.
  *
  * The rules worth centralising:
- *  - whatever Claude returns is cleaned before it is stored, and a team or type
+ *  - whatever the AI returns is cleaned before it is stored, and a team or type
  *    is kept only if it names one the sender may choose;
  *  - nothing reaches `triage_items` before confirm(), which goes through
  *    TriageService::submit so permissions and notices match the request form;
@@ -41,7 +41,7 @@ class TriageImportService
 
     public const MAX_FILE_KB = 20480;
 
-    /** Claude's per-image limit. */
+    /** The model's per-image limit. */
     public const MAX_IMAGE_KB = 5120;
 
     public function __construct(

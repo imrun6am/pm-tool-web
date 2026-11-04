@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 /**
- * A Claude result generated in the background and attached to the record it
+ * An AI result generated in the background and attached to the record it
  * describes: a release's risk brief, a team's standup digest for a day, or a
  * release document's summary and suggested tasks.
  */

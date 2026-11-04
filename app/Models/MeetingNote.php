@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\HtmlString;
 
 /**
@@ -42,6 +43,9 @@ class MeetingNote extends Model
      */
     public const TYPE_DEFAULT = 'meeting';
 
+    /** What generated daily standups use. People can also write a note of this type themselves. */
+    public const TYPE_STANDUP = 'standup';
+
     /**
      * The kinds of meeting a note can record. Add or relabel entries here;
      * prefer relabeling over removal, since a removed type's notes stay
@@ -55,6 +59,7 @@ class MeetingNote extends Model
      */
     public const TYPES = [
         self::TYPE_DEFAULT => 'Meeting',
+        self::TYPE_STANDUP => 'Standup',
         'sync_up' => 'Sync Up',
         'day_end' => 'Day End',
         'progress_monitoring' => 'Progress Monitoring',
@@ -66,6 +71,7 @@ class MeetingNote extends Model
     /** @var array<string, string> */
     public const TYPE_COLORS = [
         self::TYPE_DEFAULT => '#6366f1',      // indigo
+        self::TYPE_STANDUP => '#0284c7',      // sky
         'sync_up' => '#0891b2',               // cyan
         'day_end' => '#f59e0b',               // amber
         'progress_monitoring' => '#ec4899',   // pink
@@ -130,6 +136,17 @@ class MeetingNote extends Model
         return $this->belongsToMany(User::class)->withTimestamps()->withTrashed();
     }
 
+    /** The generated part, on a daily standup made from a team's tasksheets. */
+    public function standup(): HasOne
+    {
+        return $this->hasOne(DailyStandup::class);
+    }
+
+    public function isGeneratedStandup(): bool
+    {
+        return $this->standup !== null;
+    }
+
     public function isAttendeesOnly(): bool
     {
         return $this->visibility === self::VISIBILITY_ATTENDEES;
@@ -178,6 +195,9 @@ class MeetingNote extends Model
     /**
      * Restrict a query to notes the user may view (see isVisibleTo). Leads and
      * authors always pass; other users see everyone-notes plus ones they attended.
+     *
+     * A generated standup follows its team's tasksheet instead: developers and
+     * QA see it only on a team they're on now, whoever is listed as attending.
      */
     public function scopeVisibleTo(Builder $query, User $user): Builder
     {
@@ -185,6 +205,23 @@ class MeetingNote extends Model
             return $query;
         }
 
+        if ($user->hasLimitedAccess()) {
+            return $query->where(fn (Builder $q) => $q
+                ->whereHas('standup', fn (Builder $s) => $s->whereIn('team_id', $user->currentTeamIds()))
+                ->orWhere(fn (Builder $written) => $this->whereReadable($written->handWritten(), $user)));
+        }
+
+        return $this->whereReadable($query, $user);
+    }
+
+    /** Everything but generated standups. */
+    public function scopeHandWritten(Builder $query): Builder
+    {
+        return $query->whereDoesntHave('standup');
+    }
+
+    private function whereReadable(Builder $query, User $user): Builder
+    {
         return $query->where(function (Builder $q) use ($user) {
             $q->where(fn (Builder $everyone) => $everyone
                 ->where('visibility', self::VISIBILITY_EVERYONE)

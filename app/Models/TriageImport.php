@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * "Create requests from a file, screenshot or text": the source, the requests
- * Claude proposed from it, and how far the review got. The proposals are a
+ * the AI proposed from it, and how far the review got. The proposals are a
  * private draft held on this row; nothing reaches `triage_items` until the
  * person who started it confirms, and each sent proposal remembers its request
  * so it can't be sent twice.

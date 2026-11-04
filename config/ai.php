@@ -2,10 +2,10 @@
 
 /*
 |--------------------------------------------------------------------------
-| Claude features
+| AI features
 |--------------------------------------------------------------------------
 |
-| Every Claude call made through App\Services\Ai\AiGateway names one of the
+| Every AI call made through App\Services\Ai\AiGateway names one of the
 | features below. A feature's model and effort come from here; on the AI
 | usage page an admin can switch a feature off and change its model and
 | effort at runtime (stored in ai_feature_settings), which overrides these
@@ -54,7 +54,7 @@ return [
         ],
         // Existing features, moved onto the gateway; their original env names still apply.
         'note_enhance' => [
-            'label' => 'Enhance with Claude',
+            'label' => 'Enhance with AI',
             'description' => 'Polishes notes and meeting minutes in the editor.',
             'model' => env('ENHANCE_MODEL', $model),
             'effort' => env('ENHANCE_EFFORT', 'low'),
@@ -128,6 +128,13 @@ return [
             'description' => 'Answers plain-English questions from the data the asker may see.',
             'model' => env('AI_WORKSPACE_ASK_MODEL', $model),
             'effort' => env('AI_WORKSPACE_ASK_EFFORT', 'medium'),
+            'enabled' => true,
+        ],
+        'assistant' => [
+            'label' => 'AI assistant',
+            'description' => 'The floating chat on every page: answers questions and drafts changes for the person to confirm.',
+            'model' => env('AI_ASSISTANT_MODEL', $model),
+            'effort' => env('AI_ASSISTANT_EFFORT', 'low'),
             'enabled' => true,
         ],
         'score_evidence' => [

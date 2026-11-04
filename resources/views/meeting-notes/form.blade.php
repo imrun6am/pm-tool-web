@@ -1,4 +1,12 @@
 <div class="card card-pad">
+    @if ($meetingNote->standup)
+        <input type="hidden" name="type" value="{{ $meetingNote->type }}">
+        <p class="mb-6 flex items-center gap-2 rounded-lg bg-info-50 px-3 py-2 text-sm text-info-800 ring-1 ring-inset ring-info-600/15">
+            <x-icon name="user-group" variant="outline" class="h-4 w-4 flex-none" />
+            {{ $meetingNote->standup->team?->name }} standup for {{ $meetingNote->meeting_date->format('l, F j') }}. The tasksheet listing updates by itself and isn’t edited here. What you write here is kept.
+        </p>
+    @endif
+
     @if ($meetingNote->event)
         <input type="hidden" name="event_id" value="{{ old('event_id', $meetingNote->event_id) }}">
         <p class="mb-6 flex items-center gap-2 rounded-lg bg-info-50 px-3 py-2 text-sm text-info-800 ring-1 ring-inset ring-info-600/15">
@@ -13,6 +21,7 @@
                    placeholder="e.g. Sprint retro — action items" class="field-input" @invalid('title')>
         </x-field>
 
+        @unless ($meetingNote->standup)
         <div class="grid gap-5 sm:grid-cols-2">
             <x-field label="Meeting type" for="type">
                 <select id="type" name="type" class="field-select" @invalid('type')>
@@ -35,9 +44,11 @@
                 @endforeach
             </select>
         </x-field>
+        @endunless
     </x-form-section>
 
-    <x-form-section title="Access" description="Who was there, and who can read these notes.">
+    <x-form-section title="Access" description="{{ $meetingNote->standup ? 'Who was there. Anyone who can see this team’s tasksheet can read it.' : 'Who was there, and who can read these notes.' }}">
+        @unless ($meetingNote->standup)
         <x-field label="Visibility" for="visibility" hint="“Attendees only” hides the note from everyone but its attendees, you, and team leads.">
             <select id="visibility" name="visibility" class="field-select sm:max-w-xs" @invalid('visibility')>
                 @foreach (\App\Models\MeetingNote::VISIBILITIES as $val => $label)
@@ -45,6 +56,7 @@
                 @endforeach
             </select>
         </x-field>
+        @endunless
 
         <x-field label="Attendees" name="attendees" optional>
             <div class="mt-1.5">
@@ -58,7 +70,7 @@
     </x-form-section>
 
     <x-form-section title="Notes" description="Discussion, decisions and action items. Formatting and lists are supported.">
-        <x-field label="Meeting notes" for="meeting-note-body" name="body">
+        <x-field label="Meeting notes" for="meeting-note-body" name="body" :optional="(bool) $meetingNote->standup">
             <input id="meeting-note-body" type="hidden" name="body" value="{{ old('body', $meetingNote->body) }}">
             <trix-editor input="meeting-note-body" placeholder="Discussion, decisions, action items…" class="prose-notes min-h-[14rem]"
                          @invalid('body')></trix-editor>

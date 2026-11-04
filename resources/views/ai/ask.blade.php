@@ -1,21 +1,23 @@
 <x-app-layout>
     <x-slot name="header">
         <x-page-header title="Ask your workspace"
-                       description="Ask in plain English. Claude answers only from releases, tasks, notes and events you can open, and links its sources." />
+                       description="Ask in plain English about releases, tasks, requests, tasksheets, notes and events. AI answers only from what you can open, and links its sources." />
     </x-slot>
 
     @php
         $available = app(\App\Services\Ai\AiFeatures::class)->available('workspace_ask');
-        $examples = auth()->user()->hasLimitedAccess()
-            ? ['What’s on my plate this week?', 'Which of my tasks are overdue?', 'What did we decide in the last standup?']
-            : ['Which releases are at risk this month?', 'What is blocking the current release?', 'What did the team ship last month?'];
+        $examples = match (true) {
+            auth()->user()->hasLimitedAccess() => ['What’s on my plate this week?', 'Which of my tasks are blocked?', 'What changed on my team this week?', 'What did we decide in the last standup?'],
+            auth()->user()->isLead() => ['Which releases are at risk?', 'What is blocked right now?', 'Who has capacity next week?', 'When will the current release finish?', 'What changed this week?'],
+            default => ['Which releases are at risk?', 'What is blocked right now?', 'When will the current release finish?', 'What changed this week?'],
+        };
     @endphp
 
     <div class="py-6 sm:py-8">
         <div class="app-container">
             @unless ($available)
                 <x-empty-state icon="sparkles" title="Ask your workspace is not available"
-                               description="An administrator has switched it off, or Claude isn’t configured yet." class="card" />
+                               description="An administrator has switched it off, or AI isn’t configured yet." class="card" />
             @else
                 <div class="mx-auto max-w-3xl" x-data="aiAsk({ url: @js(route('ai.ask')) })">
                     {{-- Conversation --}}
@@ -84,14 +86,14 @@
                             <label for="ai-question" class="sr-only">Your question</label>
                             <textarea id="ai-question" x-model="question" rows="1" maxlength="500"
                                       @keydown.enter.prevent="if (!$event.shiftKey) ask()"
-                                      placeholder="Ask about releases, tasks, meetings, notes…"
+                                      placeholder="Ask what’s at risk, what’s blocked, what changed…"
                                       class="block max-h-40 min-h-[2.5rem] flex-1 resize-none border-0 bg-transparent px-2 py-2 text-sm focus:ring-0"></textarea>
                             <button type="submit" :disabled="busy || question.trim().length < 3" class="btn btn-primary btn-sm">
                                 <span x-text="busy ? 'Thinking…' : 'Ask'">Ask</span>
                             </button>
                         </div>
                         <x-ai-error class="mt-2" />
-                        <p class="mt-2 text-center text-xs text-slate-400">Claude can make mistakes — check the linked sources.</p>
+                        <p class="mt-2 text-center text-xs text-slate-400">AI can make mistakes — check the linked sources.</p>
                     </form>
                 </div>
             @endunless

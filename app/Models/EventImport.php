@@ -7,7 +7,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 /**
- * "Create events from a file": an uploaded document, the events Claude (or the
+ * "Create events from a file": an uploaded document, the events the AI (or the
  * ICS parser) proposed from it, and how far the review got. The proposals are
  * a private draft held on this row; nothing reaches `events` until the
  * uploader confirms, and each confirmed proposal remembers its event id so a

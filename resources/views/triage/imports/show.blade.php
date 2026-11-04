@@ -67,7 +67,7 @@
                         <span class="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-50 text-brand-600 ring-1 ring-inset ring-brand-600/15">
                             <x-icon name="sparkles" variant="outline" class="h-6 w-6 animate-pulse" />
                         </span>
-                        <h2 class="mt-4 text-base font-semibold text-slate-900">{{ $import->status === TriageImport::STATUS_PROCESSING ? 'Claude is reading this' : 'Waiting to be read' }}</h2>
+                        <h2 class="mt-4 text-base font-semibold text-slate-900">{{ $import->status === TriageImport::STATUS_PROCESSING ? 'AI is reading this' : 'Waiting to be read' }}</h2>
                         <p class="mt-1 max-w-md text-sm text-slate-500">
                             This usually takes under a minute; long documents take longer. You can leave this page. The import stays on <a href="{{ route('triage.index') }}" class="font-medium text-brand-700 hover:underline">Requests</a>.
                         </p>
@@ -108,7 +108,7 @@
             @elseif ($rows === [])
                 <div class="card">
                     <x-empty-state icon="inbox" title="No requests found"
-                                   description="Claude didn’t find anything being asked for in this {{ $source }}. Try a clearer copy, or send the request with the form.">
+                                   description="The AI didn’t find anything being asked for in this {{ $source }}. Try a clearer copy, or send the request with the form.">
                         <a href="{{ route('triage.index') }}" class="btn-primary btn-sm">Back to Requests</a>
                     </x-empty-state>
                 </div>
@@ -130,13 +130,13 @@
                         <div>
                             <h2 class="text-sm font-semibold text-slate-900">
                                 {{ count($rows) }} {{ Str::plural('request', count($rows)) }} found
-                                <span class="font-normal text-slate-500">· Claude can make mistakes, so check each one</span>
+                                <span class="font-normal text-slate-500">· AI can make mistakes, so check each one</span>
                             </h2>
                             @if ($sent->isNotEmpty())
                                 <p class="mt-0.5 text-xs text-slate-500">{{ $sent->count() }} already sent from this import.</p>
                             @endif
                             @if ($import->proposals_dropped > 0)
-                                <p class="mt-0.5 text-xs text-warning-800">Claude found {{ $import->proposals_dropped }} more than can be reviewed at once. Split the {{ $source }} to import the rest.</p>
+                                <p class="mt-0.5 text-xs text-warning-800">The AI found {{ $import->proposals_dropped }} more than can be reviewed at once. Split the {{ $source }} to import the rest.</p>
                             @endif
                             @if (! $teamChoice && $teams->count() === 1)
                                 <p class="mt-0.5 text-xs text-slate-500">These go to {{ $teams->first()->name }}.</p>
@@ -189,7 +189,7 @@
 
                                     <div class="flex w-full flex-wrap items-center gap-1.5 sm:w-auto sm:pt-2">
                                         @if ($unsure)
-                                            <span class="badge badge-warning" title="Claude wasn’t sure this is a request">Might not be a request</span>
+                                            <span class="badge badge-warning" title="The AI wasn’t sure this is a request">Might not be a request</span>
                                         @endif
                                         @if ($already)
                                             <span class="badge badge-warning" title="One of your waiting requests has this title">Already sent?</span>

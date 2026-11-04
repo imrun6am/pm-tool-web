@@ -18,7 +18,7 @@
              @dragleave.window="onDragLeave($event)" @drop.window="onDrop($event)">
         <div class="fixed inset-0 z-40 p-4 pointer-events-none" x-show="dragging" x-cloak aria-hidden="true">
             <div class="flex h-full items-center justify-center rounded-xl border-2 border-dashed border-brand-400 bg-brand-50/80">
-                <p class="text-sm font-semibold text-brand-800">Drop the file to read it with Claude</p>
+                <p class="text-sm font-semibold text-brand-800">Drop the file to read it with AI</p>
             </div>
         </div>
 
@@ -27,8 +27,8 @@
                 <x-icon name="sparkles" variant="outline" class="h-5 w-5" />
             </span>
             <div class="min-w-0 flex-1 basis-64">
-                <h2 id="import-title" class="card-title">Create requests with Claude</h2>
-                <p class="mt-0.5 text-xs text-slate-500">Drop a file or paste a screenshot or message anywhere on this page. You check what Claude finds before anything is sent.</p>
+                <h2 id="import-title" class="card-title">Create requests with AI</h2>
+                <p class="mt-0.5 text-xs text-slate-500">Drop a file or paste a screenshot or message anywhere on this page. You check what the AI finds before anything is sent.</p>
             </div>
             <div class="flex flex-wrap gap-2">
                 <button type="button" class="btn-secondary btn-sm" @click="$refs.input.click()">
@@ -66,7 +66,7 @@
                     <button type="button" class="btn-ghost btn-sm" @click="clearFile()">Remove</button>
                     <button type="submit" class="btn-primary btn-sm" x-ref="send" :disabled="busy">
                         <x-icon name="sparkles" variant="outline" class="h-4 w-4" />
-                        <span x-text="busy ? 'Uploading…' : 'Read with Claude'">Read with Claude</span>
+                        <span x-text="busy ? 'Uploading…' : 'Read with AI'">Read with AI</span>
                     </button>
                 </div>
             </div>
@@ -87,7 +87,7 @@
                     <button type="button" class="btn-ghost btn-sm" @click="closeText()">Cancel</button>
                     <button type="submit" class="btn-primary btn-sm" :disabled="! text.trim() || busy">
                         <x-icon name="sparkles" variant="outline" class="h-4 w-4" />
-                        <span x-text="busy ? 'Sending…' : 'Read with Claude'">Read with Claude</span>
+                        <span x-text="busy ? 'Sending…' : 'Read with AI'">Read with AI</span>
                     </button>
                 </div>
             </div>
@@ -98,7 +98,7 @@
 {{-- What still needs this person. Updates in place while something is being read. --}}
 @if ($imports->isNotEmpty())
     <x-poll-region id="triage-imports" class="card" :running="$imports->contains(fn ($i) => $i->isRunning())" every="3000"
-                   done-message="Claude has finished reading. Review what it found.">
+                   done-message="The AI has finished reading. Review what it found.">
         <div class="card-header"><h2 class="card-title">Your imports</h2></div>
         @foreach ($imports as $import)
             <div class="flex flex-wrap items-center gap-3 border-b border-slate-100 px-5 py-3 last:border-b-0">

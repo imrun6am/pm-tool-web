@@ -1,5 +1,5 @@
 {{--
-    Claude on the release page: risk brief (#3), release notes (#1), comment
+    AI on the release page: risk brief (#3), release notes (#1), comment
     catch-up (#6) and document insights (#7). Each card shows only when its
     feature is available and the viewer may use it.
     @include('ai.panels.release', ['release' => $release])
@@ -30,8 +30,8 @@
                 'subject' => $release,
                 'body' => ['subject_id' => $release->id],
                 'canRequest' => $planner,
-                'label' => 'Assess risk with Claude',
-                'empty' => $planner ? 'Ask Claude whether this release is on track, and why.' : 'No risk brief yet — a release planner can generate one.',
+                'label' => 'Assess risk with AI',
+                'empty' => $planner ? 'Ask AI whether this release is on track, and why.' : 'No risk brief yet — a release planner can generate one.',
             ])
         </div>
     </section>
@@ -56,7 +56,7 @@
                 @if (filled($release->release_notes))
                     <div class="prose-notes text-sm">{!! $release->release_notes !!}</div>
                 @else
-                    <p class="text-sm text-slate-500">No release notes yet. Claude can draft them from the finished tasks.</p>
+                    <p class="text-sm text-slate-500">No release notes yet. AI can draft them from the finished tasks.</p>
                 @endif
             </div>
 
@@ -69,7 +69,7 @@
                                  placeholder="What shipped, for readers outside the team…"></trix-editor>
                     <div class="flex flex-wrap items-center gap-2">
                         @if ($ai->available('release_notes'))
-                            <x-ai-button label="Draft with Claude" busy-label="Drafting…"
+                            <x-ai-button label="Draft with AI" busy-label="Drafting…"
                                          click="draft({{ Js::from(route('ai.release-notes.draft', $release)) }}, 'release-notes-{{ $release->id }}')" />
                         @endif
                         <button type="submit" class="btn btn-primary btn-sm">Save notes</button>
@@ -108,9 +108,9 @@
                             'subject' => $document,
                             'body' => ['subject_id' => $document->id, 'release_id' => $release->id],
                             'canRequest' => ! $viewer->isViewer(),
-                            'label' => 'Analyze with Claude',
+                            'label' => 'Analyze with AI',
                             'refresh' => 'Analyze again',
-                            'empty' => 'Claude can summarize this document, list its requirements and suggest tasks.',
+                            'empty' => 'AI can summarize this document, list its requirements and suggest tasks.',
                         ])
                     </div>
                 </li>

@@ -1,7 +1,7 @@
 import Alpine from 'alpinejs';
 
 /*
- * Claude features (resources/views/ai/*). Every endpoint answers JSON: the
+ * AI features (resources/views/ai/*). Every endpoint answers JSON: the
  * result, or { message } with 409 (won't work: feature off, unconfigured,
  * declined) / 503 (may work on retry) / 429 (rate limit). Soft navigation
  * tears components down with the old <body>, so pollers clear their timers
@@ -30,10 +30,10 @@ export async function aiFetch(url, { method = 'POST', body = null } = {}) {
     if (response.ok) return { ok: true, data, error: '' };
 
     const error = response.status === 429
-        ? 'Too many Claude requests. Wait a minute and try again.'
+        ? 'Too many AI requests. Wait a minute and try again.'
         : response.status === 422
             ? Object.values(data.errors ?? {}).flat()[0] ?? data.message ?? 'Please check the form.'
-            : data.message ?? 'Claude couldn’t do this right now. Please try again.';
+            : data.message ?? 'The AI couldn’t do this right now. Please try again.';
 
     return { ok: false, data, error };
 }
@@ -44,7 +44,7 @@ const toast = (message, type = 'success') => window.dispatchEvent(new CustomEven
 const refresh = () => (window.Turbo ? window.Turbo.visit(window.location.href, { action: 'replace' }) : window.location.reload());
 
 /*
- * One Claude request whose answer the template renders: x-data="aiPanel({ url })",
+ * One AI request whose answer the template renders: x-data="aiPanel({ url })",
  * then run({ ...payload }) and read `result`, `busy`, `error`.
  */
 Alpine.data('aiPanel', ({ url, initial = null } = {}) => ({
@@ -73,7 +73,7 @@ Alpine.data('aiPanel', ({ url, initial = null } = {}) => ({
 }));
 
 /*
- * Claude-proposed tasks the user reviews before anything is created.
+ * AI-proposed tasks the user reviews before anything is created.
  * propose() fills `items` (each gets `selected`), create() posts the chosen
  * ones to createUrl and refreshes the page.
  */
@@ -182,13 +182,13 @@ Alpine.data('aiInsight', ({ storeUrl, statusUrl, body = {}, insight = null } = {
         this.id = data.id;
         this.status = data.status;
         this.generated = data.generated_human ?? this.generated;
-        if (data.status === 'failed') this.error = data.error ?? 'Claude couldn’t finish this.';
+        if (data.status === 'failed') this.error = data.error ?? 'The AI couldn’t finish this.';
         if (data.html && this.$refs.body) this.$refs.body.innerHTML = data.html;
     },
 }));
 
 /*
- * Release notes editor: draft(url, input) asks Claude for a draft and loads it
+ * Release notes editor: draft(url, input) asks the AI for a draft and loads it
  * into the Trix editor bound to `input`; nothing is saved until the form is.
  */
 Alpine.data('aiNotes', () => ({
@@ -209,7 +209,7 @@ Alpine.data('aiNotes', () => ({
         }
         const editor = document.querySelector(`trix-editor[input="${input}"]`)?.editor;
         if (editor) {
-            editor.recordUndoEntry('Draft with Claude');
+            editor.recordUndoEntry('Draft with AI');
             editor.loadHTML(data.html);
         }
         this.drafted = data.task_count ?? 0;
@@ -218,12 +218,12 @@ Alpine.data('aiNotes', () => ({
 
 /*
  * Write into a Trix editor (by its hidden input id) or a plain field (by id)
- * from a Claude answer; used by the task writer and feedback drafts.
+ * from an AI answer; used by the task writer and feedback drafts.
  */
 export function fillField(id, value, html = false) {
     const trix = document.querySelector(`trix-editor[input="${id}"]`)?.editor;
     if (trix) {
-        trix.recordUndoEntry('Claude');
+        trix.recordUndoEntry('AI');
         trix.loadHTML(html ? value : value.replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])).replace(/\n/g, '<br>'));
         return;
     }
@@ -243,7 +243,7 @@ window.aiFillField = fillField;
 export function appendField(id, value) {
     const trix = document.querySelector(`trix-editor[input="${id}"]`)?.editor;
     if (trix) {
-        trix.recordUndoEntry('Claude');
+        trix.recordUndoEntry('AI');
         const end = trix.getDocument().getLength() - 1;
         trix.setSelectedRange([end, end]);
         trix.insertHTML(value);
@@ -337,7 +337,7 @@ Alpine.data('aiAsk', ({ url } = {}) => ({
 window.aiFetch = aiFetch;
 
 /*
- * Handing Claude a file, screenshot or text on the Requests page. A file can
+ * Handing the AI a file, screenshot or text on the Requests page. A file can
  * come from the button, a drop anywhere on the page or the clipboard; it waits
  * for a click, so nothing paid for starts by accident. Plain text pasted outside
  * a field opens the text form; inside a field it pastes as usual.

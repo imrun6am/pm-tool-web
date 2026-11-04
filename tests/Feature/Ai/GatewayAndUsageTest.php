@@ -75,7 +75,7 @@ class GatewayAndUsageTest extends AiTestCase
         $this->callClaude();
 
         $this->actingAs($admin)->get(route('ai.usage'))->assertOk()
-            ->assertSee('Catch me up')->assertSee('Claude calls');
+            ->assertSee('Catch me up')->assertSee('AI calls');
 
         $this->actingAs($admin)->post(route('ai.features.toggle', 'catch_up'), ['enabled' => 0])->assertRedirect();
         $this->assertFalse(app(AiFeatures::class)->enabled('catch_up'));

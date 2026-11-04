@@ -1,7 +1,7 @@
 <x-app-layout>
     <x-slot name="header">
         <x-page-header title="Import events"
-                       description="Upload a meeting invite, schedule, agenda or release plan, or paste an email or message. Claude finds the events in the background; you review them before anything is added."
+                       description="Upload a meeting invite, schedule, agenda or release plan, or paste an email or message. AI finds the events in the background; you review them before anything is added."
                        :breadcrumbs="['Calendar' => route('calendar.index'), 'Import events' => null]" />
     </x-slot>
 
@@ -12,10 +12,10 @@
                     <x-icon name="exclamation-circle" variant="outline" class="mt-0.5 h-5 w-5 flex-none" />
                     <p>Add <code class="font-mono">ANTHROPIC_API_KEY</code> to <code class="font-mono">.env</code> to read PDFs, images and documents. <code class="font-mono">.ics</code> calendar files import without it.</p>
                 </div>
-            @elseif (! $claudeAvailable)
+            @elseif (! $aiAvailable)
                 <div class="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                     <x-icon name="exclamation-circle" variant="outline" class="mt-0.5 h-5 w-5 flex-none" />
-                    <p>Finding events with Claude is switched off, so PDFs, images, documents and pasted text can’t be read right now. <code class="font-mono">.ics</code> calendar files and pasted calendar data still import.</p>
+                    <p>Finding events with AI is switched off, so PDFs, images, documents and pasted text can’t be read right now. <code class="font-mono">.ics</code> calendar files and pasted calendar data still import.</p>
                 </div>
             @endif
 
@@ -72,7 +72,7 @@
                             <template x-if="! file">
                                 <div>
                                     <p class="mt-4 text-sm font-semibold text-slate-900">Drop a file here, or <span class="text-brand-700 underline decoration-brand-300 underline-offset-2">browse</span></p>
-                                    <p class="mt-1 text-xs text-slate-500">{{ $claudeAvailable ? 'PDF, image, .ics, Word, Excel, CSV or text · up to 20 MB (images 5 MB)' : '.ics calendar files only · up to 20 MB' }}</p>
+                                    <p class="mt-1 text-xs text-slate-500">{{ $aiAvailable ? 'PDF, image, .ics, Word, Excel, CSV or text · up to 20 MB (images 5 MB)' : '.ics calendar files only · up to 20 MB' }}</p>
                                 </div>
                             </template>
                             <template x-if="file">
@@ -82,7 +82,7 @@
                                 </div>
                             </template>
                             <input id="document" name="document" type="file" x-ref="input" class="sr-only" required
-                                   accept="{{ $claudeAvailable ? '.pdf,.png,.jpg,.jpeg,.gif,.webp,.ics,.docx,.xlsx,.csv,.txt,.md' : '.ics' }}"
+                                   accept="{{ $aiAvailable ? '.pdf,.png,.jpg,.jpeg,.gif,.webp,.ics,.docx,.xlsx,.csv,.txt,.md' : '.ics' }}"
                                    @change="file = $event.target.files[0] || null" @invalid('document')>
                         </label>
                         @error('document')
@@ -115,7 +115,7 @@
                         <input type="hidden" name="timezone" :value="tz">
 
                         <x-field label="Text with dates" for="import-text" name="text"
-                                 :hint="$claudeAvailable ? 'An email or invite, a chat message, meeting minutes, an agenda or a schedule table. Calendar (.ics) text works too.' : 'Only calendar (.ics) text can be read right now.'">
+                                 :hint="$aiAvailable ? 'An email or invite, a chat message, meeting minutes, an agenda or a schedule table. Calendar (.ics) text works too.' : 'Only calendar (.ics) text can be read right now.'">
                             <textarea id="import-text" name="text" rows="10" x-model="text" maxlength="{{ $maxChars }}" required
                                       class="field-textarea font-mono text-[13px] leading-relaxed"
                                       placeholder="e.g. “Kick-off with Sara and Omar on Monday 9 Nov at 10:00 in Room 4. Code freeze 20 Nov, go-live 27 Nov.”"
@@ -144,7 +144,7 @@
                     <ol class="mt-3 space-y-3 text-sm text-slate-600">
                         @foreach ([
                             ['Upload or paste', 'What you add is stored privately; only you (and admins) can see it.'],
-                            ['Extract', 'Claude reads it in the background. Calendar (.ics) data is read directly.'],
+                            ['Extract', 'AI reads it in the background. Calendar (.ics) data is read directly.'],
                             ['Review', 'Edit titles, times, attendees and releases; untick anything you don’t want.'],
                             ['Confirm', 'The selected events are added to the calendar.'],
                         ] as $i => [$step, $text])
@@ -160,7 +160,7 @@
             {{-- History: updates in place while an import runs (no page reload) --}}
             @php $running = $imports->contains(fn ($i) => $i->isRunning()); @endphp
             <x-poll-region id="calendar-imports" class="card overflow-x-auto" :running="$running" every="3000"
-                           done-message="Import finished — review the events Claude found.">
+                           done-message="Import finished — review the events the AI found.">
                 <div class="card-header">
                     <h2 class="card-title">Your imports</h2>
                 </div>
@@ -246,7 +246,7 @@
                 @endif
             </x-poll-region>
             <p class="text-xs text-slate-400">
-                Files, pasted text and notes are read by Claude, which can make mistakes; check each event before confirming.
+                Files, pasted text and notes are read by AI, which can make mistakes; check each event before confirming.
                 The queue worker must be running (<code class="font-mono">php artisan queue:work</code>).
             </p>
         </div>

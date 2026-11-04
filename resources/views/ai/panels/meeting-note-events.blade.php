@@ -1,5 +1,5 @@
 {{--
-    Claude on a meeting note: find the dates in it and propose calendar events.
+    AI on a meeting note: find the dates in it and propose calendar events.
     The page has already checked the viewer may read this note; the server checks again on submit.
     @include('ai.panels.meeting-note-events', ['meetingNote' => $meetingNote])
 --}}
@@ -13,7 +13,7 @@
             @if (\App\Services\Calendar\EventImportService::noteText($meetingNote->body) === '')
                 <p class="text-slate-500">This meeting has no written notes yet, so there are no dates to read.</p>
             @else
-                <p class="text-slate-500">Claude looks for meetings, deadlines and releases in these minutes. You choose which to add; nothing reaches the calendar until you confirm.</p>
+                <p class="text-slate-500">AI looks for meetings, deadlines and releases in these minutes. You choose which to add; nothing reaches the calendar until you confirm.</p>
                 <form method="POST" action="{{ route('meeting-notes.calendar-events', $meetingNote) }}" class="mt-3"
                       x-data="{ tz: Intl.DateTimeFormat().resolvedOptions().timeZone || '', busy: false }" @submit="busy = true">
                     @csrf

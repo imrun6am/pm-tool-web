@@ -22,7 +22,7 @@
             ['icon' => 'rocket', 'title' => 'Release planning that sees conflicts', 'text' => 'Every release on one timeline across projects and teams — warned before a team is double-booked.'],
             ['icon' => 'view-columns', 'title' => 'Daily work in one place', 'text' => 'Board, tasksheet, calendar and meeting notes, with quick capture from anywhere.'],
             ['icon' => 'chart-bar', 'title' => 'Progress you can feel', 'text' => 'Personal analytics, gentle reminders and a small “nice work” when things get done.'],
-            ['icon' => 'sparkles', 'title' => 'Claude built in', 'text' => 'Risk briefs, release notes and “Ask your workspace” — answers scoped to what you can see.'],
+            ['icon' => 'sparkles', 'title' => 'AI built in', 'text' => 'Risk briefs, release notes and “Ask your workspace” — answers scoped to what you can see.'],
         ];
     @endphp
     <body class="min-h-full bg-white font-sans antialiased">

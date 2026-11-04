@@ -182,9 +182,9 @@ class TasksheetController extends Controller
     }
 
     /**
-     * "Add to board": save the row exactly like upsert(), then let Claude split
+     * "Add to board": save the row exactly like upsert(), then let the AI split
      * the plan into To Do cards assigned to the row's member. The row is saved
-     * even when Claude is unavailable — only the board step is skipped.
+     * even when the AI is unavailable — only the board step is skipped.
      */
     public function addToBoard(TasksheetBoardRequest $request, PlanToBoardService $board): RedirectResponse
     {
@@ -205,11 +205,11 @@ class TasksheetController extends Controller
             $release = isset($data['board_release_id']) ? Release::findOrFail($data['board_release_id']) : null;
             $result = $board->addPlanTasks($entry, $release, $request->user());
         } catch (MissingApiKeyException) {
-            return $back->with('error', 'Tasksheet saved, but no tasks were added: Claude isn’t configured (ANTHROPIC_API_KEY).');
+            return $back->with('error', 'Tasksheet saved, but no tasks were added: AI isn’t configured (ANTHROPIC_API_KEY).');
         } catch (Throwable $e) {
             report($e);
 
-            return $back->with('error', 'Tasksheet saved, but no tasks were added: Claude couldn’t split the plan right now. Please try again.');
+            return $back->with('error', 'Tasksheet saved, but no tasks were added: the AI couldn’t split the plan right now. Please try again.');
         }
 
         $created = count($result['created']);
@@ -217,7 +217,7 @@ class TasksheetController extends Controller
         $message = match (true) {
             $created > 0 => "Tasksheet saved. Added {$created} ".Str::plural('task', $created)." to the board for {$name}.",
             $result['skipped'] > 0 => "Tasksheet saved. Those tasks are already on the board for {$name}.",
-            default => 'Tasksheet saved. Claude found no actionable tasks in the plan.',
+            default => 'Tasksheet saved. The AI found no actionable tasks in the plan.',
         };
         if ($created > 0 && $result['skipped'] > 0) {
             $message .= " Skipped {$result['skipped']} already on the board.";

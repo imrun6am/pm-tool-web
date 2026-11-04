@@ -9,7 +9,7 @@ use Throwable;
 use XMLReader;
 
 /**
- * Turns the formats Claude can't read natively into plain text: Word (.docx),
+ * Turns the formats the model can't read natively into plain text: Word (.docx),
  * Excel (.xlsx), CSV and plain text. Everything is streamed (XMLReader over
  * the zip entry, openspout row iterators), and output is capped, so a large
  * upload never loads whole into the worker's memory. Over the cap it fails

@@ -15,7 +15,7 @@ use RuntimeException;
 use Throwable;
 
 /**
- * Asks Claude for the events in a document.
+ * Asks the AI for the events in a document.
  *
  * PDFs and images are uploaded to the Files API straight from disk and
  * referenced by id, so the worker never holds a base64 copy of a 20 MB file;
@@ -167,7 +167,7 @@ class ClaudeEventExtractor implements EventExtractor
         }
 
         if ($stopReason === 'refusal') {
-            throw new RuntimeException('Claude declined to read this document.');
+            throw new RuntimeException('The AI declined to read this document.');
         }
         if ($stopReason === 'max_tokens') {
             throw new RuntimeException('The document lists more events than one request can return. Split it into smaller files.');
@@ -175,7 +175,7 @@ class ClaudeEventExtractor implements EventExtractor
 
         $out = json_decode($json, true);
         if (! is_array($out) || ! isset($out['events']) || ! is_array($out['events'])) {
-            throw new RuntimeException('Claude returned an unreadable response.');
+            throw new RuntimeException('The AI returned an unreadable response.');
         }
 
         return ['events' => array_values($out['events']), 'usage' => $usage];

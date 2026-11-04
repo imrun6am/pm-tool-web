@@ -144,7 +144,7 @@ class Navigation
                 'label' => 'Overview',
                 'items' => [
                     ['key' => 'dashboard', 'label' => 'Dashboard', 'route' => 'dashboard', 'patterns' => ['dashboard'], 'icon' => 'squares'],
-                    ['key' => 'ask', 'label' => 'Ask Claude', 'route' => 'ai.ask.page', 'patterns' => ['ai.ask.*'], 'icon' => 'magnifying-glass',
+                    ['key' => 'ask', 'label' => 'Ask AI', 'route' => 'ai.ask.page', 'patterns' => ['ai.ask.*'], 'icon' => 'magnifying-glass',
                         'visible' => fn () => app(AiFeatures::class)->available('workspace_ask')],
                 ],
             ],
@@ -155,7 +155,7 @@ class Navigation
                     ['key' => 'releases', 'label' => 'Releases', 'route' => 'releases.index', 'patterns' => ['releases.*', 'release-templates.*'], 'icon' => 'rocket'],
                     ['key' => 'projects', 'label' => 'Projects', 'route' => 'projects.index', 'patterns' => ['projects.*'], 'icon' => 'folder'],
                     ['key' => 'teams', 'label' => 'Teams', 'route' => 'teams.index', 'patterns' => ['teams.*'], 'icon' => 'user-group'],
-                    ['key' => 'reports', 'label' => 'Reports', 'route' => 'reports.flow', 'patterns' => ['reports.*'], 'icon' => 'presentation-chart-line'],
+                    ['key' => 'reports', 'label' => 'Reports', 'route' => 'reports.flow', 'patterns' => ['reports.flow', 'reports.time*'], 'icon' => 'presentation-chart-line'],
                     ['key' => 'capacity', 'label' => 'Capacity', 'route' => 'capacity.index', 'patterns' => ['capacity.*'], 'icon' => 'scale', 'visible' => fn (User $u) => $u->isLead()],
                 ],
             ],
@@ -186,6 +186,7 @@ class Navigation
                     // Lead-only (sensitive HR data); routes enforce this too.
                     ['key' => 'performance', 'label' => 'Performance', 'route' => 'performance.index', 'patterns' => ['performance.*'], 'icon' => 'chart-bar', 'visible' => fn (User $u) => $u->isLead()],
                     ['key' => 'kpi-reports', 'label' => 'KPI reports', 'route' => 'kpi-reports.index', 'patterns' => ['kpi-reports.*'], 'icon' => 'document-text', 'visible' => fn (User $u) => $u->isAdmin()],
+                    ['key' => 'people-analytics', 'label' => 'People analytics', 'route' => 'reports.people', 'patterns' => ['reports.people*'], 'icon' => 'chart-pie', 'visible' => fn (User $u) => $u->isAdmin()],
                     ['key' => 'users', 'label' => 'Users', 'route' => 'users.index', 'patterns' => ['users.*'], 'icon' => 'identification', 'visible' => fn (User $u) => $u->canManageUsers()],
                     ['key' => 'ai-usage', 'label' => 'AI usage', 'route' => 'ai.usage', 'patterns' => ['ai.usage'], 'icon' => 'sparkles', 'visible' => fn (User $u) => $u->isAdmin()],
                 ],

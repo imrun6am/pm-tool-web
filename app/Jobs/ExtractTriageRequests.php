@@ -74,8 +74,8 @@ class ExtractTriageRequests implements ShouldQueue
     private static function message(?Throwable $e): string
     {
         return match (true) {
-            $e instanceof AiException && $e->getPrevious() instanceof BadRequestException => 'Claude couldn’t read this. A file may be damaged, password-protected or too long. Try a smaller or clearer copy.',
-            $e instanceof AiException && self::isPermanent($e->getPrevious()) => 'Claude isn’t set up correctly, so an admin needs to check the API key.',
+            $e instanceof AiException && $e->getPrevious() instanceof BadRequestException => 'The AI couldn’t read this. A file may be damaged, password-protected or too long. Try a smaller or clearer copy.',
+            $e instanceof AiException && self::isPermanent($e->getPrevious()) => 'AI isn’t set up correctly, so an admin needs to check the API key.',
             $e instanceof AiException, $e instanceof UnreadableDocumentException => $e->getMessage(),
             default => 'Reading this took too long or something went wrong. Please try again.',
         };

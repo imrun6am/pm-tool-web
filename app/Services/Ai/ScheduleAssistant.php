@@ -12,7 +12,7 @@ use Illuminate\Support\Carbon;
 /**
  * Release schedule assistant: proposes Development → QA → Retest → Release
  * dates inside a window, working around weekends, off-days and the team's
- * other releases. Claude proposes; the dates are then checked and repaired
+ * other releases. The AI proposes; the dates are then checked and repaired
  * here (inside the window, in order, no gaps or overlaps between phases), so
  * the form only ever receives a valid schedule.
  */

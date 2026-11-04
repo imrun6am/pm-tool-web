@@ -444,7 +444,7 @@ class CalendarImportTest extends TestCase
         Queue::fake();
         $user = User::factory()->create();
         $import = $this->import($user, 'plan.pdf', '%PDF-1.4');
-        $this->result = new RuntimeException('Claude returned an unreadable response.');
+        $this->result = new RuntimeException('The AI returned an unreadable response.');
 
         // After the final attempt the job's failed() hook records the error.
         $job = new ExtractCalendarEvents($import->id);
@@ -457,7 +457,7 @@ class CalendarImportTest extends TestCase
 
         $import->refresh();
         $this->assertSame(EventImport::STATUS_FAILED, $import->status);
-        $this->assertSame('Claude returned an unreadable response.', $import->error);
+        $this->assertSame('The AI returned an unreadable response.', $import->error);
 
         $this->actingAs($user)->get(route('calendar.imports.show', $import))
             ->assertOk()->assertSee('couldn’t be read', false)->assertSee('Try again');
@@ -505,10 +505,10 @@ class CalendarImportTest extends TestCase
 
         $this->actingAs($user)->post(route('calendar.imports.store'), [
             'document' => UploadedFile::fake()->create('plan.pdf', 100, 'application/pdf'),
-        ])->assertSessionHasErrors(['document' => 'Claude isn’t available to read files right now. Only .ics calendar files can be imported.']);
+        ])->assertSessionHasErrors(['document' => 'AI isn’t available to read files right now. Only .ics calendar files can be imported.']);
 
         $this->actingAs($user)->post(route('calendar.imports.text'), ['text' => 'Kick-off on Monday'])
-            ->assertSessionHasErrors(['text' => 'Claude isn’t available to read text right now. Only iCalendar (.ics) data can be imported.']);
+            ->assertSessionHasErrors(['text' => 'AI isn’t available to read text right now. Only iCalendar (.ics) data can be imported.']);
 
         $this->assertSame(0, EventImport::count());
         Queue::assertNothingPushed();

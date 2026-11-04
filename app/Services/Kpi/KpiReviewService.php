@@ -25,7 +25,7 @@ use Illuminate\Support\Facades\DB;
  */
 class KpiReviewService
 {
-    /** Work categories Claude sorts each day's tasks into (fixed, so members compare). */
+    /** Work categories the AI sorts each day's tasks into (fixed, so members compare). */
     public const CATEGORIES = [
         'feature' => 'Feature work',
         'bug_fix' => 'Bug fixing',

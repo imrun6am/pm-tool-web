@@ -95,12 +95,12 @@ class AiEnhanceTest extends TestCase
         $this->fakeClaude(error: new MissingApiKeyException('ANTHROPIC_API_KEY is not set.'));
         $this->actingAs($user)->postJson(route('ai.enhance'), ['kind' => 'note', 'body' => '<div>hi</div>'])
             ->assertStatus(503)
-            ->assertJson(['message' => 'Claude isn’t configured (ANTHROPIC_API_KEY). Your text is unchanged.']);
+            ->assertJson(['message' => 'AI isn’t configured (ANTHROPIC_API_KEY). Your text is unchanged.']);
 
-        $this->fakeClaude(error: new \RuntimeException('Claude returned an unreadable response.'));
+        $this->fakeClaude(error: new \RuntimeException('The AI returned an unreadable response.'));
         $this->actingAs($user)->postJson(route('ai.enhance'), ['kind' => 'note', 'body' => '<div>hi</div>'])
             ->assertStatus(503)
-            ->assertJsonPath('message', 'Claude couldn’t enhance this right now. Your text is unchanged — please try again.');
+            ->assertJsonPath('message', 'The AI couldn’t enhance this right now. Your text is unchanged — please try again.');
     }
 
     public function test_requests_are_rate_limited_per_user(): void
@@ -129,7 +129,7 @@ class AiEnhanceTest extends TestCase
         $this->actingAs($user)->get(route('notes.index'))->assertOk()
             ->assertSee('input: \'note-add-body\'', false)
             ->assertSee('input: \'note-edit-'.$note->id.'\'', false)
-            ->assertSee('Enhance with Claude');
+            ->assertSee('Enhance with AI');
 
         // Meeting note create and edit, with title/type context.
         foreach ([route('meeting-notes.create'), route('meeting-notes.edit', $meeting)] as $url) {

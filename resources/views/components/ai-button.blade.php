@@ -1,8 +1,8 @@
 @props(['label', 'busyLabel' => 'Working…', 'click', 'busy' => 'busy', 'disabled' => 'false', 'size' => 'sm'])
 {{--
-    The violet "Claude" button every AI feature uses, with a spinner while the
+    The violet "AI" button every AI feature uses, with a spinner while the
     surrounding Alpine component's `busy` expression is true.
-      <x-ai-button label="Draft with Claude" busy-label="Drafting…" click="run()" />
+      <x-ai-button label="Draft with AI" busy-label="Drafting…" click="run()" />
 --}}
 <button type="button" @click="{{ $click }}" :disabled="{{ $busy }} || {{ $disabled }}" :aria-busy="{{ $busy }} ? 'true' : 'false'"
         {{ $attributes->class(['btn border border-violet-600/20 bg-violet-50 text-violet-700 hover:border-violet-600/30 hover:bg-violet-100 focus-visible:ring-violet-500/50 disabled:opacity-60',

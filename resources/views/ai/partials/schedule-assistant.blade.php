@@ -9,7 +9,7 @@
          x-data="aiPanel({ url: @js(route('ai.schedule')) })">
         <div class="flex flex-wrap items-center justify-between gap-2">
             <p class="text-xs text-slate-600">
-                <span class="font-medium text-slate-800">Plan with Claude</span> — phase dates sized by working days, around off-days and the team’s other releases.
+                <span class="font-medium text-slate-800">Plan with AI</span> — phase dates sized by working days, around off-days and the team’s other releases.
             </p>
             <x-ai-button label="Suggest phases" busy-label="Planning…" disabled="!start || !end || !teamId"
                          click="run({ start_date: start, end_date: end, team_id: teamId, release_id: {{ $release->exists ? $release->id : 'null' }}, off_days: offDays })

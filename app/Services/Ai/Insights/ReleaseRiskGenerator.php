@@ -12,7 +12,7 @@ use Illuminate\Support\Carbon;
 
 /**
  * Release risk brief. The signals (overdue and stalled work, phase pace,
- * double-booking, off-days) are computed here from the database; Claude only
+ * double-booking, off-days) are computed here from the database; the AI only
  * weighs them, explains them in plain words and drafts a stakeholder update.
  * The computed signals are stored with the answer so the card shows the facts
  * behind the verdict.
@@ -69,7 +69,7 @@ class ReleaseRiskGenerator implements InsightGenerator
         ];
     }
 
-    /** The computed facts sent to Claude (and their headline numbers, kept with the answer). */
+    /** The computed facts sent to the AI (and their headline numbers, kept with the answer). */
     public function signals(Release $release): array
     {
         $release->loadMissing(['project', 'team', 'phases', 'offDays']);

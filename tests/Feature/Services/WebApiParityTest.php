@@ -399,4 +399,31 @@ class WebApiParityTest extends TestCase
         );
         $this->assertSame(1, $api['kpis']['completed']['current']);
     }
+
+    public function test_people_analytics_is_one_computation_on_both_surfaces(): void
+    {
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+        $dev = User::factory()->create(['role' => User::ROLE_DEVELOPER]);
+        $team = Team::create(['name' => 'Core', 'color' => '#0891b2']);
+        $team->memberRecords()->attach($dev);
+        Task::create(['title' => 'Open', 'status' => 'todo', 'position' => 0, 'assignee_id' => $dev->id, 'team_id' => $team->id, 'due_date' => today()->subDay()]);
+        $finished = Task::create(['title' => 'Finished', 'status' => 'in_progress', 'position' => 1, 'assignee_id' => $dev->id, 'team_id' => $team->id]);
+        $finished->update(['status' => 'done']);
+
+        $web = $this->actingAs($admin)->get('/reports/people')->assertOk()->viewData('report');
+
+        Sanctum::actingAs($admin);
+        $api = $this->getJson('/api/v1/reports/people')->assertOk()->json('data');
+
+        $this->assertSame($web['from']->toDateString(), $api['from']);
+        $this->assertSame($web['to']->toDateString(), $api['to']);
+        $this->assertSame($web['summary']['delivery']['completed'], $api['summary']['delivery']['completed']);
+        $this->assertSame(1, $api['summary']['delivery']['completed']);
+        $this->assertSame($web['summary']['workload']['overdue'], $api['summary']['workload']['overdue']);
+        $this->assertSame(1, $api['summary']['workload']['overdue']);
+        $this->assertSame($web['compare'], $api['compare']);
+        $this->assertSame(collect($web['people'])->map(fn ($r) => $r['user']->id)->all(), array_column($api['people'], 'id'));
+        $this->assertSame(array_column($web['teams'], 'name'), array_column($api['teams'], 'name'));
+        $this->assertSame(array_column($web['trend']['buckets'], 'completed'), array_column($api['trend']['buckets'], 'completed'));
+    }
 }

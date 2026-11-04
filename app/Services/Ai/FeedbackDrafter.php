@@ -64,7 +64,7 @@ class FeedbackDrafter
 
         $feedback = trim((string) ($out['feedback'] ?? ''));
         if ($feedback === '') {
-            throw new AiException('Claude returned an empty draft. Please try again.');
+            throw new AiException('The AI returned an empty draft. Please try again.');
         }
 
         return ['html' => HtmlSanitizer::clean('<div>'.nl2br(e($feedback), false).'</div>'), 'text' => $feedback];

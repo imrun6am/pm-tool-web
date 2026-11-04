@@ -77,7 +77,7 @@ class TriageImportController extends Controller
         abort_unless($triageImport->isFailed(), 409, 'Only a failed import can be tried again.');
 
         if (! $this->imports->available()) {
-            return back()->with('error', 'Claude isn’t available right now, so this can’t be read until an admin turns it back on.');
+            return back()->with('error', 'AI isn’t available right now, so this can’t be read until an admin turns it back on.');
         }
 
         $this->imports->retry($triageImport);

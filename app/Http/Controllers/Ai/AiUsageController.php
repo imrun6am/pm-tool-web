@@ -10,7 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\View\View;
 
-/** Admin: what the Claude features cost and do, and switching them on or off. */
+/** Admin: what the AI features cost and do, and switching them on or off. */
 class AiUsageController extends Controller
 {
     public const PERIODS = [7 => 'Last 7 days', 30 => 'Last 30 days', 90 => 'Last 90 days'];

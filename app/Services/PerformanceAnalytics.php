@@ -244,6 +244,27 @@ class PerformanceAnalytics
         ];
     }
 
+    /**
+     * A person's score across any set of ratings, by the same rule as the weekly
+     * scorecard: unrated competencies are left out, never counted as zero. Runs
+     * no queries once the catalog is read, so it's safe per person.
+     *
+     * @param  Collection<int, PerformanceScore>  $scores
+     * @return array{overall: ?float, rated: int, applicable: int, categories: array<string, array{label: string, value: float|null}>}
+     */
+    public function overallFor(string $role, Collection $scores): array
+    {
+        $competencies = $this->applicableCompetencies($role);
+        $rep = $this->repScores($scores);
+
+        return [
+            'overall' => $this->weightedAverage($rep, $competencies),
+            'rated' => $competencies->filter(fn (PerformanceCompetency $c) => array_key_exists($c->id, $rep))->count(),
+            'applicable' => $competencies->count(),
+            'categories' => $this->categoryAverages($rep, $competencies),
+        ];
+    }
+
     // ---- deeper analysis -----------------------------------------------------
 
     /**

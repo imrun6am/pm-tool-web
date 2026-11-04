@@ -9,7 +9,7 @@ use Illuminate\Support\Facades\Cache;
 use InvalidArgumentException;
 
 /**
- * The catalog of Claude features (config/ai.php) with their effective
+ * The catalog of AI features (config/ai.php) with their effective
  * on/off state, model and effort. An admin's choices on the AI usage page
  * override the config defaults; a model no longer offered falls back to the
  * default rather than being sent to the API.

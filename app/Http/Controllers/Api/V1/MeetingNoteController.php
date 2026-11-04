@@ -15,7 +15,8 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
  *
  * Filtering and the attendee sync live in MeetingNoteService, shared with the
  * Blade pages. Unlike personal notes these are shared team records: a lead may
- * delete any of them, while editing stays with the author.
+ * delete any of them, while editing stays with the author. A generated standup
+ * has no author and is edited by its team (see MeetingNotePolicy).
  */
 class MeetingNoteController extends ApiController
 {
@@ -52,7 +53,7 @@ class MeetingNoteController extends ApiController
         $this->authorize('view', $meetingNote);
 
         return $this->ok(
-            new MeetingNoteResource($meetingNote->load(['author', 'release', 'event', 'attendees']))
+            new MeetingNoteResource($meetingNote->load(['author', 'release', 'event', 'attendees', 'standup.team']))
         );
     }
 
@@ -65,7 +66,7 @@ class MeetingNoteController extends ApiController
         );
 
         return $this->created(
-            new MeetingNoteResource($note->load(['author', 'release', 'event', 'attendees'])),
+            new MeetingNoteResource($note->load(['author', 'release', 'event', 'attendees', 'standup.team'])),
             'Meeting note created.'
         );
     }
@@ -81,7 +82,7 @@ class MeetingNoteController extends ApiController
         );
 
         return $this->ok(
-            new MeetingNoteResource($meetingNote->load(['author', 'release', 'event', 'attendees'])),
+            new MeetingNoteResource($meetingNote->load(['author', 'release', 'event', 'attendees', 'standup.team'])),
             'Meeting note updated.'
         );
     }

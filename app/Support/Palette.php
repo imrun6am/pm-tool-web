@@ -61,6 +61,7 @@ class Palette
         'activity' => 'cyan',
         'performance' => 'fuchsia',
         'kpi-reports' => 'indigo',
+        'people-analytics' => 'indigo',
         'users' => 'slate',
         'notifications' => 'brand',
         'ai' => 'purple',

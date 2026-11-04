@@ -1,5 +1,5 @@
 {{--
-    Review list for Claude-proposed tasks, inside an `aiSuggestions` component.
+    Review list for AI-proposed tasks, inside an `aiSuggestions` component.
     Each row can be unticked or edited before anything is created.
     Optional: $people (list of {id, name}) adds an assignee picker; $dates adds due dates;
     $noun ("task" / "subtask") words the button.
@@ -11,7 +11,7 @@
 @endphp
 <div x-show="items !== null" x-cloak class="mt-3 space-y-3">
     <template x-if="items && items.length === 0">
-        <p class="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">Claude found nothing new to add.</p>
+        <p class="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">The AI found nothing new to add.</p>
     </template>
 
     <template x-if="items && items.length > 0">

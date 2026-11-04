@@ -15,8 +15,8 @@ use Illuminate\Support\Collection;
 
 /**
  * Drafts a release's closing notes as Markdown, for the Mark complete form. The
- * delivery numbers are calculated here and written into the draft, so Claude
- * can't misstate them; Claude writes the narrative around them. Nothing is
+ * delivery numbers are calculated here and written into the draft, so the AI
+ * can't misstate them; the AI writes the narrative around them. Nothing is
  * saved until the release is marked complete.
  */
 class ReleaseRetrospective

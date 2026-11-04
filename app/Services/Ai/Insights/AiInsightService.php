@@ -13,7 +13,7 @@ use Illuminate\Support\Carbon;
 use InvalidArgumentException;
 
 /**
- * Requests, runs and looks up background Claude results. A request while one
+ * Requests, runs and looks up background AI results. A request while one
  * is already running for the same subject returns that one instead of paying
  * twice; a new request after it finished replaces the old result.
  */

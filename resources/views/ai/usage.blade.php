@@ -1,7 +1,7 @@
 <x-app-layout>
     <x-slot name="header">
         <x-page-header title="AI usage"
-                       description="Every Claude call the app makes, what it costs, and switches to turn each feature on or off.">
+                       description="Every AI call the app makes, what it costs, and switches to turn each feature on or off.">
             <x-slot name="actions">
                 <form method="GET" action="{{ route('ai.usage') }}" class="flex items-center gap-2">
                     <label for="days" class="sr-only">Period</label>
@@ -28,12 +28,12 @@
             @unless ($configured)
                 <div class="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" role="status">
                     <x-icon name="exclamation-circle" variant="outline" class="mt-0.5 h-5 w-5 flex-none" />
-                    <p>Add <code class="font-mono">ANTHROPIC_API_KEY</code> to <code class="font-mono">.env</code>. Until then every Claude feature answers “not configured”.</p>
+                    <p>Add <code class="font-mono">ANTHROPIC_API_KEY</code> to <code class="font-mono">.env</code>. Until then every AI feature answers “not configured”.</p>
                 </div>
             @endunless
 
             <div class="stat-strip">
-                <x-stat label="Claude calls" :value="number_format($totals['calls'])" :sub="$periods[$days]" icon="sparkles" tone="violet" />
+                <x-stat label="AI calls" :value="number_format($totals['calls'])" :sub="$periods[$days]" icon="sparkles" tone="violet" />
                 <x-stat label="Estimated cost" :value="$money($totals['cost'])" sub="at list prices" icon="chart-bar" tone="emerald" />
                 <x-stat label="Tokens" :value="number_format($totals['tokens'])" sub="input + output" icon="document-text" tone="sky" />
                 <x-stat label="Failed calls" :value="$failRate.'%'" :sub="$totals['failures'].' of '.$totals['calls']" icon="exclamation-circle"
@@ -44,11 +44,11 @@
             <section class="card card-pad" aria-labelledby="ai-daily">
                 <h2 id="ai-daily" class="card-title">Calls per day</h2>
                 @if ($totals['calls'] === 0)
-                    <x-empty-state icon="sparkles" title="No Claude calls yet"
-                                   description="Calls appear here as soon as someone uses a Claude feature." class="mt-4" />
+                    <x-empty-state icon="sparkles" title="No AI calls yet"
+                                   description="Calls appear here as soon as someone uses an AI feature." class="mt-4" />
                 @else
                     <div class="mt-4 flex h-32 items-end gap-[3px]" role="img"
-                         aria-label="Claude calls per day, peaking at {{ $maxDaily }}">
+                         aria-label="AI calls per day, peaking at {{ $maxDaily }}">
                         @foreach ($daily as $d)
                             <div class="group relative flex h-full flex-1 items-end">
                                 <div class="w-full rounded-t bg-violet-500/80 transition group-hover:bg-violet-600"

@@ -6,6 +6,7 @@ use App\Http\Controllers\BoardController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\CapacityController;
 use App\Http\Controllers\CommentController;
+use App\Http\Controllers\DailyStandupController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\EventImportController;
@@ -13,6 +14,7 @@ use App\Http\Controllers\KpiReportController;
 use App\Http\Controllers\LabelController;
 use App\Http\Controllers\MeetingNoteController;
 use App\Http\Controllers\NoteController;
+use App\Http\Controllers\PeopleReportController;
 use App\Http\Controllers\PerformanceCompetencyController;
 use App\Http\Controllers\PerformanceController;
 use App\Http\Controllers\PerformanceScoreController;
@@ -233,7 +235,7 @@ Route::middleware('auth')->group(function () {
     Route::put('comments/{comment}', [CommentController::class, 'update'])->name('comments.update');
     Route::delete('comments/{comment}', [CommentController::class, 'destroy'])->name('comments.destroy');
 
-    // "Enhance with Claude" for the note / meeting-note editors (JSON; nothing saved)
+    // "Enhance with AI" for the note / meeting-note editors (JSON; nothing saved)
     Route::post('ai/enhance', AiEnhanceController::class)->middleware('throttle:ai-enhance')->name('ai.enhance');
 
     // Kanban board
@@ -287,6 +289,9 @@ Route::middleware('auth')->group(function () {
     Route::put('meeting-notes/{meetingNote}', [MeetingNoteController::class, 'update'])->name('meeting-notes.update');
     Route::delete('meeting-notes/{meetingNote}', [MeetingNoteController::class, 'destroy'])->name('meeting-notes.destroy');
 
+    // Generate or refresh a team's standup note from its tasksheets
+    Route::post('standups', [DailyStandupController::class, 'store'])->name('standups.store');
+
     // Quick links (drawer; limited roles are private-only)
     Route::post('quick-links', [QuickLinkController::class, 'store'])->name('quick-links.store');
     Route::put('quick-links/{quickLink}', [QuickLinkController::class, 'update'])->name('quick-links.update');
@@ -336,7 +341,7 @@ Route::middleware('auth')->group(function () {
     });
 
     /*
-     | KPI review reports — admin only. Claude-drafted performance reviews are
+     | KPI review reports — admin only. AI-drafted performance reviews are
      | sensitive HR data; generation is queued (see KpiReportController).
      */
     Route::middleware('admin')->group(function () {
@@ -344,6 +349,14 @@ Route::middleware('auth')->group(function () {
         Route::post('kpi-reports', [KpiReportController::class, 'store'])->name('kpi-reports.store');
         Route::get('kpi-reports/{report}/download', [KpiReportController::class, 'download'])->name('kpi-reports.download');
         Route::delete('kpi-reports/{report}', [KpiReportController::class, 'destroy'])->name('kpi-reports.destroy');
+
+        // Analytics per team and per person. Exports first, so {user} doesn't catch them.
+        Route::get('reports/people', [PeopleReportController::class, 'index'])->name('reports.people');
+        Route::get('reports/people/export.csv', [PeopleReportController::class, 'exportCsv'])->name('reports.people.export');
+        Route::get('reports/people/report.pdf', [PeopleReportController::class, 'exportPdf'])->name('reports.people.pdf');
+        Route::get('reports/people/{user}', [PeopleReportController::class, 'show'])->whereNumber('user')->withTrashed()->name('reports.people.show');
+        Route::get('reports/people/{user}/tasks.csv', [PeopleReportController::class, 'personTasks'])->whereNumber('user')->withTrashed()->name('reports.people.tasks');
+        Route::get('reports/people/{user}/report.pdf', [PeopleReportController::class, 'personPdf'])->whereNumber('user')->withTrashed()->name('reports.people.person-pdf');
     });
 
     /*

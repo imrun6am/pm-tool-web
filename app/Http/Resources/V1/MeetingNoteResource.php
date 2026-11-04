@@ -35,6 +35,8 @@ class MeetingNoteResource extends JsonResource
             'event' => new EventResource($this->whenLoaded('event')),
             'author' => new UserSummaryResource($this->whenLoaded('author')),
             'attendees' => UserSummaryResource::collection($this->whenLoaded('attendees')),
+            // Set on a generated standup, whose `author` is null and whose `body` holds only what people wrote.
+            'standup' => new DailyStandupResource($this->whenLoaded('standup')),
             'can_edit' => $request->user()?->can('update', $this->resource) ?? false,
             'can_delete' => $request->user()?->can('delete', $this->resource) ?? false,
             'created_at' => $this->created_at?->toIso8601String(),

@@ -6,7 +6,7 @@ use App\Models\Task;
 use App\Models\User;
 
 /**
- * Asks Claude what requests a file, screenshot or message holds. PDFs and
+ * Asks the AI what requests a file, screenshot or message holds. PDFs and
  * images go whole; text goes wrapped in tags as data. What comes back is only
  * ever a proposal: TriageImportService cleans it and a person reviews it.
  */
@@ -80,7 +80,7 @@ class RequestExtractor
         $out = $this->ai->json(self::FEATURE, self::SYSTEM, $content, self::schema(), $user, maxTokens: self::MAX_TOKENS, timeout: self::TIMEOUT);
 
         if (! is_array($out['requests'] ?? null)) {
-            throw new AiException('Claude returned an unreadable answer. Please try again.');
+            throw new AiException('The AI returned an unreadable answer. Please try again.');
         }
 
         return array_values($out['requests']);

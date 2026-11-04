@@ -6,7 +6,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /**
- * One member's slice of a KPI report: Claude's per-day task counts and the
+ * One member's slice of a KPI report: the AI's per-day task counts and the
  * monthly / whole-period review drafts, written by a single queued job.
  */
 class KpiReportMember extends Model

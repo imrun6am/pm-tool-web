@@ -451,7 +451,7 @@
                 if (button) openPicker(button);
             });
 
-            // An accepted Claude suggestion arrives here (see aiAssignee in resources/js/ai.js).
+            // An accepted AI suggestion arrives here (see aiAssignee in resources/js/ai.js).
             document.querySelector('.board-scroller').addEventListener('ai-assigned', function (e) {
                 const button = e.target.querySelector('.board-assign');
                 if (button) applyAssignee(button, e.detail);

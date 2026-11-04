@@ -272,7 +272,7 @@ class EventImportService
         // Also covers what the upload check can't see: imports queued before the
         // switch went off, retries, and the calendar file with no events above.
         if (! $this->features->enabled('calendar_import')) {
-            throw new UnreadableDocumentException('Finding events with Claude is switched off. An admin can turn it on from the AI usage page, then try again.');
+            throw new UnreadableDocumentException('Finding events with AI is switched off. An admin can turn it on from the AI usage page, then try again.');
         }
 
         $context = $this->context($import);

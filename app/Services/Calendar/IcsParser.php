@@ -8,7 +8,7 @@ use Illuminate\Support\Carbon;
 use Throwable;
 
 /**
- * Reads iCalendar (.ics) files without Claude: an invite or exported calendar
+ * Reads iCalendar (.ics) files without AI: an invite or exported calendar
  * already says exactly when each event is, so a model call would only add
  * cost and a chance of error.
  *
@@ -24,7 +24,7 @@ class IcsParser
 
     /**
      * Raw proposals in the extractor's shape, or an empty list if the file
-     * holds no VEVENT (the caller may then fall back to Claude).
+     * holds no VEVENT (the caller may then fall back to the AI).
      *
      * @return list<array<string, mixed>>
      */

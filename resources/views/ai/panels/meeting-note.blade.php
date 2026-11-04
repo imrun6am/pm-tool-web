@@ -1,5 +1,5 @@
 {{--
-    Claude on a meeting note: turn its action items into board tasks (#2).
+    AI on a meeting note: turn its action items into board tasks (#2).
     @include('ai.panels.meeting-note', ['meetingNote' => $meetingNote])
 --}}
 @if (app(\App\Services\Ai\AiFeatures::class)->available('meeting_actions') && ! \App\Support\HtmlSanitizer::isEmpty($meetingNote->body))
@@ -14,7 +14,7 @@
         </div>
         <div class="px-5 pb-5 text-sm">
             <p class="text-slate-500" x-show="items === null">
-                Claude finds the action items in these minutes, with owners and due dates, and proposes them as tasks{{ $meetingNote->release ? ' in '.$meetingNote->release->name : '' }}.
+                AI finds the action items in these minutes, with owners and due dates, and proposes them as tasks{{ $meetingNote->release ? ' in '.$meetingNote->release->name : '' }}.
             </p>
             <div class="mt-3" x-show="items === null">
                 <x-ai-button label="Find action items" busy-label="Reading the minutes…" click="propose()" />

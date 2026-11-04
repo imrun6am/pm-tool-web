@@ -239,12 +239,12 @@ class TasksheetPlanToBoardTest extends TestCase
         $this->fakeClaude(error: new MissingApiKeyException('ANTHROPIC_API_KEY is not set.'));
 
         $this->actingAs($this->dev)->put(route('tasksheet.entries.board'), $this->payload())
-            ->assertSessionHas('error', 'Tasksheet saved, but no tasks were added: Claude isn’t configured (ANTHROPIC_API_KEY).');
+            ->assertSessionHas('error', 'Tasksheet saved, but no tasks were added: AI isn’t configured (ANTHROPIC_API_KEY).');
         $this->assertSame(3, TasksheetEntry::where('user_id', $this->dev->id)->value('work_points'));
 
-        $this->fakeClaude(error: new \RuntimeException('Claude returned an unreadable response.'));
+        $this->fakeClaude(error: new \RuntimeException('The AI returned an unreadable response.'));
         $this->actingAs($this->dev)->put(route('tasksheet.entries.board'), $this->payload())
-            ->assertSessionHas('error', 'Tasksheet saved, but no tasks were added: Claude couldn’t split the plan right now. Please try again.');
+            ->assertSessionHas('error', 'Tasksheet saved, but no tasks were added: the AI couldn’t split the plan right now. Please try again.');
 
         $this->assertSame(0, Task::count());
     }

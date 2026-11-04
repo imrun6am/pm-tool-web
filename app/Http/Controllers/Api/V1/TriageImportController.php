@@ -69,7 +69,7 @@ class TriageImportController extends ApiController
     {
         $this->authorize('retry', $triageImport);
         abort_unless($triageImport->isFailed(), 409, 'Only a failed import can be tried again.');
-        abort_unless($this->imports->available(), 409, 'Claude isn’t available right now.');
+        abort_unless($this->imports->available(), 409, 'AI isn’t available right now.');
 
         $this->imports->retry($triageImport);
 

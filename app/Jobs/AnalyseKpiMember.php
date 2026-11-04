@@ -16,7 +16,7 @@ use Illuminate\Foundation\Queue\Queueable;
 use Throwable;
 
 /**
- * One chunk of a KPI report: a single member's tasksheet → Claude → one
+ * One chunk of a KPI report: a single member's tasksheet → the AI → one
  * kpi_report_members row. Small, independent units keep each worker's memory
  * flat and let a failed member retry without redoing the rest.
  */

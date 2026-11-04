@@ -30,7 +30,7 @@ use Illuminate\Support\Carbon;
 use Illuminate\View\View;
 
 /**
- * The on-demand Claude features. Each action authorizes against the record it
+ * The on-demand AI features. Each action authorizes against the record it
  * reads, then hands off to its service; the services never decide access.
  */
 class AiAssistController extends Controller

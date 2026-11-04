@@ -10,7 +10,7 @@ use Illuminate\Support\Str;
 /**
  * Keeps today's day-end result in step with the board: a finished task adds a
  * line to its assignee's row, and reopening it the same day takes the line back
- * out. No Claude call, so a move to Done never waits on or fails with a model.
+ * out. No AI call, so a move to Done never waits on or fails with a model.
  * Lead feedback is never touched.
  */
 class TasksheetResultSync

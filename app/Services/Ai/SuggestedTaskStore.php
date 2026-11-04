@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 /**
- * Creates the tasks a user accepted from a Claude suggestion (meeting action
+ * Creates the tasks a user accepted from an AI suggestion (meeting action
  * items, document requirements, task-writer subtasks). The same team rules as
  * the board apply on the server: developers and QA file into their own team
  * and may assign only themselves or a teammate; an assignee the actor may not

@@ -1,5 +1,5 @@
 {{--
-    A background Claude result with its request button and live progress.
+    A background AI result with its request button and live progress.
     @include('ai.partials.insight', [
         'kind' => AiInsight::KIND_RELEASE_RISK, 'subject' => $release, 'body' => ['subject_id' => $release->id],
         'canRequest' => bool, 'label' => 'Assess risk', 'empty' => 'No brief yet.', 'forDate' => ?Carbon,
@@ -32,7 +32,7 @@
             <circle cx="12" cy="12" r="9" stroke="currentColor" stroke-opacity=".3" stroke-width="3" />
             <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
         </svg>
-        Claude is working on it — this can take a minute. You can leave this page.
+        AI is working on it — this can take a minute. You can leave this page.
     </div>
 
     <x-ai-error class="mt-3" />

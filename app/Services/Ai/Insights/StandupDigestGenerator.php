@@ -17,7 +17,7 @@ use Illuminate\Support\Collection;
 /**
  * Daily standup digest for a team lead: what the team did on a day and what
  * stands in its way. Attendance, leave and who has not filled the tasksheet
- * are counted here, not by Claude, so they are always exact; Claude writes the
+ * are counted here, not by the AI, so they are always exact; the AI writes the
  * summary, highlights, blockers and follow-ups from the entries and the
  * board's status changes that day.
  */
