@@ -53,7 +53,8 @@ trait RecordsActivity
 
         Activity::create([
             'log_name' => $this->activityLogName(),
-            'description' => $this->activityDescription($event),
+            // The column holds 255 characters, and a title alone can use them all.
+            'description' => mb_strimwidth($this->activityDescription($event), 0, 255, '…'),
             'event' => $event,
             'subject_type' => $this->getMorphClass(),
             'subject_id' => $this->getKey(),
