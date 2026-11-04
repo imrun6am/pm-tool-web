@@ -47,12 +47,14 @@ class TasksheetController extends ApiController
         $rowUsers = collect();
         $viewerIsMember = false;
         $trend = [];
+        $logged = null;
         $filters = $this->tasksheet->parseFilters($request->only(['attendance', 'fill', 'leave', 'member']));
 
         if ($team) {
             $entries = $this->tasksheet->entriesFor($team, $day);
             $viewerIsMember = $team->members()->whereKey($viewer->id)->exists();
             $trend = $this->tasksheet->trend($team, $day);
+            $logged = $viewer->isViewer() ? null : $this->tasksheet->loggedMinutes($team, $day);
 
             // Same collection-level filtering as the Blade sheet, through the
             // same predicate — a member with no row is still a row here.
@@ -74,7 +76,7 @@ class TasksheetController extends ApiController
                 'entry' => ($entry = $entries->get($u->id))
                     ? (new TasksheetEntryResource($entry))->resolve($request)
                     : null,
-            ])->values()->all(),
+            ] + ($logged ? ['logged_minutes' => $logged->get($u->id, 0)] : []))->values()->all(),
             'trend' => $this->presentTrend($trend),
         ]);
     }

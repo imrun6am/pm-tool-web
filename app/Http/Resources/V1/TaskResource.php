@@ -40,6 +40,7 @@ class TaskResource extends JsonResource
             'priority_label' => $this->priorityLabel(),
             'estimate_minutes' => $this->estimate_minutes,
             'labels' => LabelResource::collection($this->whenLoaded('labels')),
+            'days_in_status' => $this->when(isset($this->status_changes_max_changed_at), fn () => $this->daysInStatus()),
             'is_blocked' => $this->isBlocked(),
             'blocked_at' => $this->blocked_at?->toIso8601String(),
             'blocked_reason' => $this->blocked_reason,

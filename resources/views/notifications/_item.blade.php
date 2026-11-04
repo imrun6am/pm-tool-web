@@ -11,6 +11,9 @@
         'overdue' => ['icon' => 'exclamation-circle', 'tone' => 'bg-rose-50 text-rose-600'],
         'blocked' => ['icon' => 'exclamation-circle', 'tone' => 'bg-rose-50 text-rose-600'],
         'unblocked' => ['icon' => 'check', 'tone' => 'bg-emerald-50 text-emerald-600'],
+        'request_new' => ['icon' => 'inbox', 'tone' => 'bg-brand-50 text-brand-600'],
+        'request_accepted' => ['icon' => 'check', 'tone' => 'bg-emerald-50 text-emerald-600'],
+        'request_declined' => ['icon' => 'x-mark', 'tone' => 'bg-rose-50 text-rose-600'],
     ];
     $style = $kinds[$kind] ?? $kinds['assigned'];
 @endphp

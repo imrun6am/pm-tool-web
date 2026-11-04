@@ -37,8 +37,8 @@ class NavigationTest extends TestCase
 
             $this->assertSame([
                 'overview' => ['dashboard', 'ask'],
-                'planning' => ['releases', 'projects', 'teams'],
-                'work' => ['board', 'tasks', 'tasksheet', 'calendar'],
+                'planning' => ['releases', 'projects', 'teams', 'capacity'],
+                'work' => ['board', 'tasks', 'requests', 'tasksheet', 'calendar'],
                 'collaboration' => ['notes', 'meetings', 'activity'],
                 'administration' => $administration,
             ], $this->shape($this->user($role)), "role: {$role}");
@@ -58,7 +58,7 @@ class NavigationTest extends TestCase
         foreach ([User::ROLE_DEVELOPER, User::ROLE_QA] as $role) {
             $this->assertSame([
                 'overview' => ['dashboard', 'ask'],
-                'work' => ['board', 'tasks', 'tasksheet', 'calendar'],
+                'work' => ['board', 'tasks', 'requests', 'tasksheet', 'calendar'],
                 'collaboration' => ['notes', 'meetings'],
             ], $this->shape($this->user($role)), "role: {$role}");
         }
@@ -68,7 +68,7 @@ class NavigationTest extends TestCase
     {
         $items = collect(Navigation::groups($this->user(User::ROLE_ADMIN)))->flatMap(fn ($g) => $g['items']);
 
-        $this->assertCount(16, $items);
+        $this->assertCount(18, $items);
         $this->assertSame($items->count(), $items->pluck('icon')->unique()->count());
     }
 

@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 
 class Task extends Model
@@ -294,6 +295,14 @@ class Task extends Model
     public static function idFromReference(string $reference): ?int
     {
         return preg_match('/^(?:'.self::KEY_PREFIX.'-?)?(\d+)$/i', trim($reference), $m) ? (int) $m[1] : null;
+    }
+
+    /** Whole days since the task last changed status. Lists load the time with withMax. */
+    public function daysInStatus(): int
+    {
+        $since = $this->attributes['status_changes_max_changed_at'] ?? $this->statusChanges()->max('changed_at') ?? $this->updated_at;
+
+        return (int) Carbon::parse($since)->startOfDay()->diffInDays(today());
     }
 
     /** The short reference people quote, such as PM-123. */

@@ -36,6 +36,8 @@ class TasksheetController extends Controller
         $allRowUsers = collect();
         $viewerIsMember = false;
         $trend = [];
+        $loggedMinutes = collect();
+        $openTasks = collect();
         $filters = $this->tasksheet->parseFilters(request()->only(['attendance', 'fill', 'leave', 'member']));
 
         if ($team) {
@@ -52,6 +54,13 @@ class TasksheetController extends Controller
             $rowUsers = $allRowUsers->filter(
                 fn (User $u) => $this->tasksheet->rowMatches($entries->get($u->id), $u->id, $filters)
             )->values();
+
+            // Hours name people, so a viewer doesn't get them (see TaskTimeLogPolicy).
+            $loggedMinutes = $viewer->isViewer() ? collect() : $this->tasksheet->loggedMinutes($team, $day);
+            // Only rows the viewer can edit have a plan to add to.
+            $openTasks = $this->tasksheet->openTasksFor(
+                $viewer->isLead() ? $rowUsers->pluck('id')->all() : ($viewerIsMember ? [$viewer->id] : [])
+            );
         }
 
         return view('tasksheet.index', [
@@ -72,6 +81,8 @@ class TasksheetController extends Controller
             'filters' => $filters,
             'hasFilters' => $this->tasksheet->hasFilters($filters),
             'boardReleases' => $boardReleases,
+            'loggedMinutes' => $loggedMinutes,
+            'openTasks' => $openTasks,
         ]);
     }
 

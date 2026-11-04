@@ -2,7 +2,9 @@
 
 namespace App\Services;
 
+use App\Models\Task;
 use App\Models\TasksheetEntry;
+use App\Models\TaskTimeLog;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Contracts\Database\Eloquent\Builder;
@@ -94,6 +96,47 @@ class TasksheetService
             ->unique('id')
             ->sortBy('name')
             ->values();
+    }
+
+    /**
+     * Hours each of the team's members logged on any task that day, keyed by user id.
+     *
+     * @return Collection<int, int>
+     */
+    public function loggedMinutes(Team $team, Carbon $day): Collection
+    {
+        return TaskTimeLog::query()
+            ->whereIn('user_id', $team->members()->select('users.id'))
+            ->whereDate('logged_on', $day->toDateString())
+            ->selectRaw('user_id, sum(minutes) as minutes')
+            ->groupBy('user_id')
+            ->pluck('minutes', 'user_id')
+            ->map(fn ($minutes) => (int) $minutes);
+    }
+
+    /**
+     * Open work assigned to these people, grouped by assignee, for picking into
+     * a day's plan. Most urgent first, then soonest due.
+     *
+     * @param  array<int, int>  $userIds
+     * @return Collection<int, Collection<int, Task>>
+     */
+    public function openTasksFor(array $userIds): Collection
+    {
+        if ($userIds === []) {
+            return collect();
+        }
+
+        return Task::query()
+            ->whereIn('assignee_id', $userIds)
+            ->whereNotIn('status', Task::DONE_STATUSES)
+            ->orderByRaw('CASE WHEN priority IS NULL THEN 1 ELSE 0 END')
+            ->orderByRaw("CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END")
+            ->orderByRaw('CASE WHEN due_date IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('due_date')
+            ->orderBy('id')
+            ->get(['id', 'title', 'assignee_id'])
+            ->groupBy('assignee_id');
     }
 
     /**

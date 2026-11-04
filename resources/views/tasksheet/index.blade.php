@@ -219,7 +219,7 @@
                             </tbody>
                         @else
                             @foreach ($rowUsers as $rowUser)
-                                @include('tasksheet._row', ['rowUser' => $rowUser, 'entry' => $entries->get($rowUser->id)])
+                                @include('tasksheet._row', ['rowUser' => $rowUser, 'entry' => $entries->get($rowUser->id), 'logged' => $loggedMinutes->get($rowUser->id), 'rowOpenTasks' => $openTasks->get($rowUser->id, collect())])
                             @endforeach
                         @endif
                     </table>

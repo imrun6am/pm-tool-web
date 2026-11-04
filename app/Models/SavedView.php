@@ -12,7 +12,7 @@ class SavedView extends Model
     /** The pages a view can belong to, with the filters each accepts. */
     public const PAGES = [
         'tasks' => ['q', 'release_id', 'team_id', 'assignee_id', 'status', 'priority', 'label_id', 'blocked', 'sort', 'direction'],
-        'board' => ['release_id', 'team_id', 'assignee_id', 'priority', 'label_id', 'blocked'],
+        'board' => ['release_id', 'team_id', 'assignee_id', 'priority', 'label_id', 'blocked', 'group'],
     ];
 
     protected $fillable = ['user_id', 'page', 'name', 'filters', 'is_shared'];

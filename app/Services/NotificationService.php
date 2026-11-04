@@ -27,7 +27,7 @@ use Illuminate\Support\Collection;
  */
 class NotificationService
 {
-    public const KINDS = ['assigned', 'commented', 'due_tomorrow', 'overdue', 'blocked', 'unblocked'];
+    public const KINDS = ['assigned', 'commented', 'due_tomorrow', 'overdue', 'blocked', 'unblocked', 'request_new', 'request_accepted', 'request_declined'];
 
     /** How many notifications the top-bar dropdown shows. */
     public const DROPDOWN_LIMIT = 8;

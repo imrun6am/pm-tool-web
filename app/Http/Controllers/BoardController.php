@@ -6,6 +6,7 @@ use App\Http\Controllers\Concerns\ReadsTaskFilters;
 use App\Http\Requests\AssignTaskRequest;
 use App\Http\Requests\BoardTaskRequest;
 use App\Http\Requests\BulkDeleteTasksRequest;
+use App\Http\Requests\WipLimitRequest;
 use App\Models\Label;
 use App\Models\Release;
 use App\Models\Task;
@@ -42,12 +43,18 @@ class BoardController extends Controller
         $limited = $viewer->hasLimitedAccess();
         $teamIds = $limited ? $viewer->currentTeamIds() : null;
 
+        $group = in_array($request->input('group'), BoardService::GROUPS, true) ? $request->input('group') : null;
+
+        $columns = $this->board->columns([
+            'release_id' => $releaseId,
+            'team_id' => $teamId,
+            'assignee_id' => $assigneeId,
+        ] + $fields, $viewer);
+
         return view('board.index', [
-            'columns' => $this->board->columns([
-                'release_id' => $releaseId,
-                'team_id' => $teamId,
-                'assignee_id' => $assigneeId,
-            ] + $fields, $viewer),
+            'columns' => $group ? array_map(fn ($cards) => $this->board->grouped($cards, $group), $columns) : $columns,
+            'group' => $group,
+            'wipLimits' => is_int($teamId) ? $this->board->wipLimits($teamId) : [],
             'statuses' => Task::STATUSES,
             'release' => is_int($releaseId) ? Release::find($releaseId) : null,
             'releases' => Release::visibleTo($viewer)->orderBy('year', 'desc')->orderBy('name')->get(),
@@ -57,6 +64,13 @@ class BoardController extends Controller
             'savedViews' => $this->savedViews->forPage($viewer, 'board'),
             'filters' => ['release_id' => $releaseId, 'team_id' => $teamId, 'assignee_id' => $assigneeId] + $fields,
         ]);
+    }
+
+    public function updateWipLimit(WipLimitRequest $request): RedirectResponse
+    {
+        $this->board->setWipLimit($request->integer('team_id'), $request->validated('status'), $request->validated('max_tasks'));
+
+        return back()->with('success', 'Limit saved.');
     }
 
     public function storeTask(BoardTaskRequest $request): RedirectResponse

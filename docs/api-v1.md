@@ -308,6 +308,17 @@ serialized, so there is no public URL to leak.
 | `POST`            | `/tasks/{id}/time-logs` — `{ minutes or duration ("1h 30m"), logged_on, note? }`, for the caller; not a viewer |
 | `PUT/DELETE`      | `/time-logs/{id}` — the author for 7 days; an org-level lead or the team's lead at any time |
 | `PUT/DELETE`      | `/comments/{id}` — author or lead                        |
+| `PUT`             | `/board/wip-limits` — `{ team_id, status, max_tasks }`, `null` clears; the team's lead or an org-level lead. A guide only: moves are never refused |
+| `GET/POST`        | `/requests` — `GET` returns `{ queue[], mine[] }`; `POST { title, description?, team_id?, priority?, label_id? }` by anyone. Developers and QA send to their own team |
+| `POST`            | `/requests/{id}/accept` — **leads**; `{ team_id?, release_id?, assignee_id?, priority?, due_date? }` creates a task, filed by the reporter. 409 if already decided |
+| `POST`            | `/requests/{id}/decline` — **leads**; `{ reason }`. 409 if already decided |
+| `GET/POST`        | `/recurring-tasks` — **leads**; `POST { title, frequency, next_run_on, description?, team_id?, assignee_id?, priority?, estimate_minutes?, due_in_days? }`; `frequency` is `daily` (working days), `weekly` or `monthly` |
+| `PUT/DELETE`      | `/recurring-tasks/{id}` — **leads**; `PUT { is_active }` pauses or resumes, and resuming skips what was missed |
+| `GET/POST`        | `/release-templates` — **leads**; `POST { name }` |
+| `DELETE`          | `/release-templates/{id}` — **leads** |
+| `POST/DELETE`     | `/release-templates/{id}/tasks[/{taskId}]` — **leads**; `POST { title, phase?, priority?, estimate_minutes? }` |
+| `POST`            | `/releases/{id}/apply-template` — **leads**; `{ template_id }`. Each task is due when its phase ends; titles the release already has are skipped. Returns `created` |
+| `GET`             | `/capacity` — **leads**; `?team_id=&from=`. Six weeks from `from` (never before this week): `weeks[]`, and `people[]` with `weeks[]` of `{ available_minutes, load_minutes, tasks, unestimated, over }` and `later`. A team lead gets only teams they lead; 403 otherwise |
 | `GET`             | `/board` — every status column, even when empty; `?release_id=&team_id=&assignee_id=&priority=&label_id=`, each also takes `none` |
 | `POST`            | `/board/tasks` — `{ title, status, release_id?, team_id?, assignee_id? }` |
 | `PATCH`           | `/board/tasks/{id}` — `{ status, ordered_ids[] }`, atomic |
@@ -360,6 +371,12 @@ a task by it.
 on every route, left out of every list and count. Its comments, time and history wait with it.
 Restoring brings back the subtasks that went with it, and restoring a subtask brings back its parent.
 After 30 days, the scheduled `model:prune` removes it for good.
+
+**Tasksheet hours.** Each row of `GET /tasksheet` also has `logged_minutes`, the time that person
+logged on tasks that day. It's left out for a viewer.
+
+**Board flow.** With `?team_id=` on `GET /board`, each column has its `limit`, or `null`. Cards carry
+`days_in_status`. Grouping is a web view choice: clients can group on the fields they already get.
 
 **Time logs.** Entries are in minutes. Backdating is limited to 7 days unless the caller can correct
 the task's time, one person's day can't total more than 24 hours, and a future date is a 422. A
@@ -702,6 +719,8 @@ it however suits the client; the web app shows a small toast.
 | Release **detail**                  |  ✅   | ✅  |    ✅     |    ✅     |    ✅     | ✅ |   ✅   |
 | Tasks, board, calendar, notes       |  ✅   | ✅  |    ✅     |    ✅     |    ✅     | ✅ |   ✅   |
 | Delete tasks and subtasks; trash    |  ✅   | ❌  |    ❌     |    ❌     |    ❌     | ❌ |   ❌   |
+| Capacity                            |  ✅   | ✅  |    ✅     | own teams |    ❌     | ❌ |   ❌   |
+| Decide on requests                  |  ✅   | ✅  |    ✅     | own teams |    ❌     | ❌ |   ❌   |
 | Log own time on tasks               |  ✅   | ✅  |    ✅     |    ✅     |    ✅     | ✅ |   ❌   |
 | Correct anyone's time               |  ✅   | ✅  |    ✅     | own teams |    ❌     | ❌ |   ❌   |
 | Upload release documents            |  ✅   | ✅  |    ✅     |    ✅     |    ✅     | ✅ |   ❌   |

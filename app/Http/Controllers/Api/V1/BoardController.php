@@ -46,6 +46,8 @@ class BoardController extends ApiController
             'assignee_id' => $assigneeId,
         ] + $fields, $request->user());
 
+        $limits = is_int($teamId) ? $this->board->wipLimits($teamId) : [];
+
         $columns = [];
         foreach (Task::STATUSES as $status => $label) {
             $cards = $grouped[$status];
@@ -55,6 +57,7 @@ class BoardController extends ApiController
                 'label' => $label,
                 'color' => Task::STATUS_COLORS[$status] ?? 'gray',
                 'count' => $cards->count(),
+                'limit' => $limits[$status] ?? null,
                 'tasks' => TaskResource::collection($cards)->resolve($request),
             ];
         }

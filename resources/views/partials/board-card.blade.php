@@ -64,9 +64,19 @@
         </div>
     @endif
 
-    @php $blocked = $task->isBlocked(); @endphp
-    @if ($blocked || $task->priority || $task->labels->isNotEmpty() || $task->phase || $task->due_date)
+    @php
+        $blocked = $task->isBlocked();
+        // Open work only: a card sitting still is worth noticing after a few days.
+        $daysStill = in_array($task->status, Task::DONE_STATUSES, true) ? 0 : $task->daysInStatus();
+        $showAge = $daysStill >= 3;
+    @endphp
+    @if ($showAge || $blocked || $task->priority || $task->labels->isNotEmpty() || $task->phase || $task->due_date)
         <div class="mt-2.5 flex flex-wrap items-center gap-1.5">
+            @if ($showAge)
+                <span @class(['badge', 'badge-danger' => $daysStill >= 14, 'badge-warning' => $daysStill >= 7 && $daysStill < 14, 'badge-slate' => $daysStill < 7]) title="{{ $daysStill }}d in this status">
+                    <x-icon name="clock" variant="outline" class="h-3 w-3" />{{ $daysStill }}d
+                </span>
+            @endif
             @if ($blocked)
                 <span class="badge badge-danger" title="{{ $task->blocked_reason ?: 'Waiting for another task' }}">
                     <x-icon name="exclamation-circle" variant="outline" class="h-3 w-3" />Blocked

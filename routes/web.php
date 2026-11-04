@@ -4,6 +4,7 @@ use App\Http\Controllers\ActivityController;
 use App\Http\Controllers\AiEnhanceController;
 use App\Http\Controllers\BoardController;
 use App\Http\Controllers\CalendarController;
+use App\Http\Controllers\CapacityController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EventController;
@@ -18,9 +19,11 @@ use App\Http\Controllers\PerformanceScoreController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ProjectController;
 use App\Http\Controllers\QuickLinkController;
+use App\Http\Controllers\RecurringTaskController;
 use App\Http\Controllers\ReleaseController;
 use App\Http\Controllers\ReleaseDocumentController;
 use App\Http\Controllers\ReleaseOffDayController;
+use App\Http\Controllers\ReleaseTemplateController;
 use App\Http\Controllers\SavedViewController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TaskDependencyController;
@@ -29,6 +32,7 @@ use App\Http\Controllers\TasksheetExportController;
 use App\Http\Controllers\TaskTimeLogController;
 use App\Http\Controllers\TaskTrashController;
 use App\Http\Controllers\TeamController;
+use App\Http\Controllers\TriageController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -46,6 +50,23 @@ Route::middleware('auth')->group(function () {
      | `.../edit` resolve before the `{model}` show routes below.
      */
     Route::middleware('lead')->group(function () {
+        // Available time against estimated work
+        Route::get('capacity', [CapacityController::class, 'index'])->name('capacity.index');
+
+        // Recurring tasks
+        Route::get('recurring-tasks', [RecurringTaskController::class, 'index'])->name('recurring-tasks.index');
+        Route::post('recurring-tasks', [RecurringTaskController::class, 'store'])->name('recurring-tasks.store');
+        Route::put('recurring-tasks/{recurringTask}', [RecurringTaskController::class, 'update'])->name('recurring-tasks.update');
+        Route::delete('recurring-tasks/{recurringTask}', [RecurringTaskController::class, 'destroy'])->name('recurring-tasks.destroy');
+
+        // Release templates
+        Route::get('release-templates', [ReleaseTemplateController::class, 'index'])->name('release-templates.index');
+        Route::post('release-templates', [ReleaseTemplateController::class, 'store'])->name('release-templates.store');
+        Route::delete('release-templates/{template}', [ReleaseTemplateController::class, 'destroy'])->name('release-templates.destroy');
+        Route::post('release-templates/{template}/tasks', [ReleaseTemplateController::class, 'storeTask'])->name('release-templates.tasks.store');
+        Route::delete('release-templates/{template}/tasks/{task}', [ReleaseTemplateController::class, 'destroyTask'])->name('release-templates.tasks.destroy');
+        Route::post('releases/{release}/apply-template', [ReleaseTemplateController::class, 'apply'])->name('releases.apply-template');
+
         // Task labels
         Route::get('labels', [LabelController::class, 'index'])->name('labels.index');
         Route::post('labels', [LabelController::class, 'store'])->name('labels.store');
@@ -148,6 +169,12 @@ Route::middleware('auth')->group(function () {
      | Collaboration — any authenticated user (admin or viewer) may participate.
      */
     // Tasks & subtasks
+    // Incoming requests: anyone sends, leads decide (TriageItemPolicy)
+    Route::get('requests', [TriageController::class, 'index'])->name('triage.index');
+    Route::post('requests', [TriageController::class, 'store'])->name('triage.store');
+    Route::post('requests/{triageItem}/accept', [TriageController::class, 'accept'])->name('triage.accept');
+    Route::post('requests/{triageItem}/decline', [TriageController::class, 'decline'])->name('triage.decline');
+
     // Saved filter sets for the task list and the board (SavedViewPolicy)
     Route::post('saved-views', [SavedViewController::class, 'store'])->name('saved-views.store');
     Route::delete('saved-views/{view}', [SavedViewController::class, 'destroy'])->name('saved-views.destroy');
@@ -187,6 +214,7 @@ Route::middleware('auth')->group(function () {
 
     // Kanban board
     Route::get('board', [BoardController::class, 'index'])->name('board.index');
+    Route::put('board/wip-limits', [BoardController::class, 'updateWipLimit'])->name('board.wip-limits');
     Route::post('board/tasks', [BoardController::class, 'storeTask'])->name('board.tasks.store');
     Route::patch('board/tasks/{task}', [BoardController::class, 'move'])->name('board.move');
     Route::get('board/tasks/{task}/assignees', [BoardController::class, 'assignees'])->name('board.tasks.assignees');

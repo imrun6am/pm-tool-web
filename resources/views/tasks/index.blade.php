@@ -19,6 +19,9 @@
     <x-slot name="header">
         <x-page-header title="All tasks" description="Find, sort and change tasks across every release and team.">
             <x-slot name="actions">
+                @if ($me->isLead())
+                    <a href="{{ route('recurring-tasks.index') }}" class="btn-ghost btn-sm">Recurring</a>
+                @endif
                 @can('manageTrash', Task::class)
                     <a href="{{ route('tasks.trash') }}" class="btn-ghost btn-sm">
                         <x-icon name="trash" variant="outline" class="h-4 w-4" />Trash

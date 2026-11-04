@@ -57,6 +57,11 @@
                         <span class="font-medium text-slate-900">{{ $rowUser->name }}</span>@include('partials.user-tag', ['tagUser' => $rowUser])
                     @endif
                     <div class="text-xs text-slate-500">{{ $rowUser->roleLabel() }}</div>
+                    @if ($logged ?? null)
+                        <div class="tabular mt-0.5 flex items-center gap-1 text-xs text-slate-500" title="Time logged on tasks this day">
+                            <x-icon name="clock" variant="outline" class="h-3 w-3" />{{ \App\Support\Duration::format($logged) }} logged
+                        </div>
+                    @endif
                     <div class="mt-1 flex flex-wrap gap-1">
                         @if ($entry?->isHalfDay())
                             <span class="badge badge-warning">Half day</span>
@@ -221,6 +226,9 @@
                                                 <p class="field-hint !mt-1">{{ $hint }}</p>
                                                 <input id="{{ $idp }}-{{ $field }}" type="hidden" name="{{ $field }}" value="{{ $val($field) }}">
                                                 <trix-editor input="{{ $idp }}-{{ $field }}" class="prose-notes"></trix-editor>
+                                                @if ($field === 'plan')
+                                                    @include('tasksheet._plan-tasks', ['tasks' => $rowOpenTasks ?? collect(), 'input' => $idp.'-plan', 'plan' => (string) $val('plan')])
+                                                @endif
                                                 @include('ai.partials.tasksheet-draft', ['kind' => $field, 'idp' => $idp, 'team' => $team ?? null, 'rowUser' => $rowUser, 'day' => $day])
                                             </div>
                                         @endforeach

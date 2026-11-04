@@ -20,6 +20,7 @@ class Navigation
     /** Routes developers/QA (limited access) may see: work surfaces only. */
     private const LIMITED_ROUTES = [
         'tasks.index',
+        'triage.index',
         'dashboard',
         'board.index',
         'tasksheet.index',
@@ -151,9 +152,10 @@ class Navigation
                 'key' => 'planning',
                 'label' => 'Planning',
                 'items' => [
-                    ['key' => 'releases', 'label' => 'Releases', 'route' => 'releases.index', 'patterns' => ['releases.*'], 'icon' => 'rocket'],
+                    ['key' => 'releases', 'label' => 'Releases', 'route' => 'releases.index', 'patterns' => ['releases.*', 'release-templates.*'], 'icon' => 'rocket'],
                     ['key' => 'projects', 'label' => 'Projects', 'route' => 'projects.index', 'patterns' => ['projects.*'], 'icon' => 'folder'],
                     ['key' => 'teams', 'label' => 'Teams', 'route' => 'teams.index', 'patterns' => ['teams.*'], 'icon' => 'user-group'],
+                    ['key' => 'capacity', 'label' => 'Capacity', 'route' => 'capacity.index', 'patterns' => ['capacity.*'], 'icon' => 'scale', 'visible' => fn (User $u) => $u->isLead()],
                 ],
             ],
             [
@@ -161,7 +163,8 @@ class Navigation
                 'label' => 'Work',
                 'items' => [
                     ['key' => 'board', 'label' => 'Board', 'route' => 'board.index', 'patterns' => ['board.*', 'tasks.show', 'tasks.quick', 'labels.*'], 'icon' => 'view-columns'],
-                    ['key' => 'tasks', 'label' => 'All tasks', 'route' => 'tasks.index', 'patterns' => ['tasks.index'], 'icon' => 'queue-list'],
+                    ['key' => 'tasks', 'label' => 'All tasks', 'route' => 'tasks.index', 'patterns' => ['tasks.index', 'tasks.trash', 'recurring-tasks.*'], 'icon' => 'queue-list'],
+                    ['key' => 'requests', 'label' => 'Requests', 'route' => 'triage.index', 'patterns' => ['triage.*'], 'icon' => 'inbox'],
                     ['key' => 'tasksheet', 'label' => 'Tasksheet', 'route' => 'tasksheet.index', 'patterns' => ['tasksheet.*'], 'icon' => 'clipboard-check'],
                     ['key' => 'calendar', 'label' => 'Calendar', 'route' => 'calendar.index', 'patterns' => ['calendar.*', 'events.*'], 'icon' => 'calendar'],
                 ],

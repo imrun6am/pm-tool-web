@@ -32,6 +32,14 @@ proposal, specs, design, and task list this implementation follows.
   and manage what it waits for without leaving the page.
 - **Trash** — deleting a task moves it to the trash, with Undo on the board. Admins can restore it
   for 30 days, after which it's removed for good.
+- **Capacity** — for leads, each team member's available time per week against the estimated work
+  due that week, allowing for weekends, off-days and leave.
+- **Board flow** — per-team limits on columns, an age marker on cards that have sat still, and
+  grouping by person or priority.
+- **Requests** — anyone can send a bug or request. It waits for a lead to accept it, which creates a
+  task, or decline it with a reason, and the person who sent it hears either way.
+- **Recurring tasks and release templates** — leads set up work that repeats, and standard task sets
+  to start a release with.
 - **Time logging** — log hours on a task from its page; totals include subtasks. People change
   their own entries for a week, and leads can correct anyone's.
 - **Comments** — threaded comments on both releases and tasks, attributed to their author;

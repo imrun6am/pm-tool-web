@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Release;
 use App\Models\Task;
 use App\Models\User;
+use App\Models\WipLimit;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -20,6 +21,46 @@ class BoardService
 {
     /** The most cards one bulk delete may take, to bound its transaction. */
     public const MAX_BULK_DELETE = 1000;
+
+    /** The ways the board can group a column's cards. */
+    public const GROUPS = ['assignee', 'priority'];
+
+    /** @return array<string, int> a team's column limits, by status */
+    public function wipLimits(int $teamId): array
+    {
+        return WipLimit::where('team_id', $teamId)->pluck('max_tasks', 'status')->all();
+    }
+
+    /** Set a column's limit, or clear it with null. */
+    public function setWipLimit(int $teamId, string $status, ?int $max): void
+    {
+        if ($max === null) {
+            WipLimit::where('team_id', $teamId)->where('status', $status)->first()?->delete();
+
+            return;
+        }
+
+        WipLimit::updateOrCreate(['team_id' => $teamId, 'status' => $status], ['max_tasks' => $max]);
+    }
+
+    /**
+     * Sort a column's cards into their groups, and say which group each is in.
+     * Priority follows its own order; people go by name; "none" comes last.
+     *
+     * @param  Collection<int, Task>  $cards
+     * @return Collection<int, Task>
+     */
+    public function grouped(Collection $cards, string $group): Collection
+    {
+        return $cards
+            ->sortBy(fn (Task $task) => $group === 'priority'
+                ? ($task->priority ? array_search($task->priority, array_keys(Task::PRIORITIES), true) : 99)
+                : ($task->assignee ? '0'.$task->assignee->name : '1'), SORT_NATURAL)
+            ->each(fn (Task $task) => $task->setAttribute('lane', $group === 'priority'
+                ? ($task->priorityLabel() ?? 'No priority')
+                : ($task->assignee?->name ?? 'Unassigned')))
+            ->values();
+    }
 
     /**
      * Delete cards together: all of them or none. Each goes through Eloquent so
@@ -64,6 +105,7 @@ class BoardService
             ->whereNull('parent_id') // top-level tasks are the cards
             ->with(['release.project', 'team', 'assignee', 'subtasks', 'labels'])
             ->withExists('openBlockers as has_open_blockers')
+            ->withMax('statusChanges', 'changed_at')
             ->tap(fn ($q) => TaskService::whereFields($q, $filters))
             ->withCount('comments')
             ->when($filters['release_id'] ?? null, fn ($q, $id) => TaskService::whereIdOrNone($q, 'release_id', $id))

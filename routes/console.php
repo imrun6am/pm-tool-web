@@ -14,6 +14,9 @@ Artisan::command('inspire', function () {
 // tasks past their time in the trash (Task::prunable()).
 Schedule::command('model:prune', ['--model' => [TasksheetExport::class, Task::class]])->daily();
 
+// Tasks from recurring rules, ready before the day starts.
+Schedule::command('tasks:recur')->dailyAt('06:00');
+
 // Inbox reminders: tasks due tomorrow, and on their first day overdue.
 Schedule::command('notifications:due-reminders')->dailyAt('08:00');
 

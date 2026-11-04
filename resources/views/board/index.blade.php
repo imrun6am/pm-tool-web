@@ -16,6 +16,7 @@
         'priority' => $filters['priority'],
         'label_id' => $filters['label_id'],
         'blocked' => $filters['blocked'] ? 1 : null,
+        'group' => $group,
     ]));
 
     // Literal classes per status so Tailwind keeps them.
@@ -46,6 +47,11 @@
     ])) : [];
     $filterScope = implode(', ', $filterLabels);
 
+    // A limit means the whole column for one team, so any other filter hides it.
+    $showLimits = is_int($filters['team_id']) && ! $filters['release_id'] && ! $filters['assignee_id'] && ! $filters['priority'] && ! $filters['label_id'] && ! $filters['blocked'];
+    $limitTeam = is_int($filters['team_id']) ? $teams->firstWhere('id', $filters['team_id']) : null;
+    $canSetLimits = $showLimits && $limitTeam && $me->canAccessTeamPerformance($limitTeam);
+
     // On lg the columns share any spare width, but stay wide enough to read a
     // card. When they don't all fit they scroll sideways inside the board, with
     // the next column peeking in. Phones keep their own fixed width.
@@ -70,7 +76,7 @@
 
                     @if ($teamChoice)
                         <label for="team_id" class="filter-label">Team</label>
-                        <select id="team_id" name="team_id" class="filter-select max-w-[7.5rem] 2xl:max-w-[12rem]">
+                        <select id="team_id" name="team_id" class="filter-select max-w-[7.5rem] min-[1400px]:max-w-[10rem] 2xl:max-w-[12rem]">
                             <option value="">All teams</option>
                             <option value="none" @selected($filters['team_id'] === 'none')>No team</option>
                             @foreach ($teams as $tm)
@@ -134,6 +140,20 @@
                     <span class="board-done-pct tabular text-base font-semibold tracking-tight text-emerald-600">{{ $donePct }}%</span>
                     <span class="text-sm text-slate-500">done</span>
                 </p>
+                <form method="GET" action="{{ route('board.index') }}" class="flex-none">
+                    @foreach (request()->except('group') as $key => $value)
+                        @if (is_scalar($value))
+                            <input type="hidden" name="{{ $key }}" value="{{ $value }}">
+                        @endif
+                    @endforeach
+                    <label for="board-group" class="sr-only">Group cards</label>
+                    <select id="board-group" name="group" data-native onchange="this.form.requestSubmit()"
+                            class="h-7 rounded-md border-slate-200 bg-white py-0 pl-2 pr-7 text-xs font-medium text-slate-600">
+                        <option value="">No grouping</option>
+                        <option value="assignee" @selected($group === 'assignee')>By person</option>
+                        <option value="priority" @selected($group === 'priority')>By priority</option>
+                    </select>
+                </form>
                 <div class="flex min-w-[6rem] flex-1 items-center">
                     <div class="board-progress flex h-2 flex-1 gap-0.5 overflow-hidden rounded-full bg-slate-100" role="img"
                          aria-label="Tasks by status">
@@ -197,7 +217,32 @@
                             <header class="mb-3 flex flex-none items-center gap-2 px-1">
                                 <span class="h-2 w-2 rounded-full {{ $t['dot'] }}"></span>
                                 <h2 id="col-{{ $status }}" class="text-sm font-semibold text-slate-800">{{ $label }}</h2>
-                                <span class="board-count tabular ml-auto rounded-full px-2 py-0.5 text-xs font-semibold {{ $t['pill'] }}">{{ $cards->count() }}</span>
+                                @php
+                                    $limit = $showLimits ? ($wipLimits[$status] ?? null) : null;
+                                    $limitable = $showLimits && ! in_array($status, \App\Models\Task::DONE_STATUSES, true);
+                                @endphp
+                                <span class="ml-auto flex items-center gap-1">
+                                    <span @class(['board-count-wrap tabular rounded-full px-2 py-0.5 text-xs font-semibold', $t['pill'] => ! ($limit && $cards->count() > $limit), 'is-over bg-danger-100 text-danger-700' => $limit && $cards->count() > $limit])
+                                          @if ($limit) data-limit="{{ $limit }}" title="{{ $cards->count() > $limit ? 'Over the limit of '.$limit : 'Limit '.$limit }}" @endif>
+                                        <span class="board-count">{{ $cards->count() }}</span>@if ($limit)<span class="font-normal opacity-70"> / {{ $limit }}</span>@endif
+                                    </span>
+                                    @if ($canSetLimits && $limitable)
+                                        <span x-data="{ open: false }" class="relative" @click.outside="open = false" @keydown.escape="open = false">
+                                            <button type="button" @click="open = ! open" class="btn-ghost btn-sm btn-icon h-6 w-6 text-slate-400" aria-label="Set a limit for {{ $label }}" title="Set a limit">
+                                                <x-icon name="scale" variant="outline" class="h-3.5 w-3.5" />
+                                            </button>
+                                            <form x-show="open" x-cloak method="POST" action="{{ route('board.wip-limits') }}"
+                                                  class="menu-panel absolute right-0 z-30 mt-1 flex w-44 items-center gap-2 p-2">
+                                                @csrf @method('PUT')
+                                                <input type="hidden" name="team_id" value="{{ $filters['team_id'] }}">
+                                                <input type="hidden" name="status" value="{{ $status }}">
+                                                <label for="limit-{{ $status }}" class="sr-only">Most tasks in {{ $label }}</label>
+                                                <input id="limit-{{ $status }}" type="number" name="max_tasks" min="1" max="999" value="{{ $limit }}" placeholder="No limit" class="field-control field-sm min-w-0 flex-1">
+                                                <button class="btn-primary btn-sm">Save</button>
+                                            </form>
+                                        </span>
+                                    @endif
+                                </span>
                                 @if ($isArchive)
                                     <button type="button" @click="toggle()" class="btn-ghost btn-sm btn-icon -mr-1 h-7 w-7 text-slate-500" aria-label="Collapse {{ $label }}">
                                         <x-icon name="chevron-double-left" variant="outline" class="h-4 w-4" />
@@ -207,6 +252,9 @@
 
                             <div id="col-list-{{ $status }}" class="board-list board-cards flex min-h-[72px] flex-1 flex-col gap-2.5">
                                 @foreach ($cards as $task)
+                                    @if ($group && ($loop->first || $cards[$loop->index - 1]->lane !== $task->lane))
+                                        <p class="board-lane flex-none truncate px-1 pt-1 text-[11px] font-semibold uppercase tracking-wide text-slate-500">{{ $task->lane }}</p>
+                                    @endif
                                     @include('partials.board-card', ['task' => $task, 'statuses' => $statuses, 'canDelete' => $canDelete])
                                 @endforeach
                                 <p class="board-empty flex flex-none flex-col items-center gap-1 rounded-xl border-2 border-dashed border-slate-300/70 px-3 py-6 text-center text-xs font-medium text-slate-400"
@@ -374,7 +422,15 @@
                 }).then(function (r) {
                     if (!r.ok) throw new Error('HTTP ' + r.status);
                     syncSelect(card);
-                    if (moved) toast('success', 'Moved to ' + (labels[status] ?? status));
+                    if (moved) {
+                        const limit = Number(columnOf(status).querySelector('[data-limit]')?.dataset.limit ?? 0);
+                        const count = list.querySelectorAll('.board-card').length;
+                        toast(limit && count > limit ? 'warning' : 'success', limit && count > limit
+                            ? 'Moved to ' + (labels[status] ?? status) + ', which is now over its limit of ' + limit + '.'
+                            : 'Moved to ' + (labels[status] ?? status));
+                    }
+                    // Grouped cards need the server to put them back under the right heading.
+                    if (@json((bool) $group)) window.Turbo?.visit(window.location.href, { action: 'replace' });
                 }).catch(function () {
                     // Put the card back where it was instead of reloading the board.
                     snap.list.insertBefore(card, snap.next && snap.next.parentElement === snap.list ? snap.next : snap.list.querySelector('.board-empty'));
@@ -507,6 +563,13 @@
                     counts[col.dataset.status] = n;
                     total += n;
                     col.querySelectorAll('.board-count').forEach((el) => { el.textContent = n; });
+                    col.querySelectorAll('[data-limit]').forEach(function (el) {
+                        const limit = Number(el.dataset.limit);
+                        const over = n > limit;
+                        el.classList.toggle('bg-danger-100', over);
+                        el.classList.toggle('text-danger-700', over);
+                        el.title = over ? 'Over the limit of ' + limit : 'Limit ' + limit;
+                    });
                     const empty = col.querySelector('.board-empty');
                     if (empty) empty.style.display = n === 0 ? '' : 'none';
                 });

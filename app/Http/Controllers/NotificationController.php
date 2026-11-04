@@ -38,6 +38,10 @@ class NotificationController extends Controller
             return redirect()->route('tasks.show', $taskId);
         }
 
+        if ($notification->data['triage_item_id'] ?? null) {
+            return redirect()->route('triage.index');
+        }
+
         return redirect()->route('notifications.index')->with('error', 'That task no longer exists.');
     }
 

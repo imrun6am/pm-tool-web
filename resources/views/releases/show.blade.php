@@ -247,6 +247,9 @@
                             </a>
                         </div>
                         <div class="p-4 sm:p-6">
+                            @if (auth()->user()->canManageReleases())
+                                @include('releases._apply-template')
+                            @endif
                             @include('partials.tasks-panel', ['release' => $release, 'users' => $users])
                         </div>
                     </x-live-region>

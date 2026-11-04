@@ -6,6 +6,7 @@ use App\Http\Requests\ReleaseRequest;
 use App\Models\Activity;
 use App\Models\Project;
 use App\Models\Release;
+use App\Models\ReleaseTemplate;
 use App\Models\Team;
 use App\Models\User;
 use App\Services\ReleaseService;
@@ -137,6 +138,7 @@ class ReleaseController extends Controller
             'conflicts' => $this->releases->conflictsFor($release),
             'history' => $history,
             'users' => $this->releases->assignableUsers($release),
+            'templates' => request()->user()->canManageReleases() ? ReleaseTemplate::with('tasks')->orderBy('name')->get() : collect(),
             'taskStats' => $this->releases->taskStats($release, request()->user()),
             'releaseLinks' => $release->quickLinks()->with('author')
                 ->visibleTo(request()->user())->get(),
