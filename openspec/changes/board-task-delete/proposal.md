@@ -10,7 +10,7 @@ Boards collect stale cards: test tasks, abandoned work, imports that went wrong.
 - New admin-only endpoints on web and API: `DELETE board/tasks/{task}` and `POST board/tasks/bulk-delete`. Other roles get no controls and a 403.
 - The board removes the cards and updates its counts in place, with no page reload.
 - The board's top section is compacted so laptop screens keep their height for cards: the filters move up beside the title, the summary and bulk bar share one slim row, the drag hint text goes, and on `lg` screens the columns share the available width instead of each holding a fixed 19rem.
-- The existing `DELETE tasks/{task}` route and its policy are **not** changed. Any signed-in user who can see a task can still delete it from the task page or a release's task panel. That is an open question for the product owner, and this change doesn't decide it.
+- **BREAKING**: the existing `DELETE tasks/{task}` route also becomes admin-only, by the product owner's decision. Other roles lose the delete buttons on the task page and a release's task panel, and get a 403 from the route on web and API, for tasks and subtasks alike.
 
 ## Capabilities
 

@@ -290,7 +290,7 @@ serialized, so there is no public URL to leak.
 | ----------------- | -------------------------------------------------------- |
 | `GET`             | `/tasks` — `?release_id=&team_id=&assignee_id=&status=&phase=&overdue=1&include_subtasks=1` |
 | `POST`            | `/tasks` — top-level task; `release_id`, `team_id` optional |
-| `GET/PUT/DELETE`  | `/tasks/{id}`                                            |
+| `GET/PUT/DELETE`  | `/tasks/{id}` — `DELETE` is **admin only**, for a task or a subtask |
 | `PATCH`           | `/tasks/{id}/status`                                     |
 | `POST`            | `/tasks/{id}/subtasks` — one level only; 422 on a subtask |
 | `GET/POST`        | `/tasks/{id}/comments`                                   |
@@ -313,8 +313,8 @@ serialized, so there is no public URL to leak.
 
 **Deleting from the board.** To clear what a filtered board shows, read `GET /board` with the same
 filters and send those ids to `POST /board/tasks/bulk-delete`. There's no "delete everything
-matching" mode, so a task added after the read is never deleted by accident. `DELETE /tasks/{id}` is
-a separate, older route and isn't limited to admins.
+matching" mode, so a task added after the read is never deleted by accident. Every task delete is
+admin only; `DELETE /tasks/{id}` is the route that also accepts a subtask.
 
 **Tasks without a release.** A release is optional, and `release_id` and `release` are `null`
 on an unlinked task.
@@ -652,7 +652,7 @@ it however suits the client; the web app shows a small toast.
 | Manage user accounts                |  ✅   | ✅  |    ✅     |    ✅     |    ❌     | ❌ |   ❌   |
 | Release **detail**                  |  ✅   | ✅  |    ✅     |    ✅     |    ✅     | ✅ |   ✅   |
 | Tasks, board, calendar, notes       |  ✅   | ✅  |    ✅     |    ✅     |    ✅     | ✅ |   ✅   |
-| Delete from the board (single, bulk) |  ✅   | ❌  |    ❌     |    ❌     |    ❌     | ❌ |   ❌   |
+| Delete tasks and subtasks           |  ✅   | ❌  |    ❌     |    ❌     |    ❌     | ❌ |   ❌   |
 | Upload release documents            |  ✅   | ✅  |    ✅     |    ✅     |    ✅     | ✅ |   ❌   |
 | Tasksheet — read / own row          |  ✅   | ✅  |    ✅     |    ✅     |    ✅     | ✅ |   ✅   |
 | Tasksheet **feedback**              |  ✅   | ✅  |    ✅     |    ✅     |    ❌     | ❌ |   ❌   |

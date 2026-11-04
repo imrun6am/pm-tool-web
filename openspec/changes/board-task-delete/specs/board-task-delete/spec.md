@@ -52,6 +52,21 @@ The board SHALL ask for confirmation before any delete. The confirmation SHALL s
 - **WHEN** an admin cancels the confirmation
 - **THEN** nothing is deleted and the selection stays as it was
 
+### Requirement: Only admins can delete tasks anywhere
+The general task delete route SHALL answer 403 to every role but admin, on the web and through the API, for tasks and subtasks. The task page and a release's task panel SHALL render delete buttons for admins only.
+
+#### Scenario: Non-admin deletes their own task
+- **WHEN** a non-admin calls `DELETE tasks/{task}` for a task or subtask they created
+- **THEN** the system answers 403 and the task remains
+
+#### Scenario: Admin deletes a subtask
+- **WHEN** an admin calls `DELETE tasks/{task}` with a subtask's id
+- **THEN** the subtask is removed and its parent remains
+
+#### Scenario: Non-admin opens a task page
+- **WHEN** a non-admin opens a task page or a release's task panel
+- **THEN** no task or subtask delete buttons are shown
+
 ### Requirement: Only admins can delete from the board
 The board delete endpoints SHALL answer 403 to every role but admin, on the web and through the API, before looking at the submitted ids. The board SHALL render no selection or delete controls for those roles.
 

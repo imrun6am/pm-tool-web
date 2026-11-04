@@ -346,6 +346,7 @@ class ResourceContractTest extends TestCase
         $child = $this->postJson("/api/v1/tasks/{$parent}/subtasks", ['title' => 'Child'])
             ->json('data.id');
 
+        Sanctum::actingAs(User::factory()->create(['role' => User::ROLE_ADMIN]));
         $this->deleteJson("/api/v1/tasks/{$parent}")->assertOk();
 
         $this->assertDatabaseMissing('tasks', ['id' => $parent]);

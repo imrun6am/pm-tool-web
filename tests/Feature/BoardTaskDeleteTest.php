@@ -4,6 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\Activity;
 use App\Models\Comment;
+use App\Models\Project;
+use App\Models\Release;
 use App\Models\Task;
 use App\Models\Team;
 use App\Models\User;
@@ -197,6 +199,85 @@ class BoardTaskDeleteTest extends TestCase
         Sanctum::actingAs($user);
 
         $this->postJson(self::BULK_API, ['ids' => ['nonsense']])->assertForbidden();
+    }
+
+    #[DataProvider('nonAdminRoles')]
+    public function test_other_roles_cannot_use_the_general_task_delete_route(string $role): void
+    {
+        $team = Team::create(['name' => 'Theirs', 'color' => '#0891b2']);
+        $user = User::factory()->create(['role' => $role]);
+        $team->members()->attach($user);
+        // Their own task on their own team, so being kept out of it isn't why they're refused.
+        $task = $this->card('Theirs', ['team_id' => $team->id, 'assignee_id' => $user->id, 'created_by' => $user->id]);
+        $subtask = $this->subtaskOf($task);
+
+        $this->actingAs($user)->delete(route('tasks.destroy', $task))->assertForbidden();
+        $this->delete(route('tasks.destroy', $subtask))->assertForbidden();
+
+        $this->app['auth']->forgetGuards();
+        Sanctum::actingAs($user);
+
+        $this->deleteJson("/api/v1/tasks/{$task->id}")->assertForbidden();
+        $this->deleteJson("/api/v1/tasks/{$subtask->id}")->assertForbidden();
+
+        $this->assertDatabaseHas('tasks', ['id' => $task->id]);
+        $this->assertDatabaseHas('tasks', ['id' => $subtask->id]);
+    }
+
+    public function test_an_admin_can_use_the_general_task_delete_route_for_a_subtask(): void
+    {
+        $task = $this->card();
+        $web = $this->subtaskOf($task, 'Web');
+        $api = $this->subtaskOf($task, 'Api');
+        $admin = $this->admin();
+
+        $this->actingAs($admin)->delete(route('tasks.destroy', $web))->assertRedirect();
+
+        $this->app['auth']->forgetGuards();
+        Sanctum::actingAs($admin);
+        $this->deleteJson("/api/v1/tasks/{$api->id}")->assertOk();
+
+        $this->assertDatabaseMissing('tasks', ['id' => $web->id]);
+        $this->assertDatabaseMissing('tasks', ['id' => $api->id]);
+        $this->assertDatabaseHas('tasks', ['id' => $task->id]);
+    }
+
+    public function test_subtask_delete_buttons_on_the_task_page_are_for_admins_only(): void
+    {
+        $task = $this->card();
+        $this->subtaskOf($task);
+        // The delete URL is also the subtask's link, so look for the form's prompt.
+        $button = 'Delete this subtask?';
+
+        $this->actingAs($this->admin())->get(route('tasks.show', $task))->assertOk()->assertSee($button, false);
+
+        $viewer = User::factory()->create(['role' => User::ROLE_VIEWER]);
+        $this->actingAs($viewer)->get(route('tasks.show', $task))->assertOk()->assertDontSee($button, false);
+    }
+
+    public function test_release_panel_delete_buttons_are_for_admins_only(): void
+    {
+        $project = Project::create(['name' => 'Checkout', 'color' => '#4f46e5']);
+        $team = Team::create(['name' => 'Core', 'color' => '#0891b2']);
+        $release = Release::create([
+            'project_id' => $project->id, 'team_id' => $team->id, 'name' => 'R1',
+            'year' => 2026, 'quarter' => 3, 'start_date' => '2026-07-01', 'end_date' => '2026-07-31',
+        ]);
+        $task = $this->card('Linked', ['release_id' => $release->id]);
+        $this->subtaskOf($task);
+        // The delete URLs are also the tasks' links, so look for the forms' prompts.
+        $buttons = ['Delete this task and its subtasks?', 'Delete this subtask?'];
+
+        $admin = $this->actingAs($this->admin())->get(route('releases.show', $release))->assertOk();
+        foreach ($buttons as $button) {
+            $admin->assertSee($button, false);
+        }
+
+        $lead = User::factory()->create(['role' => User::ROLE_CTO]);
+        $other = $this->actingAs($lead)->get(route('releases.show', $release))->assertOk();
+        foreach ($buttons as $button) {
+            $other->assertDontSee($button, false);
+        }
     }
 
     #[DataProvider('nonAdminRoles')]

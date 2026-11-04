@@ -1,22 +1,22 @@
 ## Context
 
-The board (`BoardService::columns`) loads every top-level task matching the filters, with no pagination, and renders each as a card. Moves already run in the background: a `fetch` to a JSON endpoint from the page's inline script, followed by a DOM update and a toast. `TaskPolicy::delete` lets any user who can see a task delete it, through `DELETE tasks/{task}`. Whether that is right for Viewer is an open question, and it isn't settled here.
+The board (`BoardService::columns`) loads every top-level task matching the filters, with no pagination, and renders each as a card. Moves already run in the background: a `fetch` to a JSON endpoint from the page's inline script, followed by a DOM update and a toast. `TaskPolicy::delete` used to let any user who can see a task delete it, through `DELETE tasks/{task}`. The product owner has decided that only admins may delete tasks, anywhere.
 
 ## Goals / Non-Goals
 
 **Goals:**
-- Admin-only single and bulk delete from the board, enforced on the server, on web and API.
+- Admin-only task delete everywhere, enforced on the server, on web and API.
+- Single and bulk delete from the board.
 - Select all that is honest about what it covers.
 - In-place updates using the board's existing `fetch` approach.
 
 **Non-Goals:**
-- Changing who can use `DELETE tasks/{task}` (see Open Questions).
 - Undo or soft delete. Tasks have no soft-delete column, and the confirmation says the delete is permanent.
 - Bulk delete anywhere other than the board, or bulk actions other than delete.
 
 ## Decisions
 
-**A new policy ability, not a change to `TaskPolicy::delete`.** `deleteFromBoard(User, ?Task)` is `isAdmin()`, and with a task it also requires a visible, top-level task. Tightening `delete` would change the task page and release panel for every role, and existing tests pin that behaviour. The optional-model form follows `TaskPolicy::create`, so the same ability answers "may this user use the feature?" for the view and the request, and "may they delete this task?" per record.
+**One admin-only rule, with a board ability on top.** `TaskPolicy::delete` is admin-only and covers tasks and subtasks on every route, so the task page and release panel hide their buttons with `@can`. `deleteFromBoard(User, ?Task)` builds on it: with a task it adds "must be top-level", because only those are cards, and without one it answers "may this user use the feature?" for the board view and the bulk request. The optional-model form follows `TaskPolicy::create`.
 
 **Select all sends explicit ids; the server has no "delete all matching filters" mode.** The board isn't paginated, so the rendered cards are exactly the filtered set. Sending ids means the server deletes what the admin saw and confirmed. A filter-based mode would also delete cards someone added after the page loaded, and a filter mismatch between client and server could widen the delete. API clients get the same safety: read `GET /board?team_id=…`, then submit the ids.
 
@@ -42,9 +42,5 @@ The board (`BoardService::columns`) loads every top-level task matching the filt
 
 - [Admins lose work permanently, with no undo] → A confirmation stating the counts, and an activity entry holding a snapshot of each deleted task's attributes.
 - [Notifications keep pointing at deleted tasks] → Existing behaviour for any task delete; `NotificationController` already handles a task that no longer exists.
-- [Non-admins can still delete single tasks through `DELETE tasks/{task}`] → Called out in the proposal and raised with the product owner. Not a regression, but the admin-only rule covers only the board's new controls.
+- [Non-admins can no longer remove a subtask or task they added by mistake] → The product owner's decision. They can archive it or ask an admin.
 - [A large bulk delete holds a transaction for a while] → Capped at 1000 ids.
-
-## Open Questions
-
-- Should `DELETE tasks/{task}` (task page, release panel, API) also become admin-only, or at least exclude Viewer? This predates the change and is the product owner's call.

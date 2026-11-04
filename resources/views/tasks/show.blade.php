@@ -349,12 +349,14 @@
                                                     </span>
                                                 @endif
                                                 @include('partials.status-badge', ['status' => $sub->status])
-                                                <form method="POST" action="{{ route('tasks.destroy', $sub) }}" data-confirm="Delete this subtask?" data-confirm-verb="Delete">
-                                                    @csrf @method('DELETE')
-                                                    <button class="btn-ghost btn-sm btn-icon h-7 w-7 text-slate-400 hover:text-danger-600 sm:opacity-0 sm:focus:opacity-100 sm:group-hover:opacity-100" aria-label="Delete subtask {{ $sub->title }}">
-                                                        <x-icon name="x-mark" variant="outline" class="h-4 w-4" />
-                                                    </button>
-                                                </form>
+                                                @can('delete', $sub)
+                                                    <form method="POST" action="{{ route('tasks.destroy', $sub) }}" data-confirm="Delete this subtask?" data-confirm-verb="Delete">
+                                                        @csrf @method('DELETE')
+                                                        <button class="btn-ghost btn-sm btn-icon h-7 w-7 text-slate-400 hover:text-danger-600 sm:opacity-0 sm:focus:opacity-100 sm:group-hover:opacity-100" aria-label="Delete subtask {{ $sub->title }}">
+                                                            <x-icon name="x-mark" variant="outline" class="h-4 w-4" />
+                                                        </button>
+                                                    </form>
+                                                @endcan
                                             </div>
                                         </li>
                                     @endforeach

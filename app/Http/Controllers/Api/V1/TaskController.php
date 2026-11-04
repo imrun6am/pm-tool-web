@@ -15,7 +15,7 @@ use Illuminate\Validation\Rule;
 
 /**
  * Tasks and subtasks. Open to every authenticated user — collaboration is not
- * gated by the planning roles.
+ * gated by the planning roles. Deleting is the exception: admins only (TaskPolicy).
  */
 class TaskController extends ApiController
 {

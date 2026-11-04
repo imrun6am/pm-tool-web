@@ -47,7 +47,7 @@ proposal, specs, design, and task list this implementation follows.
     upload documents to it.
   - **Viewer** can see the planning views but cannot upload documents.
   - **Every signed-in user collaborates** on tasks, comments, board, calendar, notes, meeting
-    notes, and the tasksheet.
+    notes, and the tasksheet. Only an **Admin** can delete tasks and subtasks.
 
   Self-registration is disabled and deactivated accounts cannot log in. Enforced by middleware
   and policies, not just hidden buttons.
@@ -184,5 +184,5 @@ restricted-field omission, and the domain rules the API must preserve.
   `lead` / `manage-releases` / `manage-users` guard structural writes, `full-access` keeps
   Developer/QA out of planning views, `admin` guards KPI reports, and
   `can:manage-competencies` guards the competency catalog. Task/comment routes sit under `auth`
-  so any signed-in user can collaborate; `CommentPolicy` limits comment edit/delete to the
-  author or an admin.
+  so any signed-in user can collaborate; `TaskPolicy` limits task delete to an admin, and
+  `CommentPolicy` limits comment edit/delete to the author or an admin.
