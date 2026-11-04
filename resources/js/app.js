@@ -27,8 +27,44 @@ Turbo.config.drive.progressBarDelay = 0;
 
 let outgoingBody = null;
 
+/*
+ * Swapping <body> rebuilds the sidebar, which would put its menu back at the
+ * top. The position is restored inside the render so it's already in place
+ * when the view transition captures the new page (turbo:render fires only
+ * after that transition ends). `instant` overrides .scroll-area's smooth
+ * scrolling. sessionStorage covers full page loads too.
+ */
+const SIDEBAR_SCROLL_KEY = 'rp.sidebar-scroll';
+const sidebarMenu = () => document.querySelector('#app-sidebar nav');
+let sidebarScroll = 0;
+try {
+    sidebarScroll = Number(sessionStorage.getItem(SIDEBAR_SCROLL_KEY)) || 0;
+} catch (err) {
+    // Storage is blocked: the position still carries across soft navigation.
+}
+const saveSidebarScroll = () => {
+    const menu = sidebarMenu();
+    if (!menu) return;
+    sidebarScroll = menu.scrollTop;
+    try {
+        sessionStorage.setItem(SIDEBAR_SCROLL_KEY, String(sidebarScroll));
+    } catch (err) {
+        // Storage is blocked: keep the in-memory value.
+    }
+};
+const restoreSidebarScroll = () => sidebarMenu()?.scrollTo({ top: sidebarScroll, behavior: 'instant' });
+
+restoreSidebarScroll();
+window.addEventListener('pagehide', saveSidebarScroll);
+
 document.addEventListener('turbo:before-render', (e) => {
     outgoingBody = document.body;
+    saveSidebarScroll();
+    const render = e.detail.render;
+    e.detail.render = async (current, next) => {
+        await render(current, next);
+        restoreSidebarScroll();
+    };
     // A same-page refresh (an action that redirected back here) keeps its
     // scroll position; don't let Turbo's [autofocus] handling jump away.
     const visit = Turbo.session.navigator.currentVisit;
