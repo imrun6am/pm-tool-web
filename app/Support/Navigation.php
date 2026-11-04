@@ -155,6 +155,7 @@ class Navigation
                     ['key' => 'releases', 'label' => 'Releases', 'route' => 'releases.index', 'patterns' => ['releases.*', 'release-templates.*'], 'icon' => 'rocket'],
                     ['key' => 'projects', 'label' => 'Projects', 'route' => 'projects.index', 'patterns' => ['projects.*'], 'icon' => 'folder'],
                     ['key' => 'teams', 'label' => 'Teams', 'route' => 'teams.index', 'patterns' => ['teams.*'], 'icon' => 'user-group'],
+                    ['key' => 'reports', 'label' => 'Reports', 'route' => 'reports.flow', 'patterns' => ['reports.*'], 'icon' => 'presentation-chart-line'],
                     ['key' => 'capacity', 'label' => 'Capacity', 'route' => 'capacity.index', 'patterns' => ['capacity.*'], 'icon' => 'scale', 'visible' => fn (User $u) => $u->isLead()],
                 ],
             ],

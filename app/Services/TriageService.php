@@ -2,9 +2,9 @@
 
 namespace App\Services;
 
+use App\Models\Team;
 use App\Models\TriageItem;
 use App\Models\User;
-use App\Notifications\TriageNotification;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -14,7 +14,10 @@ use Illuminate\Support\Facades\DB;
  */
 class TriageService
 {
-    public function __construct(private readonly TaskService $tasks) {}
+    public function __construct(
+        private readonly TaskService $tasks,
+        private readonly NotificationService $notifications,
+    ) {}
 
     /**
      * What's waiting for this lead, oldest first.
@@ -25,7 +28,7 @@ class TriageService
     {
         return TriageItem::decidableBy($user)
             ->where('status', TriageItem::PENDING)
-            ->with(['reporter', 'team', 'label'])
+            ->with(['reporter', 'team', 'label', 'sourceImport:id,input,original_name'])
             ->oldest()
             ->oldest('id')
             ->get();
@@ -39,11 +42,21 @@ class TriageService
     public function mine(User $user): Collection
     {
         return TriageItem::where('reporter_id', $user->id)
-            ->with(['team', 'label', 'task', 'decider'])
+            ->with(['team', 'label', 'task', 'decider', 'sourceImport:id,input,original_name'])
             ->latest()
             ->latest('id')
             ->limit(50)
             ->get();
+    }
+
+    /**
+     * The teams this person may send a request to: their own for Developers and QA, otherwise all.
+     *
+     * @return Collection<int, Team>
+     */
+    public function teamsFor(User $user): Collection
+    {
+        return Team::when($user->hasLimitedAccess(), fn ($q) => $q->whereIn('id', $user->currentTeamIds()))->orderBy('name')->get();
     }
 
     /** @param  array<string, mixed>  $data */
@@ -51,7 +64,7 @@ class TriageService
     {
         $item = TriageItem::create($data + ['reporter_id' => $reporter->id]);
 
-        $this->notifyDeciders($item, $reporter);
+        $this->notifications->requestSubmitted($item, $reporter);
 
         return $item;
     }
@@ -71,7 +84,7 @@ class TriageService
             $this->decide($item, $lead, TriageItem::ACCEPTED, ['task_id' => $task->id]);
         });
 
-        $this->notifyReporter($item, 'request_accepted', $lead);
+        $this->notifications->requestDecided($item, 'request_accepted', $lead);
 
         return $item;
     }
@@ -80,7 +93,7 @@ class TriageService
     {
         $this->decide($item, $lead, TriageItem::DECLINED, ['decline_reason' => $reason]);
 
-        $this->notifyReporter($item, 'request_declined', $lead);
+        $this->notifications->requestDecided($item, 'request_declined', $lead);
 
         return $item;
     }
@@ -89,28 +102,5 @@ class TriageService
     private function decide(TriageItem $item, User $lead, string $status, array $extra): void
     {
         $item->forceFill($extra + ['status' => $status, 'decided_by' => $lead->id, 'decided_at' => now()])->save();
-    }
-
-    /** The team's lead, or the org-level leads when it has none. Never the reporter. */
-    private function notifyDeciders(TriageItem $item, User $reporter): void
-    {
-        $leadId = $item->team?->team_lead_id;
-
-        $recipients = $leadId
-            ? User::whereKey($leadId)->get()
-            : User::active()->whereIn('role', [User::ROLE_ADMIN, User::ROLE_CTO, User::ROLE_TECH_LEAD])->get();
-
-        $recipients
-            ->reject(fn (User $user) => $user->id === $reporter->id || ! $user->isActive())
-            ->each(fn (User $user) => $user->notify(new TriageNotification($item, 'request_new', $reporter)));
-    }
-
-    private function notifyReporter(TriageItem $item, string $kind, User $lead): void
-    {
-        $reporter = $item->reporter;
-
-        if ($reporter && $reporter->id !== $lead->id && $reporter->isActive() && ! $reporter->trashed()) {
-            $reporter->notify(new TriageNotification($item, $kind, $lead));
-        }
     }
 }

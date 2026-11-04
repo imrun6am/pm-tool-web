@@ -1,7 +1,7 @@
 {{--
     Claude's standup digest (#4) for the team and day the tasksheet shows.
     Leads only (org-level leads: any team; a team lead: teams they lead).
-    Generated automatically each weekday at 08:30 for the previous weekday.
+    Generated automatically each working day at 08:30 for the previous working day.
     @include('ai.panels.standup-digest', ['team' => $team, 'day' => $day])
 --}}
 @php
@@ -11,7 +11,7 @@
         && app(\App\Services\Ai\AiFeatures::class)->available('standup_digest');
 @endphp
 @if ($show)
-    <section class="card" x-data="{ open: {{ $day->isSameDay(today()->subWeekday()) ? 'true' : 'false' }} }"
+    <section class="card" x-data="{ open: {{ $day->isSameDay(\App\Support\WorkingWeek::previous()) ? 'true' : 'false' }} }"
              aria-labelledby="ai-digest-{{ $team->id }}">
         <button type="button" @click="open = !open" :aria-expanded="open"
                 class="flex w-full items-center justify-between gap-3 px-5 py-4 text-left">

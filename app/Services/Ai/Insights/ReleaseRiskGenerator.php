@@ -7,6 +7,7 @@ use App\Models\Release;
 use App\Models\Task;
 use App\Services\Ai\AiGateway;
 use App\Services\OverlapChecker;
+use App\Services\ReleaseProgressService;
 use Illuminate\Support\Carbon;
 
 /**
@@ -41,6 +42,7 @@ class ReleaseRiskGenerator implements InsightGenerator
     public function __construct(
         private readonly AiGateway $ai,
         private readonly OverlapChecker $overlaps,
+        private readonly ReleaseProgressService $progress,
     ) {}
 
     public function generate(AiInsight $insight): array
@@ -108,6 +110,8 @@ class ReleaseRiskGenerator implements InsightGenerator
             'last_update' => $t->updated_at->toDateString(),
         ];
 
+        $forecast = $this->progress->forecast($release);
+
         $summary = [
             'done_pct' => $donePct,
             'time_pct' => (int) round($daysElapsed / $daysTotal * 100),
@@ -137,6 +141,13 @@ class ReleaseRiskGenerator implements InsightGenerator
             ],
             'overdue' => $overdue->sortBy('due_date')->take(15)->map($taskLine)->values()->all(),
             'stalled' => $stalled->sortBy('updated_at')->take(15)->map($taskLine)->values()->all(),
+            'forecast' => [
+                'team_finishes_per_week' => $forecast['avg_per_week'],
+                'enough_history' => $forecast['enough_history'],
+                'likely_finish' => $forecast['dates']['p50'] ?? null ? $forecast['dates']['p50']->toDateString() : null,
+                'fairly_safe_finish' => $forecast['dates']['p85'] ?? null ? $forecast['dates']['p85']->toDateString() : null,
+                'chance_of_meeting_end_date_pct' => $forecast['on_time_pct'],
+            ],
             'team_double_booked_with' => $conflicts->map(fn (Release $r) => [
                 'name' => $r->name, 'start' => $r->start_date->toDateString(), 'end' => $r->end_date->toDateString(),
             ])->all(),

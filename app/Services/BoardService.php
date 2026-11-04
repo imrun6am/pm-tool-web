@@ -25,6 +25,8 @@ class BoardService
     /** The ways the board can group a column's cards. */
     public const GROUPS = ['assignee', 'priority'];
 
+    public function __construct(private readonly NotificationService $notifications) {}
+
     /** @return array<string, int> a team's column limits, by status */
     public function wipLimits(int $teamId): array
     {
@@ -72,7 +74,7 @@ class BoardService
      */
     public function deleteCards(iterable $tasks): array
     {
-        return DB::transaction(function () use ($tasks) {
+        return $this->notifications->batch(fn () => DB::transaction(function () use ($tasks) {
             $deletedIds = [];
             $subtasks = 0;
 
@@ -83,7 +85,7 @@ class BoardService
             }
 
             return ['deleted_ids' => $deletedIds, 'subtasks_deleted' => $subtasks];
-        });
+        }));
     }
 
     /**

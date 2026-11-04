@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Release;
 use App\Models\ReleaseOffDay;
+use App\Support\WorkingWeek;
 use Illuminate\Support\Collection;
 
 /**
@@ -22,7 +23,7 @@ class ReleaseOffDayService
     }
 
     /**
-     * Mark every Saturday and Sunday in the window that is not already off.
+     * Mark every weekend day in the window that is not already off.
      *
      * Returns how many were added, so the caller can say "all weekends were
      * already marked" rather than claiming a no-op succeeded.
@@ -37,7 +38,7 @@ class ReleaseOffDayService
         $cursor = $release->start_date->copy();
 
         while ($cursor->lte($release->end_date)) {
-            if ($cursor->isWeekend() && ! in_array($cursor->toDateString(), $existing, true)) {
+            if (WorkingWeek::isWeekend($cursor) && ! in_array($cursor->toDateString(), $existing, true)) {
                 $release->offDays()->create([
                     'date' => $cursor->toDateString(),
                     'reason' => 'Weekend',

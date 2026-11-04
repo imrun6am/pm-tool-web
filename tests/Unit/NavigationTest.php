@@ -37,7 +37,7 @@ class NavigationTest extends TestCase
 
             $this->assertSame([
                 'overview' => ['dashboard', 'ask'],
-                'planning' => ['releases', 'projects', 'teams', 'capacity'],
+                'planning' => ['releases', 'projects', 'teams', 'reports', 'capacity'],
                 'work' => ['board', 'tasks', 'requests', 'tasksheet', 'calendar'],
                 'collaboration' => ['notes', 'meetings', 'activity'],
                 'administration' => $administration,
@@ -68,7 +68,7 @@ class NavigationTest extends TestCase
     {
         $items = collect(Navigation::groups($this->user(User::ROLE_ADMIN)))->flatMap(fn ($g) => $g['items']);
 
-        $this->assertCount(18, $items);
+        $this->assertCount(19, $items);
         $this->assertSame($items->count(), $items->pluck('icon')->unique()->count());
     }
 

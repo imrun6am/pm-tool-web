@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\KpiReport;
 use App\Services\Kpi\KpiReportExporter;
+use App\Services\NotificationService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Throwable;
@@ -31,6 +32,7 @@ class BuildKpiReport implements ShouldQueue
                 'status' => KpiReport::STATUS_FAILED,
                 'error' => $report->members()->whereNotNull('error')->value('error') ?? 'No member could be analysed.',
             ]);
+            app(NotificationService::class)->kpiFailed($report);
 
             return;
         }
@@ -41,6 +43,7 @@ class BuildKpiReport implements ShouldQueue
             'error' => null,
             'completed_at' => now(),
         ]);
+        app(NotificationService::class)->kpiFinished($report);
     }
 
     public function failed(?Throwable $e): void
@@ -49,5 +52,9 @@ class BuildKpiReport implements ShouldQueue
             'status' => KpiReport::STATUS_FAILED,
             'error' => mb_strimwidth('Building the file failed: '.($e?->getMessage() ?? 'unknown error'), 0, 500, '…'),
         ]);
+
+        if ($report = KpiReport::find($this->reportId)) {
+            app(NotificationService::class)->kpiFailed($report);
+        }
     }
 }

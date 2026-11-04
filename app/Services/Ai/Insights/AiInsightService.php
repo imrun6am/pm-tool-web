@@ -7,6 +7,7 @@ use App\Models\AiInsight;
 use App\Models\User;
 use App\Services\Ai\AiException;
 use App\Services\Ai\AiFeatures;
+use App\Services\NotificationService;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use InvalidArgumentException;
@@ -25,7 +26,10 @@ class AiInsightService
         AiInsight::KIND_DOCUMENT => DocumentInsightGenerator::class,
     ];
 
-    public function __construct(private readonly AiFeatures $features) {}
+    public function __construct(
+        private readonly AiFeatures $features,
+        private readonly NotificationService $notifications,
+    ) {}
 
     /**
      * @throws AiException when the feature is off or unconfigured
@@ -93,6 +97,8 @@ class AiInsightService
             ->orderByDesc('id')
             ->skip(2)->take(PHP_INT_MAX)
             ->get()->each->delete();
+
+        $this->notifications->insightFinished($insight, true);
     }
 
     public function featureFor(string $kind): string

@@ -9,6 +9,7 @@ use App\Models\Release;
 use App\Models\Task;
 use App\Models\Team;
 use App\Models\User;
+use App\Notifications\InboxNotification;
 use App\Notifications\TaskAssigned;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Notification;
@@ -202,7 +203,7 @@ class TaskListTest extends TestCase
             ->assertSessionHasErrors('ids');
     }
 
-    public function test_bulk_changes_are_logged_recorded_and_notified_per_task(): void
+    public function test_bulk_changes_are_logged_per_task_and_notified_once_per_person(): void
     {
         Notification::fake();
         $assignee = User::factory()->create();
@@ -213,7 +214,8 @@ class TaskListTest extends TestCase
 
         $this->assertSame(['todo', 'done'], $a->statusChanges()->pluck('to_status')->all());
         $this->assertSame(1, Activity::where('subject_id', $b->id)->where('event', 'updated')->count());
-        Notification::assertSentToTimes($assignee, TaskAssigned::class, 2);
+        Notification::assertSentToTimes($assignee, InboxNotification::class, 1);
+        Notification::assertNotSentTo($assignee, TaskAssigned::class);
     }
 
     public function test_a_task_out_of_reach_stops_the_whole_change(): void

@@ -7,6 +7,7 @@ use App\Models\Team;
 use App\Services\Ai\AiException;
 use App\Services\Ai\Insights\AiInsightService;
 use App\Services\Ai\Insights\StandupDigestGenerator;
+use App\Support\WorkingWeek;
 use Illuminate\Console\Command;
 use Illuminate\Support\Carbon;
 
@@ -23,7 +24,7 @@ class GenerateStandupDigests extends Command
 
     public function handle(AiInsightService $insights): int
     {
-        $date = Carbon::parse($this->option('date') ?: today()->subWeekday())->startOfDay();
+        $date = Carbon::parse($this->option('date') ?: WorkingWeek::previous())->startOfDay();
         $teams = StandupDigestGenerator::teamsWithActivity(Team::active()->get(), $date);
 
         $queued = 0;

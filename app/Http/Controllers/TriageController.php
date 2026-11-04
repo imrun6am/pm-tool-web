@@ -7,9 +7,9 @@ use App\Http\Requests\TriageDeclineRequest;
 use App\Http\Requests\TriageItemRequest;
 use App\Models\Label;
 use App\Models\Release;
-use App\Models\Team;
 use App\Models\TriageItem;
 use App\Models\User;
+use App\Services\TriageImportService;
 use App\Services\TriageService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -19,18 +19,19 @@ class TriageController extends Controller
 {
     public function __construct(private readonly TriageService $triage) {}
 
-    public function index(Request $request): View
+    public function index(Request $request, TriageImportService $imports): View
     {
         $viewer = $request->user();
-        $limited = $viewer->hasLimitedAccess();
 
         return view('triage.index', [
             'queue' => $this->triage->queue($viewer),
             'mine' => $this->triage->mine($viewer),
-            'teams' => Team::when($limited, fn ($q) => $q->whereIn('id', $viewer->currentTeamIds()))->orderBy('name')->get(),
+            'teams' => $this->triage->teamsFor($viewer),
             'labels' => Label::orderBy('name')->get(),
             'users' => $viewer->isLead() ? User::active()->orderBy('name')->get() : collect(),
             'releases' => $viewer->isLead() ? Release::ongoing()->orderBy('name')->get() : collect(),
+            'imports' => $imports->open($viewer),
+            'importAvailable' => $imports->available(),
         ]);
     }
 

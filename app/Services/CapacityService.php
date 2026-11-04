@@ -7,6 +7,7 @@ use App\Models\Task;
 use App\Models\TasksheetEntry;
 use App\Models\Team;
 use App\Models\User;
+use App\Support\WorkingWeek;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -172,7 +173,7 @@ class CapacityService
         $days = 0.0;
 
         for ($day = $from->copy(); $day->lte($week['end']); $day->addDay()) {
-            if (in_array(strtolower($day->englishDayOfWeek), config('planning.weekend_days'), true) || isset($offDays[$day->toDateString()])) {
+            if (WorkingWeek::isWeekend($day) || isset($offDays[$day->toDateString()])) {
                 continue;
             }
 

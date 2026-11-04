@@ -151,6 +151,20 @@ return [
             'effort' => env('AI_TASKSHEET_DRAFT_EFFORT', 'low'),
             'enabled' => true,
         ],
+        'release_status' => [
+            'label' => 'Release status drafts',
+            'description' => 'Drafts a status and note for a release from its progress and forecast, for a lead to review and post.',
+            'model' => env('AI_RELEASE_STATUS_MODEL', $model),
+            'effort' => env('AI_RELEASE_STATUS_EFFORT', 'low'),
+            'enabled' => true,
+        ],
+        'request_import' => [
+            'label' => 'Import requests',
+            'description' => 'Reads a file, screenshot or pasted text and proposes requests for the sender to review.',
+            'model' => env('AI_REQUEST_IMPORT_MODEL', $model),
+            'effort' => env('AI_REQUEST_IMPORT_EFFORT', 'medium'),
+            'enabled' => true,
+        ],
         'release_retro' => [
             'label' => 'Release retrospective',
             'description' => 'Drafts closing notes for a release: what went well, what slipped, what to change.',

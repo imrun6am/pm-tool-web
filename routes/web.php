@@ -23,7 +23,9 @@ use App\Http\Controllers\RecurringTaskController;
 use App\Http\Controllers\ReleaseController;
 use App\Http\Controllers\ReleaseDocumentController;
 use App\Http\Controllers\ReleaseOffDayController;
+use App\Http\Controllers\ReleaseStatusController;
 use App\Http\Controllers\ReleaseTemplateController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\SavedViewController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TaskDependencyController;
@@ -33,6 +35,7 @@ use App\Http\Controllers\TaskTimeLogController;
 use App\Http\Controllers\TaskTrashController;
 use App\Http\Controllers\TeamController;
 use App\Http\Controllers\TriageController;
+use App\Http\Controllers\TriageImportController;
 use App\Http\Controllers\UserController;
 use Illuminate\Support\Facades\Route;
 
@@ -52,6 +55,10 @@ Route::middleware('auth')->group(function () {
     Route::middleware('lead')->group(function () {
         // Available time against estimated work
         Route::get('capacity', [CapacityController::class, 'index'])->name('capacity.index');
+
+        // Hours against estimates: for planning, never for scoring people
+        Route::get('reports/time', [ReportController::class, 'time'])->name('reports.time');
+        Route::get('reports/time/export', [ReportController::class, 'timeExport'])->name('reports.time.export');
 
         // Recurring tasks
         Route::get('recurring-tasks', [RecurringTaskController::class, 'index'])->name('recurring-tasks.index');
@@ -99,6 +106,7 @@ Route::middleware('auth')->group(function () {
      | `.../edit` resolve first.
      */
     Route::middleware('manage-releases')->group(function () {
+        Route::post('releases/{release}/status-updates', [ReleaseStatusController::class, 'store'])->name('releases.status-updates.store');
         // Team membership
         Route::post('teams/{team}/members', [TeamController::class, 'addMember'])->name('teams.members.store');
         Route::delete('teams/{team}/members/{user}', [TeamController::class, 'removeMember'])
@@ -145,6 +153,9 @@ Route::middleware('auth')->group(function () {
 
         // Activity feed
         Route::get('activity', [ActivityController::class, 'index'])->name('activity.index');
+
+        // How work moves through a team (no people-level figures)
+        Route::get('reports/flow', [ReportController::class, 'flow'])->name('reports.flow');
     });
 
     /*
@@ -174,6 +185,19 @@ Route::middleware('auth')->group(function () {
     Route::post('requests', [TriageController::class, 'store'])->name('triage.store');
     Route::post('requests/{triageItem}/accept', [TriageController::class, 'accept'])->name('triage.accept');
     Route::post('requests/{triageItem}/decline', [TriageController::class, 'decline'])->name('triage.decline');
+    Route::get('requests/{triageItem}/source', [TriageImportController::class, 'source'])->name('triage.source');
+
+    // Requests from a file, screenshot or text: private to whoever started it (TriageImportPolicy)
+    Route::post('requests/imports', [TriageImportController::class, 'store'])
+        ->middleware('throttle:request-import')->name('triage.imports.store');
+    Route::post('requests/imports/text', [TriageImportController::class, 'storeText'])
+        ->middleware('throttle:request-import')->name('triage.imports.text');
+    Route::get('requests/imports/{triageImport}', [TriageImportController::class, 'show'])->name('triage.imports.show');
+    Route::get('requests/imports/{triageImport}/file', [TriageImportController::class, 'file'])->name('triage.imports.file');
+    Route::post('requests/imports/{triageImport}/confirm', [TriageImportController::class, 'confirm'])->name('triage.imports.confirm');
+    Route::post('requests/imports/{triageImport}/retry', [TriageImportController::class, 'retry'])
+        ->middleware('throttle:request-import')->name('triage.imports.retry');
+    Route::delete('requests/imports/{triageImport}', [TriageImportController::class, 'destroy'])->name('triage.imports.destroy');
 
     // Saved filter sets for the task list and the board (SavedViewPolicy)
     Route::post('saved-views', [SavedViewController::class, 'store'])->name('saved-views.store');

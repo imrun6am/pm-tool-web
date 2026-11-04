@@ -5,6 +5,8 @@ use App\Http\Controllers\Api\V1\ReleaseController;
 use App\Http\Controllers\Api\V1\ReleaseDocumentController;
 use App\Http\Controllers\Api\V1\ReleaseOffDayController;
 use App\Http\Controllers\Api\V1\ReleasePhaseController;
+use App\Http\Controllers\Api\V1\ReleaseStatusController;
+use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\TaskController;
 use Illuminate\Support\Facades\Route;
 
@@ -36,6 +38,9 @@ Route::middleware('manage-releases')->group(function () {
     Route::post('releases/{release}/complete', [ReleaseController::class, 'complete'])->name('releases.complete');
     Route::post('releases/{release}/reopen', [ReleaseController::class, 'reopen'])->name('releases.reopen');
 
+    Route::post('releases/{release}/status-updates', [ReleaseStatusController::class, 'store'])
+        ->name('releases.status-updates.store');
+
     // Off-days are part of the plan.
     Route::post('releases/{release}/off-days', [ReleaseOffDayController::class, 'store'])
         ->name('releases.off-days.store');
@@ -65,6 +70,9 @@ Route::middleware('full-access')->group(function () {
 Route::middleware('release-visible')->group(function () {
     Route::get('releases/{release}', [ReleaseController::class, 'show'])->name('releases.show');
     Route::get('releases/{release}/conflicts', [ReleaseController::class, 'conflicts'])->name('releases.conflicts');
+    Route::get('releases/{release}/progress', [ReportController::class, 'progress'])->name('releases.progress');
+    Route::get('releases/{release}/status-updates', [ReleaseStatusController::class, 'index'])
+        ->name('releases.status-updates.index');
     Route::get('releases/{release}/phases', [ReleasePhaseController::class, 'index'])->name('releases.phases.index');
     Route::get('releases/{release}/off-days', [ReleaseOffDayController::class, 'index'])->name('releases.off-days.index');
 

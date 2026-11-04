@@ -21,7 +21,7 @@ class TriageItem extends Model
 
     public const DECLINED = 'declined';
 
-    protected $fillable = ['title', 'description', 'reporter_id', 'team_id', 'label_id', 'priority'];
+    protected $fillable = ['title', 'description', 'reporter_id', 'team_id', 'label_id', 'priority', 'triage_import_id'];
 
     /** @var array<string, mixed> */
     protected $attributes = ['status' => self::PENDING];
@@ -54,6 +54,12 @@ class TriageItem extends Model
     public function decider(): BelongsTo
     {
         return $this->belongsTo(User::class, 'decided_by')->withTrashed();
+    }
+
+    /** The import this request came from, whose file stays open to the reporter and whoever may decide it. */
+    public function sourceImport(): BelongsTo
+    {
+        return $this->belongsTo(TriageImport::class, 'triage_import_id');
     }
 
     /** Waiting items a lead may decide on: every team for org-level leads, their own or unassigned otherwise. */

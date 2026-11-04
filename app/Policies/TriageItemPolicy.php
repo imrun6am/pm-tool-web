@@ -13,4 +13,10 @@ class TriageItemPolicy
         return $user->isLead()
             && (! $item->team_id || $user->canAccessTeamPerformance($item->team));
     }
+
+    /** The file a request was imported from: for whoever sent it and whoever may decide it. */
+    public function viewSource(User $user, TriageItem $item): bool
+    {
+        return $item->reporter_id === $user->id || $this->decide($user, $item);
+    }
 }

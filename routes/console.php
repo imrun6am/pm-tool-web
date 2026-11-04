@@ -5,6 +5,7 @@ use App\Models\AiUsageLog;
 use App\Models\Task;
 use App\Models\TasksheetExport;
 use App\Support\LogRetention;
+use App\Support\WorkingWeek;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -26,5 +27,5 @@ Schedule::command('tasks:recur')->dailyAt('06:00');
 // Inbox reminders: tasks due tomorrow, and on their first day overdue.
 Schedule::command('notifications:due-reminders')->dailyAt('08:00');
 
-// Claude standup digests for the previous weekday, ready before standup.
-Schedule::command('ai:standup-digests')->weekdays()->at('08:30');
+// Claude standup digests for the previous working day, ready before standup.
+Schedule::command('ai:standup-digests')->dailyAt('08:30')->when(fn () => WorkingWeek::isWorkingDay(today()));

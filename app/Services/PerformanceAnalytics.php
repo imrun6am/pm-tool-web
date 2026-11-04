@@ -10,6 +10,7 @@ use App\Models\Team;
 use App\Models\User;
 use App\Support\Metric;
 use App\Support\PerformancePeriod;
+use App\Support\WorkingWeek;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -415,14 +416,14 @@ class PerformanceAnalytics
         foreach ($memberIds as $id) {
             $mine = $entries->get($id, collect())->keyBy(fn (TasksheetEntry $e) => $e->date->toDateString());
 
-            // Weekdays owed a row: since joining, up to yesterday, plus today
+            // Working days owed a row: since joining, up to yesterday, plus today
             // once logged; full-day leave excluded.
             $start = $from->copy()->startOfDay()->max(isset($joined[$id]) ? Carbon::parse($joined[$id])->startOfDay() : $from);
             $expected = 0;
             $logged = 0;
             for ($d = $start; $d->lte($to); $d->addDay()) {
                 $entry = $mine->get($d->toDateString());
-                if ($d->isWeekend() || $entry?->isFullDayLeave() || ($d->gte($today) && ! $entry?->isFullyFilled())) {
+                if (WorkingWeek::isWeekend($d) || $entry?->isFullDayLeave() || ($d->gte($today) && ! $entry?->isFullyFilled())) {
                     continue;
                 }
                 $expected++;

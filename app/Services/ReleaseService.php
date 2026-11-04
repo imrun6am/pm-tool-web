@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -27,7 +28,10 @@ class ReleaseService
         'project_id', 'team_id', 'name', 'description', 'year', 'quarter', 'start_date', 'end_date',
     ];
 
-    public function __construct(private readonly OverlapChecker $overlap) {}
+    public function __construct(
+        private readonly OverlapChecker $overlap,
+        private readonly NotificationService $notifications,
+    ) {}
 
     /** Status filter values the index accepts; `active` is every ongoing (not completed) release. */
     public const STATUSES = ['active', 'in_progress', 'upcoming', 'overdue', 'completed'];
@@ -222,7 +226,7 @@ class ReleaseService
      */
     public function create(array $attributes, array $phases = [], array $offDays = [], array $memberIds = []): Release
     {
-        return DB::transaction(function () use ($attributes, $phases, $offDays, $memberIds) {
+        $release = DB::transaction(function () use ($attributes, $phases, $offDays, $memberIds) {
             $release = Release::create($this->writable($attributes));
 
             $this->syncPhases($release, $phases);
@@ -231,6 +235,12 @@ class ReleaseService
 
             return $release;
         });
+
+        // The lead hears once, as the lead, even when also listed as a member.
+        $this->notifications->releaseCreated($release, Auth::user());
+        $this->notifications->releaseMembersAdded($release, array_diff($memberIds, [$release->team?->team_lead_id]), Auth::user());
+
+        return $release;
     }
 
     /**
@@ -243,6 +253,9 @@ class ReleaseService
      */
     public function update(Release $release, array $attributes, array $phases = [], array $offDays = [], array $memberIds = []): Release
     {
+        $membersBefore = $release->members()->pluck('users.id')->all();
+        $datesBefore = $this->dateSnapshot($release);
+
         DB::transaction(function () use ($release, $attributes, $phases, $offDays, $memberIds) {
             $release->update($this->writable($attributes));
 
@@ -251,7 +264,16 @@ class ReleaseService
             $release->members()->sync($memberIds);
         });
 
-        return $release->refresh();
+        $release->refresh();
+
+        $added = array_diff($memberIds, $membersBefore);
+        $this->notifications->releaseMembersAdded($release, $added, Auth::user());
+
+        if ($this->dateSnapshot($release) !== $datesBefore) {
+            $this->notifications->releaseDatesChanged($release, $added, Auth::user());
+        }
+
+        return $release;
     }
 
     public function complete(Release $release, User $by, ?string $notes = null): Release
@@ -262,12 +284,16 @@ class ReleaseService
             'completion_notes' => $notes,
         ]);
 
+        $this->notifications->releaseCompleted($release, $by);
+
         return $release;
     }
 
     public function reopen(Release $release): Release
     {
         $release->update(['completed_at' => null, 'completed_by' => null]);
+
+        $this->notifications->releaseReopened($release, Auth::user());
 
         return $release;
     }
@@ -332,6 +358,18 @@ class ReleaseService
             ->unique('id')
             ->sortBy('name')
             ->values();
+    }
+
+    /**
+     * The phase dates as they stand, to tell whether an update moved any.
+     *
+     * @return list<array{0: string, 1: ?string, 2: ?string}>
+     */
+    private function dateSnapshot(Release $release): array
+    {
+        return $release->phases()->orderBy('position')->get()
+            ->map(fn ($phase) => [$phase->phase, $phase->start_date?->toDateString(), $phase->end_date?->toDateString()])
+            ->all();
     }
 
     /**

@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources\V1;
 
+use App\Support\NotificationLink;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Notifications\DatabaseNotification;
@@ -25,6 +26,9 @@ class NotificationResource extends JsonResource
             'message' => $data['message'] ?? null,
             'excerpt' => $data['excerpt'] ?? null,
             'task' => ['id' => $data['task_id'] ?? null, 'title' => $data['task_title'] ?? null],
+            'release_id' => $this->when(isset($data['release_id']), fn () => $data['release_id']),
+            'target' => NotificationLink::target($data),
+            'count' => $this->when(isset($data['count']), fn () => $data['count']),
             'actor' => isset($data['actor_id']) ? ['id' => $data['actor_id'], 'name' => $data['actor_name'] ?? null] : null,
             'is_read' => $this->read_at !== null,
             'read_at' => $this->read_at?->toIso8601String(),

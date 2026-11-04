@@ -6,6 +6,7 @@ use App\Models\Release;
 use App\Models\Team;
 use App\Models\User;
 use App\Services\OverlapChecker;
+use App\Support\WorkingWeek;
 use Illuminate\Support\Carbon;
 
 /**
@@ -24,7 +25,7 @@ class ScheduleAssistant
 
         Rules:
         - Every phase starts on or after the window start and ends on or before the window end; each phase starts the day after the previous one ends; together they cover the whole window.
-        - Prefer starting and ending phases on working days (Monday–Friday, not an off-day).
+        - Prefer starting and ending phases on working days: not a weekend day, as given in <release>, and not an off-day.
         - Size phases by working days, not calendar days. Typical split: development about half the working days, qa about a quarter, retest about an eighth, release the rest (at least one working day each). Adjust when the window is short.
         - When the team is double-booked by another release, say so in warnings and, if it helps, put QA and retest where the overlap hurts least.
         - rationale: two or three sentences explaining the split in working days.
@@ -53,8 +54,10 @@ class ScheduleAssistant
         $off = collect($offDays)->filter(fn ($d) => $d >= $start->toDateString() && $d <= $end->toDateString())->unique()->sort()->values();
         $working = 0;
         for ($d = $start->copy(); $d->lte($end); $d->addDay()) {
-            $working += ($d->isWeekday() && ! $off->contains($d->toDateString())) ? 1 : 0;
+            $working += (WorkingWeek::isWorkingDay($d) && ! $off->contains($d->toDateString())) ? 1 : 0;
         }
+
+        $alternate = WorkingWeek::alternateDaysOffBetween($start, $end);
 
         $conflicts = $this->overlaps->conflictsFor($team->id, $start->toDateString(), $end->toDateString(), $release?->id)
             ->map(fn (Release $r) => "{$r->name} ({$r->start_date->toDateString()} – {$r->end_date->toDateString()})");
@@ -62,6 +65,8 @@ class ScheduleAssistant
         $prompt = "<release>\n"
             .($release ? "Name: {$release->name}\n" : '')
             ."Team: {$team->name}\nWindow: {$start->toDateString()} – {$end->toDateString()} ({$start->format('l')} to {$end->format('l')})\n"
+            .'Weekend days: '.(WorkingWeek::weekendLabel() ?: 'none')."\n"
+            .($alternate === [] ? '' : 'Alternate days off in this window: '.implode(', ', $alternate)."\n")
             ."Calendar days: {$days}; working days: {$working}\n"
             .'Off-days: '.($off->isEmpty() ? 'none' : $off->implode(', '))."\n"
             .'Team also booked on: '.($conflicts->isEmpty() ? 'nothing else' : $conflicts->implode('; '))."\n"

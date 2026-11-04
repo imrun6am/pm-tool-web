@@ -8,9 +8,11 @@ use App\Models\Task;
 use App\Models\TasksheetEntry;
 use App\Models\Team;
 use App\Models\User;
+use App\Support\WorkingWeek;
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -37,6 +39,7 @@ class TeamService
     public function __construct(
         private readonly TasksheetService $tasksheets,
         private readonly TaskCompletions $completions,
+        private readonly NotificationService $notifications,
     ) {}
 
     /**
@@ -249,7 +252,7 @@ class TeamService
 
         $days = [];
         for ($day = $today->copy(); count($days) < self::STANDUP_DAYS; $day->subDay()) {
-            if ($day->isWeekday()) {
+            if (WorkingWeek::isWorkingDay($day)) {
                 $days[] = $day->copy();
             }
         }
@@ -301,7 +304,13 @@ class TeamService
      */
     public function addMember(Team $team, int|string $userId): User
     {
+        $alreadyOn = $team->members()->whereKey($userId)->exists();
+
         $team->memberRecords()->syncWithoutDetaching([$userId => ['left_at' => null]]);
+
+        if (! $alreadyOn) {
+            $this->notifications->teamMemberAdded($team, $userId, Auth::user());
+        }
 
         return User::findOrFail($userId);
     }
@@ -309,7 +318,13 @@ class TeamService
     /** Soft leave: stamp the departure, keep the row. */
     public function removeMember(Team $team, User $user): void
     {
+        $wasOn = $team->members()->whereKey($user->id)->exists();
+
         $team->memberRecords()->updateExistingPivot($user->id, ['left_at' => now()]);
+
+        if ($wasOn) {
+            $this->notifications->teamMemberRemoved($team, $user, Auth::user());
+        }
     }
 
     /** Assign or clear the team lead — any active user, regardless of role. */

@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\AiInsight;
 use App\Services\Ai\AiException;
 use App\Services\Ai\Insights\AiInsightService;
+use App\Services\NotificationService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Throwable;
@@ -51,8 +52,12 @@ class GenerateAiInsight implements ShouldQueue
     {
         $message = $e instanceof AiException ? $e->getMessage() : 'Claude couldn’t finish this. Please try again.';
 
-        AiInsight::whereKey($this->insightId)
+        $updated = AiInsight::whereKey($this->insightId)
             ->whereIn('status', [AiInsight::STATUS_PENDING, AiInsight::STATUS_PROCESSING])
             ->update(['status' => AiInsight::STATUS_FAILED, 'error' => mb_strimwidth($message, 0, 500, '…')]);
+
+        if ($updated && ($insight = AiInsight::with('subject')->find($this->insightId))) {
+            app(NotificationService::class)->insightFinished($insight, false);
+        }
     }
 }

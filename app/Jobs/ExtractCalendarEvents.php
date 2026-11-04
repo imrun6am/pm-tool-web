@@ -10,6 +10,7 @@ use App\Services\Calendar\EventExtractor;
 use App\Services\Calendar\EventImportService;
 use App\Services\Calendar\UnreadableDocumentException;
 use App\Services\Kpi\MissingApiKeyException;
+use App\Services\NotificationService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Throwable;
@@ -56,8 +57,12 @@ class ExtractCalendarEvents implements ShouldQueue
             default => $e?->getMessage() ?? 'Unknown error',
         };
 
-        EventImport::whereKey($this->importId)
+        $updated = EventImport::whereKey($this->importId)
             ->whereIn('status', [EventImport::STATUS_PENDING, EventImport::STATUS_PROCESSING])
             ->update(['status' => EventImport::STATUS_FAILED, 'error' => mb_strimwidth($message, 0, 500, '…')]);
+
+        if ($updated && ($import = EventImport::find($this->importId))) {
+            app(NotificationService::class)->importFailed($import);
+        }
     }
 }

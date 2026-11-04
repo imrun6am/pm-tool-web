@@ -9,7 +9,9 @@ use App\Models\Release;
 use App\Models\ReleaseTemplate;
 use App\Models\Team;
 use App\Models\User;
+use App\Services\ReleaseProgressService;
 use App\Services\ReleaseService;
+use App\Services\ReleaseStatusService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -113,7 +115,7 @@ class ReleaseController extends Controller
             ->with($this->overlapSession($release));
     }
 
-    public function show(Release $release): View
+    public function show(Release $release, ReleaseProgressService $progress, ReleaseStatusService $statuses): View
     {
         $release->load([
             'project', 'team', 'phases', 'documents.uploader',
@@ -137,6 +139,9 @@ class ReleaseController extends Controller
             'release' => $release,
             'conflicts' => $this->releases->conflictsFor($release),
             'history' => $history,
+            'burnUp' => $progress->burnUp($release),
+            'forecast' => $progress->forecast($release),
+            'statusUpdates' => $statuses->history($release),
             'users' => $this->releases->assignableUsers($release),
             'templates' => request()->user()->canManageReleases() ? ReleaseTemplate::with('tasks')->orderBy('name')->get() : collect(),
             'taskStats' => $this->releases->taskStats($release, request()->user()),

@@ -9,6 +9,7 @@ use App\Models\TasksheetEntry;
 use App\Models\TaskStatusChange;
 use App\Models\User;
 use App\Support\Metric;
+use App\Support\WorkingWeek;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -294,9 +295,9 @@ class MemberAnalyticsService
         $marked = $entries->filter(fn (TasksheetEntry $e) => $e->standup_attended !== null && ! $e->isFullDayLeave());
         $attended = $marked->filter(fn (TasksheetEntry $e) => $e->attendedStandup());
 
-        // Tasksheet: weekdays since joining a team, up to yesterday — plus today
+        // Tasksheet: working days since joining a team, up to yesterday — plus today
         // once it is logged, so an unfilled morning never reads as a miss.
-        $expected = $joinedAt === null ? collect() : $span->filter(fn (array $d) => $d['date']->isWeekday()
+        $expected = $joinedAt === null ? collect() : $span->filter(fn (array $d) => WorkingWeek::isWorkingDay($d['date'])
             && $d['date']->gte($joinedAt)
             && ! $d['leave']
             && ($d['date']->lt($today) || $d['logged']));
@@ -467,7 +468,7 @@ class MemberAnalyticsService
     {
         $window = $days->filter(fn (array $d) => $d['date']->gte($from))->values();
         $active = fn (array $d) => $d['tasks'] > 0 || $d['logged'];
-        $pause = fn (array $d) => $d['date']->isWeekend() || $d['leave'] || $d['date']->isSameDay($today);
+        $pause = fn (array $d) => WorkingWeek::isWeekend($d['date']) || $d['leave'] || $d['date']->isSameDay($today);
 
         $current = 0;
         foreach ($window->reverse() as $day) {

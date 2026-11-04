@@ -8,6 +8,7 @@ use App\Models\User;
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 
 /**
  * Minutes of a meeting — release-linked or general.
@@ -27,6 +28,8 @@ class MeetingNoteService
      * ESCAPE clause below makes the behaviour explicit rather than inherited.
      */
     private const LIKE_ESCAPE = '!';
+
+    public function __construct(private readonly NotificationService $notifications) {}
 
     /** The attributes a meeting-note write accepts. */
     private const WRITABLE = ['title', 'type', 'meeting_date', 'release_id', 'event_id', 'body', 'visibility'];
@@ -99,6 +102,8 @@ class MeetingNoteService
         $note = MeetingNote::create($this->writable($attributes) + ['created_by' => $author->id]);
         $note->attendees()->sync($attendeeIds);
 
+        $this->notifications->meetingAttendeesAdded($note, $attendeeIds, Auth::user());
+
         return $note;
     }
 
@@ -108,8 +113,12 @@ class MeetingNoteService
      */
     public function update(MeetingNote $note, array $attributes, array $attendeeIds): MeetingNote
     {
+        $before = $note->attendees()->pluck('users.id')->all();
+
         $note->update($this->writable($attributes));
         $note->attendees()->sync($attendeeIds);
+
+        $this->notifications->meetingAttendeesAdded($note, array_diff($attendeeIds, $before), Auth::user());
 
         return $note;
     }

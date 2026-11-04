@@ -9,6 +9,7 @@ use App\Models\Release;
 use App\Models\Task;
 use App\Models\Team;
 use App\Models\User;
+use App\Support\WorkingWeek;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
@@ -108,7 +109,7 @@ class DatabaseSeeder extends Seeder
         $r1->offDays()->create(['date' => "$year-07-14", 'reason' => 'Public holiday']);
         $cursor = $r1->start_date->copy();
         while ($cursor->lte($r1->end_date)) {
-            if ($cursor->isWeekend() && $cursor->toDateString() !== "$year-07-14") {
+            if (WorkingWeek::isWeekend($cursor) && $cursor->toDateString() !== "$year-07-14") {
                 $r1->offDays()->create(['date' => $cursor->toDateString(), 'reason' => 'Weekend']);
             }
             $cursor->addDay();

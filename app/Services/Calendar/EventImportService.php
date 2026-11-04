@@ -11,6 +11,7 @@ use App\Models\Release;
 use App\Models\User;
 use App\Services\Ai\AiFeatures;
 use App\Services\EventService;
+use App\Services\NotificationService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -58,6 +59,7 @@ class EventImportService
         private readonly DocumentTextConverter $converter,
         private readonly IcsParser $ics,
         private readonly AiFeatures $features,
+        private readonly NotificationService $notifications,
     ) {}
 
     /** Store the upload privately, record it and queue the extraction. Returns at once. */
@@ -348,7 +350,7 @@ class EventImportService
      */
     public function confirm(EventImport $import, array $rows, User $user): Collection
     {
-        return DB::transaction(function () use ($import, $rows, $user) {
+        return $this->notifications->batch(fn () => DB::transaction(function () use ($import, $rows, $user) {
             $import = EventImport::whereKey($import->id)->lockForUpdate()->firstOrFail();
             $proposals = $import->proposalList();
             $created = collect();
@@ -401,7 +403,7 @@ class EventImportService
             }
 
             return $created->sortBy('starts_at')->values();
-        });
+        }));
     }
 
     /** A row is all-day when flagged so or when it has no start time. */
@@ -606,6 +608,8 @@ class EventImportService
         if ($import->isFromNote()) {
             Storage::disk('local')->delete($import->file_path);
         }
+
+        $this->notifications->importFinished($import);
     }
 
     /** @return array{today: string, written_on: ?string, timezone: string, releases: list<string>} */

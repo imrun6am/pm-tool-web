@@ -335,3 +335,134 @@ Alpine.data('aiAsk', ({ url } = {}) => ({
 }));
 
 window.aiFetch = aiFetch;
+
+/*
+ * Handing Claude a file, screenshot or text on the Requests page. A file can
+ * come from the button, a drop anywhere on the page or the clipboard; it waits
+ * for a click, so nothing paid for starts by accident. Plain text pasted outside
+ * a field opens the text form; inside a field it pastes as usual.
+ */
+Alpine.data('requestImport', ({ extensions = [], imageExtensions = [], maxBytes = 0, maxImageBytes = 0, text = '', showText = false } = {}) => ({
+    file: null,
+    previewUrl: null,
+    error: '',
+    busy: false,
+    dragging: false,
+    text,
+    showText,
+
+    destroy() {
+        this.clearPreview();
+    },
+
+    get extension() {
+        return this.file?.name.split('.').pop() ?? '';
+    },
+
+    take(list) {
+        const files = [...(list ?? [])];
+        if (!files.length) return;
+
+        const file = files[0];
+        const extension = file.name.includes('.') ? file.name.split('.').pop().toLowerCase() : '';
+        const image = imageExtensions.includes(extension);
+
+        if (!extensions.includes(extension)) {
+            return this.reject('Allowed types: PDF, PNG, JPG, GIF, WebP, DOCX, XLSX, CSV, TXT, MD.');
+        }
+        if (file.size > (image ? maxImageBytes : maxBytes)) {
+            return this.reject(image ? 'Images may not be larger than 5 MB.' : 'The file may not be larger than 20 MB.');
+        }
+
+        const transfer = new DataTransfer();
+        transfer.items.add(file);
+        this.$refs.input.files = transfer.files;
+        this.file = file;
+        this.error = files.length > 1 ? `One file at a time, so this will read ${file.name}.` : '';
+        this.clearPreview();
+        if (image) this.previewUrl = URL.createObjectURL(file);
+        this.$nextTick(() => this.$refs.send.focus());
+    },
+
+    reject(message) {
+        this.clearFile();
+        this.error = message;
+    },
+
+    clearFile() {
+        this.file = null;
+        this.error = '';
+        this.$refs.input.value = '';
+        this.clearPreview();
+    },
+
+    clearPreview() {
+        if (this.previewUrl) URL.revokeObjectURL(this.previewUrl);
+        this.previewUrl = null;
+    },
+
+    openText(value = null) {
+        if (value !== null) this.text = value;
+        this.showText = true;
+        this.$nextTick(() => this.$refs.text.focus());
+    },
+
+    closeText() {
+        this.showText = false;
+        this.text = '';
+    },
+
+    size(bytes = 0) {
+        return bytes >= 1048576 ? `${(bytes / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
+    },
+
+    onPaste(event) {
+        const data = event.clipboardData;
+        if (!data || this.busy) return;
+
+        const files = [...data.files];
+        const pasted = data.getData('text/plain').trim();
+        // Copying from Word or Excel also offers a picture of the text, so text wins unless it is only the file's name.
+        const isFile = files.length > 0 && (pasted === '' || files.some((f) => f.name === pasted));
+
+        if (isFile) {
+            event.preventDefault();
+            this.take(files.map((f) => this.named(f)));
+        } else if (pasted !== '' && !event.target.closest?.('input, textarea, select, [contenteditable="true"]')) {
+            event.preventDefault();
+            this.openText(data.getData('text/plain'));
+        }
+    },
+
+    // Screenshots from the clipboard are all called image.png.
+    named(file) {
+        if (file.name && file.name !== 'image.png') return file;
+        const stamp = new Date().toISOString().slice(0, 16).replace('T', ' ').replace(':', '.');
+
+        return new File([file], `Screenshot ${stamp}.png`, { type: file.type });
+    },
+
+    hasFiles(event) {
+        return [...(event.dataTransfer?.types ?? [])].includes('Files');
+    },
+
+    onDragEnter(event) {
+        if (this.hasFiles(event)) this.dragging = true;
+    },
+
+    onDragOver(event) {
+        if (this.hasFiles(event)) event.preventDefault();
+    },
+
+    // relatedTarget is empty only when the drag leaves the window.
+    onDragLeave(event) {
+        if (!event.relatedTarget) this.dragging = false;
+    },
+
+    onDrop(event) {
+        this.dragging = false;
+        if (!this.hasFiles(event)) return;
+        event.preventDefault();
+        if (!this.busy) this.take(event.dataTransfer.files);
+    },
+}));

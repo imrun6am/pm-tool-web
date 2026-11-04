@@ -66,15 +66,15 @@ class NotificationInboxTest extends TestCase
         $this->assertSame(0, $this->lead->notifications()->count());
     }
 
-    public function test_reassignment_notifies_only_the_new_assignee(): void
+    public function test_reassignment_notifies_the_new_assignee_and_the_previous_one_once(): void
     {
         $this->actingAs($this->lead);
         $task = $this->task(['assignee_id' => $this->dev->id]);
         $task->update(['assignee_id' => $this->qa->id]);
         $task->update(['title' => 'Fix login bug (again)']);
 
-        $this->assertSame(1, $this->dev->notifications()->count());
-        $this->assertSame(1, $this->qa->notifications()->count());
+        $this->assertEqualsCanonicalizing(['unassigned', 'assigned'], $this->dev->notifications()->pluck('data')->pluck('kind')->all());
+        $this->assertSame(['assigned'], $this->qa->notifications()->pluck('data')->pluck('kind')->all());
     }
 
     public function test_self_assignment_is_silent(): void

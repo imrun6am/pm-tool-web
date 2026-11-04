@@ -22,6 +22,10 @@ class TriageItemResource extends JsonResource
             'label_id' => $this->label_id,
             'task_id' => $this->task_id,
             'decline_reason' => $this->decline_reason,
+            // Named only for those who may open it (GET requests/{id}/source).
+            'source_name' => $this->triage_import_id && $request->user()?->can('viewSource', $this->resource)
+                ? $this->sourceImport?->displayName()
+                : null,
             'reporter' => new UserSummaryResource($this->whenLoaded('reporter')),
             'is_waiting_too_long' => $this->created_at && $this->isWaitingTooLong(),
             'decided_at' => $this->decided_at?->toIso8601String(),

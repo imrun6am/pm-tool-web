@@ -6,6 +6,7 @@ use App\Models\Event;
 use App\Models\User;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 
 /**
  * Calendar events.
@@ -20,6 +21,8 @@ use Illuminate\Support\Collection;
  */
 class EventService
 {
+    public function __construct(private readonly NotificationService $notifications) {}
+
     /** The attributes an event write accepts from a request. */
     private const WRITABLE = [
         'title', 'description', 'type', 'visibility', 'starts_at', 'ends_at', 'all_day', 'location', 'release_id',
@@ -101,6 +104,8 @@ class EventService
         $event = Event::create($this->attributes($attributes) + ['created_by' => $creator->id]);
         $event->attendees()->sync($attendeeIds);
 
+        $this->notifications->eventAttendeesAdded($event, $attendeeIds, Auth::user());
+
         return $event;
     }
 
@@ -110,8 +115,19 @@ class EventService
      */
     public function update(Event $event, array $attributes, array $attendeeIds): Event
     {
+        $before = $event->attendees()->pluck('users.id')->all();
+
         $event->update($this->attributes($attributes));
         $event->attendees()->sync($attendeeIds);
+
+        $this->notifications->eventAttendeesAdded($event, array_diff($attendeeIds, $before), Auth::user());
+        $this->notifications->eventChanged(
+            $event,
+            $event->wasChanged(['starts_at', 'ends_at', 'all_day']),
+            $event->wasChanged('location'),
+            array_intersect($attendeeIds, $before),
+            Auth::user(),
+        );
 
         return $event;
     }

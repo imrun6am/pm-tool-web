@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Task;
 use App\Services\NotificationService;
+use App\Support\NotificationLink;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -33,16 +33,11 @@ class NotificationController extends Controller
             $this->notifications->find($request->user(), $notification)
         );
 
-        $taskId = $notification->data['task_id'] ?? null;
-        if ($taskId && Task::whereKey($taskId)->exists()) {
-            return redirect()->route('tasks.show', $taskId);
-        }
+        $url = NotificationLink::url($notification, $request->user());
 
-        if ($notification->data['triage_item_id'] ?? null) {
-            return redirect()->route('triage.index');
-        }
-
-        return redirect()->route('notifications.index')->with('error', 'That task no longer exists.');
+        return $url
+            ? redirect($url)
+            : redirect()->route('notifications.index')->with('error', 'That item is no longer available.');
     }
 
     public function readAll(Request $request): RedirectResponse

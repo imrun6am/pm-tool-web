@@ -38,6 +38,9 @@ class AiServiceProvider extends ServiceProvider
         // Each click on a Claude button is a paid model call.
         RateLimiter::for('ai', fn (Request $request) => Limit::perMinute(20)->by('user:'.$request->user()?->id));
 
+        // Importing requests: each upload can mean several paid model calls.
+        RateLimiter::for('request-import', fn (Request $request) => Limit::perHour(20)->by('user:'.$request->user()?->id));
+
         if (! $this->app->routesAreCached()) {
             Route::middleware('web')->group(base_path('routes/ai.php'));
         }

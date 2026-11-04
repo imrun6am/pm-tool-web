@@ -3,6 +3,7 @@
 namespace App\Jobs;
 
 use App\Models\TasksheetExport;
+use App\Services\NotificationService;
 use App\Services\TasksheetExportService;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
@@ -32,6 +33,8 @@ class MergeTasksheetExport implements ShouldQueue
             'error' => null,
             'completed_at' => now(),
         ]);
+
+        app(NotificationService::class)->exportFinished($export);
     }
 
     public function failed(?Throwable $e): void

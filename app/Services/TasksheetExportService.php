@@ -35,7 +35,10 @@ class TasksheetExportService
     /** The finished file, inside the export's directory. */
     public const FILE = 'tasksheet.pdf';
 
-    public function __construct(private readonly TasksheetService $tasksheet) {}
+    public function __construct(
+        private readonly TasksheetService $tasksheet,
+        private readonly NotificationService $notifications,
+    ) {}
 
     /**
      * The user's own exports, newest first.
@@ -374,6 +377,8 @@ class TasksheetExportService
         if ($updated) {
             $this->cancelBatch($export);
             Storage::disk('local')->deleteDirectory($export->directory());
+
+            $this->notifications->exportFailed($export);
         }
     }
 

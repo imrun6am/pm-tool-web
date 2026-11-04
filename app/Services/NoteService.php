@@ -7,6 +7,7 @@ use App\Models\User;
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 
 /**
  * Personal daily notes.
@@ -20,6 +21,8 @@ class NoteService
 {
     /** The attributes a note write accepts. */
     private const WRITABLE = ['date', 'body', 'visibility'];
+
+    public function __construct(private readonly NotificationService $notifications) {}
 
     /**
      * Notes the viewer may see: everyone's shared notes, their own, and
@@ -78,6 +81,8 @@ class NoteService
         $note = $author->notes()->create($this->writable($attributes));
         $this->syncRecipients($note, $recipientIds);
 
+        $this->notifications->noteShared($note, $recipientIds, Auth::user());
+
         return $note;
     }
 
@@ -87,8 +92,12 @@ class NoteService
      */
     public function update(Note $note, array $attributes, array $recipientIds): Note
     {
+        $before = $note->recipients()->pluck('users.id')->all();
+
         $note->update($this->writable($attributes));
         $this->syncRecipients($note, $recipientIds);
+
+        $this->notifications->noteShared($note, array_diff($recipientIds, $before), Auth::user());
 
         return $note;
     }

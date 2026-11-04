@@ -6,6 +6,7 @@ use App\Models\Release;
 use App\Models\Task;
 use App\Models\TasksheetEntry;
 use App\Models\User;
+use App\Services\NotificationService;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\DB;
 
@@ -22,7 +23,10 @@ class PlanToBoardService
     /** How many of the member's existing titles are shown to Claude for dedupe. */
     private const EXISTING_LIMIT = 200;
 
-    public function __construct(private readonly PlanTaskExtractor $extractor) {}
+    public function __construct(
+        private readonly PlanTaskExtractor $extractor,
+        private readonly NotificationService $notifications,
+    ) {}
 
     /**
      * @return array{created: list<Task>, skipped: int}
@@ -60,7 +64,7 @@ class PlanToBoardService
             $fresh[] = $task;
         }
 
-        $created = DB::transaction(function () use ($fresh, $release, $entry, $actor) {
+        $created = $this->notifications->batch(fn () => DB::transaction(function () use ($fresh, $release, $entry, $actor) {
             $position = TaskService::nextPosition($release?->id);
             $created = [];
             foreach ($fresh as $task) {
@@ -78,7 +82,7 @@ class PlanToBoardService
             }
 
             return $created;
-        });
+        }));
 
         return ['created' => $created, 'skipped' => $result['covered'] + count($tasks) - count($fresh)];
     }

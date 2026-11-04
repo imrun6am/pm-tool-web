@@ -538,10 +538,13 @@
                 const start = parse(this.start);
                 const end = parse(this.end);
                 const existing = new Set(this.offDays.map((o) => o.date));
+                const weekly = @js(\App\Support\WorkingWeek::weekendDayNumbers());
+                const alternate = @js(\App\Support\WorkingWeek::alternateOffDay()?->toDateString());
+                const isOff = (d) => weekly.includes(d.getDay()) || (alternate && Math.round((d - parse(alternate)) / 86400000) % 14 === 0);
                 let added = 0;
                 for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
                     const iso = fmt(d);
-                    if ((d.getDay() === 0 || d.getDay() === 6) && !existing.has(iso)) {
+                    if (isOff(d) && !existing.has(iso)) {
                         this.offDays.push({ date: iso, reason: 'Weekend' });
                         existing.add(iso);
                         added++;

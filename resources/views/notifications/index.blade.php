@@ -1,6 +1,6 @@
 <x-app-layout>
     <x-slot name="header">
-        <x-page-header title="Notifications" icon="bell" tone="notifications" description="Assignments, comments on your tasks, and gentle due-date reminders.">
+        <x-page-header title="Notifications" icon="bell" tone="notifications" description="What needs you across tasks, releases, events and your team.">
             @if ($unreadCount > 0)
                 <x-slot name="actions">
                     <form method="POST" action="{{ route('notifications.read-all') }}">

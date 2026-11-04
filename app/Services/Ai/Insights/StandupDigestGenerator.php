@@ -10,6 +10,7 @@ use App\Models\Team;
 use App\Models\User;
 use App\Services\Ai\AiGateway;
 use App\Services\Board\PlanToBoardService;
+use App\Support\WorkingWeek;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -40,7 +41,7 @@ class StandupDigestGenerator implements InsightGenerator
     {
         /** @var Team $team */
         $team = $insight->subject;
-        $date = Carbon::parse($insight->for_date ?? today()->subWeekday());
+        $date = Carbon::parse($insight->for_date ?? WorkingWeek::previous());
         $facts = $this->facts($team, $date);
 
         if ($facts['entries'] === [] && $facts['board'] === []) {

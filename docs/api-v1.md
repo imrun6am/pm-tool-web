@@ -200,7 +200,7 @@ compares it with the **same elapsed span** of the previous period (Nov 1–5 vs 
 | `pace`            | `this_week`, `goal` (ceil of the previous 8 weeks' average; null with no history), `pct` |
 | `status_counts`   | Each counted status → count, plus `task_total` (archived tasks are never counted) |
 | `heatmap`         | `total`, `active_days`, `days[]` of `{date, count, level 0–4, tasks, comments, tasksheet_logged}` for the last 26 weeks |
-| `streak`          | `current`, `best`, `active_today` — weekdays; weekends and full-day leave never break it |
+| `streak`          | `current`, `best`, `active_today` — working days; weekends (`PLANNING_WEEKEND_DAYS`, default Friday, and `PLANNING_ALTERNATE_OFF_DAY`, default every second Saturday) and full-day leave never break it |
 | `lead_time_trend` | 12 × `{week_start, days}`                                                 |
 | `recent`          | Up to 5 `{completed_at, task}`, newest first                              |
 | `on_team`, `has_history` | Booleans for empty states                                          |
@@ -249,7 +249,7 @@ with 422.
 | `GET`    | `/releases/{id}/phases`                       | any — always 4, unpaginated |
 | `GET`    | `/releases/{id}/off-days`                     | any              |
 | `POST`   | `/releases/{id}/off-days`                     | manage-releases  |
-| `POST`   | `/releases/{id}/off-days/weekends`            | manage-releases  |
+| `POST`   | `/releases/{id}/off-days/weekends`            | manage-releases — marks the configured weekend days (`PLANNING_WEEKEND_DAYS`, default Friday, and `PLANNING_ALTERNATE_OFF_DAY`, default every second Saturday) |
 | `DELETE` | `/releases/{id}/off-days/{offDay}`            | manage-releases  |
 | `GET`    | `/releases/{id}/documents`                    | any              |
 | `POST`   | `/releases/{id}/documents`                    | contributors (not viewers) — `multipart/form-data`, field `document` |
@@ -312,6 +312,15 @@ serialized, so there is no public URL to leak.
 | `GET/POST`        | `/requests` — `GET` returns `{ queue[], mine[] }`; `POST { title, description?, team_id?, priority?, label_id? }` by anyone. Developers and QA send to their own team |
 | `POST`            | `/requests/{id}/accept` — **leads**; `{ team_id?, release_id?, assignee_id?, priority?, due_date? }` creates a task, filed by the reporter. 409 if already decided |
 | `POST`            | `/requests/{id}/decline` — **leads**; `{ reason }`. 409 if already decided |
+| `GET`             | `/requests/{id}/source` — the file a request was imported from (`source_name` on the request names it), for its reporter and whoever may decide it |
+| `GET`             | `/requests/imports` — the caller's imports, as `{ available, imports[] }`. `available` is false when `request_import` is switched off or Claude isn't configured |
+| `POST`            | `/requests/imports` — multipart `document`: PDF, PNG, JPG, GIF, WebP, DOCX, XLSX, CSV, TXT or MD, up to 20 MB (images 5 MB). Claude reads it in the background. 20/hour |
+| `POST`            | `/requests/imports/text` — `{ text }`, up to 100,000 characters. Otherwise as above |
+| `GET`             | `/requests/imports/{id}` — `{ import, proposals[] }`. Poll until `import.is_running` is false. Proposals are empty until then. Owner only |
+| `GET`             | `/requests/imports/{id}/file` — the original. Owner only |
+| `POST`            | `/requests/imports/{id}/confirm` — `{ requests: { <proposal index>: { include, title, description?, team_id?, priority?, label_id? } } }` sends ticked rows through the same rules as `POST /requests`. Rows already sent are skipped; 422 if none are left. Owner only |
+| `POST`            | `/requests/imports/{id}/retry` — failed imports only; 409 otherwise or when unavailable. Owner only |
+| `DELETE`          | `/requests/imports/{id}` — removes the import and its file. Requests already sent stay, with `source_name` null. Owner only |
 | `GET/POST`        | `/recurring-tasks` — **leads**; `POST { title, frequency, next_run_on, description?, team_id?, assignee_id?, priority?, estimate_minutes?, due_in_days? }`; `frequency` is `daily` (working days), `weekly` or `monthly` |
 | `PUT/DELETE`      | `/recurring-tasks/{id}` — **leads**; `PUT { is_active }` pauses or resumes, and resuming skips what was missed |
 | `GET/POST`        | `/release-templates` — **leads**; `POST { name }` |
@@ -319,6 +328,12 @@ serialized, so there is no public URL to leak.
 | `POST/DELETE`     | `/release-templates/{id}/tasks[/{taskId}]` — **leads**; `POST { title, phase?, priority?, estimate_minutes? }` |
 | `POST`            | `/releases/{id}/apply-template` — **leads**; `{ template_id }`. Each task is due when its phase ends; titles the release already has are skipped. Returns `created` |
 | `GET`             | `/capacity` — **leads**; `?team_id=&from=`. Six weeks from `from` (never before this week): `weeks[]`, and `people[]` with `weeks[]` of `{ available_minutes, load_minutes, tasks, unestimated, over }` and `later`. A team lead gets only teams they lead; 403 otherwise |
+| `GET`             | `/reports/flow` — **leads and viewers**; `?team_id=`. The last 12 weeks: `weeks[]`, `flow[]` (tasks per status at each week's end), `arrivals[]`, `completions[]`, `cycle[]` (days from starting to finishing, latest 300), `cycle_p50`, `cycle_p85`, `finished`, `in_progress`, `aging[]`. Names no people. |
+| `GET`             | `/reports/time` — **leads** (team leads: teams they lead; another `team_id` is 403); `?from=&to=&team_id=&release_id=`, default the last 30 days. `total_minutes`, `by_release[]`, `by_team[]`, `by_person[]` (`id`, `name`, `minutes`), `accuracy` (`tasks`, `estimated_minutes`, `logged_minutes`, `ratio`, `misses[]`). Never feeds performance scores. |
+| `GET`             | `/reports/time/export` — **leads**; same filters. CSV of every entry. Text a spreadsheet would run as a formula starts with `'`. |
+| `GET`             | `/releases/{id}/progress` — anyone who can see the release. `burn_up[]` (`date`, `scope`, `done`, top-level tasks, at most 25 points) and `forecast`: `remaining`, `enough_history`, `dates` (`p50`, `p85`, `p95`, or null when there's nothing left, too little history or the release is completed), `on_time_pct`, `weeks_sampled`, `avg_per_week`. |
+| `GET`             | `/releases/{id}/status-updates` — anyone who can see the release. Newest first, latest 20: `status`, `status_label`, `note`, `author`, `created_at`. |
+| `POST`            | `/releases/{id}/status-updates` — **leads**. `status` (`on_track`, `at_risk`, `off_track`), `note` (≤ 2000). Moving into at risk or off track notifies the team's lead and org-level leads, except the author. Notifications of this kind are `release_status` and carry `release_id`. |
 | `GET`             | `/board` — every status column, even when empty; `?release_id=&team_id=&assignee_id=&priority=&label_id=`, each also takes `none` |
 | `POST`            | `/board/tasks` — `{ title, status, release_id?, team_id?, assignee_id? }` |
 | `PATCH`           | `/board/tasks/{id}` — `{ status, ordered_ids[] }`, atomic |
@@ -700,9 +715,25 @@ A notification:
 }
 ```
 
-`kind` is `assigned`, `commented` (with an `excerpt`), `due_tomorrow` or `overdue`. Nobody is notified
-about their own action, and only people who may see the task are notified. Reminders come from the
-daily `notifications:due-reminders` command (08:00), once per task and kind.
+Every notification also has a `target`, `{ "type": "task", "id": 42 }`, naming what it opens, and a
+grouped row has a `count`. Target types: `task`, `tasks` (the caller's task list), `request`, `release`,
+`meeting_note`, `event`, `calendar`, `note`, `event_import`, `tasksheet`, `tasksheet_exports`,
+`kpi_reports`, `team`, `dashboard`, `profile`, `inbox`, or `null`. The record may have gone since, or
+be out of the caller's reach.
+
+| Area | `kind` values |
+|---|---|
+| Tasks | `assigned`, `unassigned`, `commented` (with an `excerpt`), `blocked`, `unblocked`, `block_cleared`, `sent_back`, `due_changed`, `urgent`, `task_deleted`, `due_tomorrow`, `overdue` |
+| Requests | `request_new`, `request_accepted`, `request_declined` |
+| Releases | `release_created`, `release_member_added`, `release_dates_changed`, `release_completed`, `release_reopened`, `release_commented` (with an `excerpt`), `release_status` |
+| Meetings, events, notes | `meeting_attendee`, `event_invited`, `event_changed`, `event_cancelled`, `event_tomorrow`, `note_shared` |
+| Background jobs, to the requester only | `import_ready`, `import_failed`, `export_ready`, `export_failed`, `kpi_ready`, `kpi_failed`, `insight_ready`, `insight_failed` |
+| Teams and accounts | `team_added`, `team_removed`, `team_lead_assigned`, `team_lead_removed`, `role_changed` |
+
+Nobody is notified about their own action, and only people who may see the record are notified. A bulk
+write sends one row per person and kind, with a `count`. Performance scores, lead feedback and standup
+attendance never notify anyone. Task and event reminders come from the daily
+`notifications:due-reminders` command (08:00), once per task and kind, and once per event and date.
 
 `GET /me` now includes `preferences` (every known key, defaults filled in).
 
@@ -725,6 +756,9 @@ it however suits the client; the web app shows a small toast.
 | Tasks, board, calendar, notes       |  ✅   | ✅  |    ✅     |    ✅     |    ✅     | ✅ |   ✅   |
 | Delete tasks and subtasks; trash    |  ✅   | ❌  |    ❌     |    ❌     |    ❌     | ❌ |   ❌   |
 | Capacity                            |  ✅   | ✅  |    ✅     | own teams |    ❌     | ❌ |   ❌   |
+| Flow report                         |  ✅   | ✅  |    ✅     |    ✅     |    ❌     | ❌ |   ✅   |
+| Time report and export              |  ✅   | ✅  |    ✅     | own teams |    ❌     | ❌ |   ❌   |
+| Post a release status update        |  ✅   | ✅  |    ✅     |    ✅     |    ❌     | ❌ |   ❌   |
 | Decide on requests                  |  ✅   | ✅  |    ✅     | own teams |    ❌     | ❌ |   ❌   |
 | Log own time on tasks               |  ✅   | ✅  |    ✅     |    ✅     |    ✅     | ✅ |   ❌   |
 | Correct anyone's time               |  ✅   | ✅  |    ✅     | own teams |    ❌     | ❌ |   ❌   |

@@ -32,6 +32,13 @@ proposal, specs, design, and task list this implementation follows.
   and manage what it waits for without leaving the page.
 - **Trash** — deleting a task moves it to the trash, with Undo on the board. Admins can restore it
   for 30 days, after which it's removed for good.
+- **Release progress** — each release shows a burn-up of total against finished tasks, and a forecast from
+  the team's last 12 weeks: a likely date, a fairly safe date and the chance of the planned end.
+- **Release status updates** — leads post on track, at risk or off track with a note, drafted by Claude if
+  they like. Updates stay as history, and moving to at risk or off track tells the team's lead and org leads.
+- **Reports** — flow for leads and viewers (work in each status, tasks added against finished, days to
+  finish, work taking longer than usual; no people-level figures), and time for leads (hours by release,
+  team and person, estimate accuracy, CSV export; never feeds performance scores).
 - **Capacity** — for leads, each team member's available time per week against the estimated work
   due that week, allowing for weekends, off-days and leave.
 - **Board flow** — per-team limits on columns, an age marker on cards that have sat still, and

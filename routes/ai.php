@@ -4,6 +4,7 @@ use App\Http\Controllers\Ai\AiAssistController;
 use App\Http\Controllers\Ai\AiInsightController;
 use App\Http\Controllers\Ai\AiUsageController;
 use App\Http\Controllers\Ai\ReleaseNotesController;
+use App\Http\Controllers\Ai\ReleaseStatusDraftController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -30,6 +31,7 @@ Route::middleware('auth')->group(function () {
 
             Route::middleware('release-visible')->group(function () {
                 Route::post('releases/{release}/notes/draft', [ReleaseNotesController::class, 'draft'])->name('release-notes.draft'); // #1
+                Route::post('releases/{release}/status-update/draft', ReleaseStatusDraftController::class)->name('release-status.draft');
                 Route::post('releases/{release}/catch-up', [AiAssistController::class, 'catchUpRelease'])->name('catch-up.release'); // #6
                 Route::post('releases/{release}/retrospective', [AiAssistController::class, 'retrospective'])->name('release-retro');
             });

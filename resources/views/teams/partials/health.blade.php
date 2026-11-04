@@ -51,7 +51,7 @@
                      style="width: {{ $fillPct }}%"></div>
             </div>
 
-            @if (today()->isWeekend())
+            @if (\App\Support\WorkingWeek::isWeekend(today()))
                 <p class="mt-2 text-xs text-slate-400">It’s the weekend — no sheet is expected today.</p>
             @elseif ($sheet['missing']->isNotEmpty())
                 <div class="mt-3">

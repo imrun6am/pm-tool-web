@@ -236,6 +236,39 @@ class MemberAnalyticsServiceTest extends TestCase
         $this->assertFalse($streak['activeToday']);
     }
 
+    public function test_a_friday_weekend_doesnt_break_a_streak_but_a_missed_sunday_does(): void
+    {
+        config(['planning.weekend_days' => ['friday']]);
+        $team = Team::create(['name' => 'Alpha', 'color' => '#0891b2']);
+        $team->members()->attach($this->dev);
+
+        // Sun 8th: nothing, and it's a working day now, so the run starts after it.
+        $this->fullRow($team, '2026-11-09');                  // Mon
+        $this->fullRow($team, '2026-11-10');                  // Tue
+
+        $this->assertSame(2, $this->analytics($this->dev)['streak']['current']);
+
+        $this->fullRow($team, '2026-11-08');                  // Sun
+        $this->fullRow($team, '2026-11-07');                  // Sat
+        $this->fullRow($team, '2026-11-05');                  // Thu; Fri 6th is the weekend
+
+        $this->assertSame(5, $this->analytics($this->dev)['streak']['current']);
+    }
+
+    public function test_a_saturday_off_doesnt_break_a_streak_or_count_as_a_missed_tasksheet(): void
+    {
+        config(['planning.weekend_days' => ['friday'], 'planning.alternate_off_day' => '2026-11-07']);
+        $team = Team::create(['name' => 'Alpha', 'color' => '#0891b2']);
+        $team->members()->attach($this->dev);
+
+        $this->fullRow($team, '2026-11-05');                  // Thu; Fri 6th and Sat 7th are off
+        $this->fullRow($team, '2026-11-08');                  // Sun
+        $this->fullRow($team, '2026-11-09');                  // Mon
+        $this->fullRow($team, '2026-11-10');                  // Tue
+
+        $this->assertSame(4, $this->analytics($this->dev)['streak']['current']);
+    }
+
     public function test_standup_and_tasksheet_rates(): void
     {
         $this->travelTo(Carbon::parse('2026-11-02 08:00:00'));

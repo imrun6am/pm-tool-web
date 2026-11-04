@@ -10,12 +10,14 @@ use App\Http\Controllers\Api\V1\NoteController;
 use App\Http\Controllers\Api\V1\QuickLinkController;
 use App\Http\Controllers\Api\V1\RecurringTaskController;
 use App\Http\Controllers\Api\V1\ReleaseTemplateController;
+use App\Http\Controllers\Api\V1\ReportController;
 use App\Http\Controllers\Api\V1\SavedViewController;
 use App\Http\Controllers\Api\V1\TaskController;
 use App\Http\Controllers\Api\V1\TaskDependencyController;
 use App\Http\Controllers\Api\V1\TaskTimeLogController;
 use App\Http\Controllers\Api\V1\TaskTrashController;
 use App\Http\Controllers\Api\V1\TriageController;
+use App\Http\Controllers\Api\V1\TriageImportController;
 use App\Http\Controllers\Api\V1\WipLimitController;
 use Illuminate\Support\Facades\Route;
 
@@ -56,6 +58,22 @@ Route::get('requests', [TriageController::class, 'index'])->name('triage.index')
 Route::post('requests', [TriageController::class, 'store'])->name('triage.store');
 Route::post('requests/{triageItem}/accept', [TriageController::class, 'accept'])->name('triage.accept');
 Route::post('requests/{triageItem}/decline', [TriageController::class, 'decline'])->name('triage.decline');
+Route::get('requests/{triageItem}/source', [TriageImportController::class, 'source'])->name('triage.source');
+
+/*
+ | Requests from a file, screenshot or text, private to whoever started the import.
+ */
+Route::get('requests/imports', [TriageImportController::class, 'index'])->name('triage.imports.index');
+Route::post('requests/imports', [TriageImportController::class, 'store'])
+    ->middleware('throttle:request-import')->name('triage.imports.store');
+Route::post('requests/imports/text', [TriageImportController::class, 'storeText'])
+    ->middleware('throttle:request-import')->name('triage.imports.text');
+Route::get('requests/imports/{triageImport}', [TriageImportController::class, 'show'])->name('triage.imports.show');
+Route::get('requests/imports/{triageImport}/file', [TriageImportController::class, 'file'])->name('triage.imports.file');
+Route::post('requests/imports/{triageImport}/confirm', [TriageImportController::class, 'confirm'])->name('triage.imports.confirm');
+Route::post('requests/imports/{triageImport}/retry', [TriageImportController::class, 'retry'])
+    ->middleware('throttle:request-import')->name('triage.imports.retry');
+Route::delete('requests/imports/{triageImport}', [TriageImportController::class, 'destroy'])->name('triage.imports.destroy');
 
 /*
  | Saved filter sets for the task list and the board.
@@ -69,6 +87,11 @@ Route::delete('saved-views/{view}', [SavedViewController::class, 'destroy'])->na
  */
 Route::get('labels', [LabelController::class, 'index'])->name('labels.index');
 Route::middleware('lead')->get('capacity', [CapacityController::class, 'index'])->name('capacity.index');
+Route::middleware('full-access')->get('reports/flow', [ReportController::class, 'flow'])->name('reports.flow');
+Route::middleware('lead')->group(function () {
+    Route::get('reports/time', [ReportController::class, 'time'])->name('reports.time');
+    Route::get('reports/time/export', [ReportController::class, 'timeExport'])->name('reports.time.export');
+});
 Route::middleware('lead')->group(function () {
     Route::get('recurring-tasks', [RecurringTaskController::class, 'index'])->name('recurring-tasks.index');
     Route::post('recurring-tasks', [RecurringTaskController::class, 'store'])->name('recurring-tasks.store');

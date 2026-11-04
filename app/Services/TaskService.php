@@ -33,6 +33,8 @@ class TaskService
     /** What the task list can sort by. */
     public const SORTS = ['title', 'status', 'priority', 'assignee', 'due_date', 'updated_at'];
 
+    public function __construct(private readonly NotificationService $notifications) {}
+
     /**
      * The cross-release task query, limited to what `$viewer` may see when given.
      *
@@ -105,7 +107,7 @@ class TaskService
      */
     public function bulkUpdate(iterable $tasks, array $changes): int
     {
-        return DB::transaction(function () use ($tasks, $changes) {
+        return $this->notifications->batch(fn () => DB::transaction(function () use ($tasks, $changes) {
             $count = 0;
 
             foreach ($tasks as $task) {
@@ -119,7 +121,7 @@ class TaskService
             }
 
             return $count;
-        });
+        }));
     }
 
     /**

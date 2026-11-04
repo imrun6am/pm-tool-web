@@ -10,6 +10,7 @@ use App\Models\ReleaseDocument;
 use App\Models\Team;
 use App\Policies\AiInsightPolicy;
 use App\Services\Ai\Insights\AiInsightService;
+use App\Support\WorkingWeek;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -39,7 +40,7 @@ class AiInsightController extends Controller
         abort_unless(AiInsightPolicy::canRequest($request->user(), $data['kind'], $subject), 403);
 
         $forDate = $data['kind'] === AiInsight::KIND_STANDUP_DIGEST
-            ? Carbon::parse($data['date'] ?? today()->subWeekday())->startOfDay()
+            ? Carbon::parse($data['date'] ?? WorkingWeek::previous())->startOfDay()
             : null;
 
         return $this->aiJson(fn () => $this->insights->request($data['kind'], $subject, $request->user(), $forDate)->toStatus());

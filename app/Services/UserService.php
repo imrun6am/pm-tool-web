@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Contracts\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Auth;
 
 /**
  * User administration.
@@ -17,6 +18,8 @@ use Illuminate\Contracts\Database\Eloquent\Builder;
  */
 class UserService
 {
+    public function __construct(private readonly NotificationService $notifications) {}
+
     /**
      * The user directory, active accounts first.
      *
@@ -86,6 +89,10 @@ class UserService
         }
 
         $user->update($attributes);
+
+        if ($user->wasChanged('role')) {
+            $this->notifications->roleChanged($user, Auth::user());
+        }
 
         return $user;
     }

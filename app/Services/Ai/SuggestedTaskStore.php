@@ -5,6 +5,7 @@ namespace App\Services\Ai;
 use App\Models\Release;
 use App\Models\Task;
 use App\Models\User;
+use App\Services\NotificationService;
 use App\Services\TaskService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -20,7 +21,10 @@ class SuggestedTaskStore
 {
     public const MAX = 30;
 
-    public function __construct(private readonly TaskService $tasks) {}
+    public function __construct(
+        private readonly TaskService $tasks,
+        private readonly NotificationService $notifications,
+    ) {}
 
     /** Validation rules for a `tasks` array posted from a suggestion list. */
     public static function rules(): array
@@ -46,7 +50,7 @@ class SuggestedTaskStore
             ? $actor->currentTeamIds()->first()
             : null;
 
-        return DB::transaction(function () use ($items, $actor, $release, $parent, $assignable, $limitedTeam) {
+        return $this->notifications->batch(fn () => DB::transaction(function () use ($items, $actor, $release, $parent, $assignable, $limitedTeam) {
             $created = [];
             foreach ($items as $item) {
                 $assignee = isset($item['assignee_id']) && ($assignable === null || in_array((int) $item['assignee_id'], $assignable, true))
@@ -70,7 +74,7 @@ class SuggestedTaskStore
             }
 
             return $created;
-        });
+        }));
     }
 
     /** Who the actor may assign: everyone for leads and viewers (null), teammates for developers and QA. */

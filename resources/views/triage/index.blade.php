@@ -11,7 +11,9 @@
     </x-slot>
 
     <div class="py-6 sm:py-8">
-        <div class="app-container">
+        <div class="app-container space-y-6">
+            @include('triage._import')
+
             <x-live-region id="triage" class="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
                 <div class="min-w-0 space-y-6">
                     @if ($me->isLead())
@@ -39,6 +41,11 @@
                                     </p>
                                     @if ($item->description)
                                         <p class="mt-2 whitespace-pre-line break-words text-sm text-slate-700">{{ $item->description }}</p>
+                                    @endif
+                                    @if ($item->sourceImport)
+                                        <a href="{{ route('triage.source', $item) }}" class="mt-2 inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:text-brand-800" data-turbo="false">
+                                            <x-icon name="document-text" variant="outline" class="h-3.5 w-3.5" /> Original: {{ $item->sourceImport->displayName() }}
+                                        </a>
                                     @endif
 
                                     <div x-show="! action" class="mt-3 flex gap-2">
@@ -127,6 +134,11 @@
                                     <span @class(['badge', 'badge-slate' => $item->isPending(), 'badge-success' => $item->status === TriageItem::ACCEPTED, 'badge-danger' => $item->status === TriageItem::DECLINED])>{{ ucfirst($item->status) }}</span>
                                 </div>
                                 <p class="mt-0.5 text-xs text-slate-500">{{ $item->created_at->diffForHumans() }}@if ($item->decider) · decided by {{ $item->decider->name }}@endif</p>
+                                @if ($item->sourceImport)
+                                    <a href="{{ route('triage.imports.show', $item->sourceImport) }}" class="mt-1 mr-3 inline-flex items-center gap-1 text-xs font-medium text-brand-700 hover:text-brand-800">
+                                        <x-icon name="document-text" variant="outline" class="h-3.5 w-3.5" /> From {{ $item->sourceImport->displayName() }}
+                                    </a>
+                                @endif
                                 @if ($item->status === TriageItem::ACCEPTED && $item->task)
                                     <a href="{{ route('tasks.show', $item->task) }}" class="mt-1 inline-block text-xs font-medium text-brand-700 hover:text-brand-800">Open {{ $item->task->reference() }}</a>
                                 @endif

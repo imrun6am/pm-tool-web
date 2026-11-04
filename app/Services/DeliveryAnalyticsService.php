@@ -8,6 +8,7 @@ use App\Models\TasksheetEntry;
 use App\Models\Team;
 use App\Models\User;
 use App\Support\Metric;
+use App\Support\WorkingWeek;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -420,7 +421,7 @@ class DeliveryAnalyticsService
     {
         $days = [];
         for ($day = $today->copy()->subDay(); count($days) < self::COMPLIANCE_DAYS; $day->subDay()) {
-            if ($day->isWeekday()) {
+            if (WorkingWeek::isWorkingDay($day)) {
                 $days[] = $day->copy();
             }
         }

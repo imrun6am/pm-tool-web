@@ -3,9 +3,12 @@
 namespace App\Services;
 
 use App\Models\RecurringTask;
+use App\Models\Task;
 use App\Models\User;
+use App\Support\WorkingWeek;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -14,7 +17,10 @@ use Illuminate\Support\Facades\DB;
  */
 class RecurringTaskService
 {
-    public function __construct(private readonly TaskService $tasks) {}
+    public function __construct(
+        private readonly TaskService $tasks,
+        private readonly NotificationService $notifications,
+    ) {}
 
     /** @return Collection<int, RecurringTask> */
     public function all(): Collection
@@ -54,16 +60,33 @@ class RecurringTaskService
     {
         $today = ($today ?? today())->copy()->startOfDay();
         $created = 0;
+        $tasks = [];
 
+        try {
+            $this->createDue($today, $created, $tasks);
+        } finally {
+            // Whatever made it before a failure still reaches its assignee. A
+            // signed-in caller's writes have told them already, through the observer.
+            if (! Auth::check()) {
+                $this->notifications->recurringTasksCreated($tasks);
+            }
+        }
+
+        return $created;
+    }
+
+    /** @param  list<Task>  $tasks  filled with what was created */
+    private function createDue(Carbon $today, int &$created, array &$tasks): void
+    {
         RecurringTask::query()
             ->where('is_active', true)
             ->whereDate('next_run_on', '<=', $today->toDateString())
             ->with(['creator', 'assignee'])
             ->orderBy('id')
-            ->each(function (RecurringTask $rule) use ($today, &$created) {
-                DB::transaction(function () use ($rule, $today, &$created) {
+            ->each(function (RecurringTask $rule) use ($today, &$created, &$tasks) {
+                DB::transaction(function () use ($rule, $today, &$created, &$tasks) {
                     if ($rule->creator) {
-                        $this->tasks->create([
+                        $tasks[] = $this->tasks->create([
                             'title' => $rule->title,
                             'description' => $rule->description,
                             'team_id' => $rule->team_id,
@@ -79,8 +102,6 @@ class RecurringTaskService
                     $rule->update(['last_run_on' => $today, 'next_run_on' => $this->nextAfter($rule, $today)]);
                 });
             });
-
-        return $created;
     }
 
     /** The first run date after `$after`. */
@@ -101,11 +122,7 @@ class RecurringTaskService
 
     private function nextWorkingDay(Carbon $from): Carbon
     {
-        do {
-            $from = $from->copy()->addDay();
-        } while (in_array(strtolower($from->englishDayOfWeek), config('planning.weekend_days'), true));
-
-        return $from;
+        return WorkingWeek::next($from);
     }
 
     /** The same day next month, or its last day if that month is shorter. */

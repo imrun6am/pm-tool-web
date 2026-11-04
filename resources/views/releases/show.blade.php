@@ -234,6 +234,9 @@
                         </section>
                     @endif
 
+                    {{-- Scope against finished work, and when it's likely to finish --}}
+                    @include('releases._progress')
+
                     {{-- Tasks: adding, status changes and deletes update this card in place --}}
                     <x-live-region id="release-tasks" class="card">
                         <div class="card-header">
@@ -377,6 +380,9 @@
 
                 {{-- ============ SIDEBAR ============ --}}
                 <aside class="min-w-0 space-y-6">
+
+                    {{-- A lead's word on how it's going --}}
+                    @include('releases._status')
 
                     {{-- Claude: risk brief, release notes, catch-up, document insights --}}
                     @include('ai.panels.release', ['release' => $release])
