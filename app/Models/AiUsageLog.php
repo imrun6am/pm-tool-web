@@ -2,12 +2,17 @@
 
 namespace App\Models;
 
+use App\Support\LogRetention;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\MassPrunable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 /** One Claude call made through AiGateway: who, which feature, tokens, outcome. */
 class AiUsageLog extends Model
 {
+    use MassPrunable;
+
     public const UPDATED_AT = null;
 
     public const STATUSES = [
@@ -22,6 +27,12 @@ class AiUsageLog extends Model
         'feature', 'user_id', 'model', 'status', 'input_tokens', 'output_tokens',
         'cache_read_tokens', 'duration_ms', 'error',
     ];
+
+    /** Calls past the retention period; `model:prune` removes them. */
+    public function prunable(): Builder
+    {
+        return static::where('created_at', '<', LogRetention::cutoff());
+    }
 
     public function user(): BelongsTo
     {

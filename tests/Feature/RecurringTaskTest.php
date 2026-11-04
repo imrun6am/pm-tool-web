@@ -28,6 +28,7 @@ class RecurringTaskTest extends TestCase
         parent::setUp();
 
         $this->travelTo('2026-11-02 06:00:00'); // a Monday
+        config(['planning.weekend_days' => ['saturday', 'sunday']]);
         $this->lead = User::factory()->create(['role' => User::ROLE_TEAM_LEAD]);
     }
 

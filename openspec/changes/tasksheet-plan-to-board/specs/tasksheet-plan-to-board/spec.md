@@ -18,7 +18,7 @@ The editor SHALL list the row team's open (not completed) releases, preselecting
 - **THEN** validation fails on the release field and no tasks are created
 
 ### Requirement: Duplicate protection
-Editing a tasksheet row and using "Add to board" again SHALL never duplicate work. Claude SHALL receive the titles of the member's existing tasks in the selected release, in every status including done and archived, and SHALL leave out any plan item that describes the same work, even when it is worded differently or is a continuation ("continue X"). As a safety net, the system SHALL also skip any returned title that matches, case-insensitively and ignoring whitespace, an existing task of the member in that release (any status) or an earlier item in the same response. The success message SHALL report how many items were skipped as already on the board.
+Editing a tasksheet row and using "Add to board" again SHALL never duplicate work. Claude SHALL receive the titles of the member's existing tasks in the selected release, that are still open (done and archived tasks don't count), and SHALL leave out any plan item that describes the same work, even when it is worded differently or is a continuation ("continue X"). As a safety net, the system SHALL also skip any returned title that matches, case-insensitively and ignoring whitespace, an existing task of the member in that release (any status) or an earlier item in the same response. The success message SHALL report how many items were skipped as already on the board.
 
 #### Scenario: Pressing twice
 - **WHEN** "Add to board" is used twice with the same plan
@@ -29,8 +29,8 @@ Editing a tasksheet row and using "Add to board" again SHALL never duplicate wor
 - **THEN** only the new line becomes a task, and the reworded lines are reported as skipped
 
 #### Scenario: Finished work in the plan again
-- **WHEN** the plan repeats work whose task is already done
-- **THEN** no new task is created for it
+- **WHEN** the plan repeats work whose only matching task is done or archived
+- **THEN** a new task is created for it
 
 ### Requirement: Preconditions and failures
 The action SHALL fail validation when the plan is empty or the row is a full-day leave. When Claude is not configured, unreachable, returns an error, declines, or returns unreadable output, the row SHALL still be saved, no tasks SHALL be created, and the user SHALL see an error saying no tasks were added.

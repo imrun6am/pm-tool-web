@@ -15,12 +15,17 @@
 <x-app-layout>
     <x-slot name="header">
         <x-page-header :title="$import->displayName()"
-                       :description="($import->isPasted() ? 'Pasted ' : 'Uploaded ').$import->created_at->diffForHumans().' · '.$import->sizeLabel().($import->user_id !== auth()->id() ? ' · by '.($import->user?->name ?? 'deleted user') : '')"
+                       :description="($import->isFromNote() ? 'Started ' : ($import->isPasted() ? 'Pasted ' : 'Uploaded ')).$import->created_at->diffForHumans().' · '.$import->sizeLabel().($import->user_id !== auth()->id() ? ' · by '.($import->user?->name ?? 'deleted user') : '')"
                        :breadcrumbs="['Calendar' => route('calendar.index'), 'Import events' => route('calendar.imports.index'), $import->displayName() => null]">
             <x-slot name="actions">
                 <span class="badge {{ $import->statusBadge() }}">{{ $import->statusLabel() }}</span>
+                @if ($originUrl)
+                    <a href="{{ $originUrl }}" class="btn-secondary btn-sm">
+                        <x-icon name="pencil-square" variant="outline" class="h-4 w-4" /> Open note
+                    </a>
+                @endif
                 <form method="POST" action="{{ route('calendar.imports.destroy', $import) }}"
-                      data-confirm="Delete this import and its {{ $import->isPasted() ? 'pasted text' : 'uploaded file' }}? Events already added stay on the calendar." data-confirm-verb="Delete">
+                      data-confirm="{{ $import->deleteConfirmation() }}" data-confirm-verb="Delete">
                     @csrf @method('DELETE')
                     <button class="btn-ghost btn-sm text-rose-600 hover:bg-rose-50">
                         <x-icon name="trash" class="h-4 w-4" /> Delete
@@ -97,7 +102,7 @@
                         <span class="flex h-12 w-12 items-center justify-center rounded-xl bg-danger-50 text-danger-600 ring-1 ring-inset ring-danger-600/15">
                             <x-icon name="exclamation-circle" variant="outline" class="h-6 w-6" />
                         </span>
-                        <h2 class="mt-4 text-base font-semibold text-slate-900">The file couldn’t be read</h2>
+                        <h2 class="mt-4 text-base font-semibold text-slate-900">The {{ $import->isFromNote() ? 'note' : 'file' }} couldn’t be read</h2>
                         <p class="mt-1 max-w-lg text-sm text-slate-600">{{ $import->error ?? 'Unknown error.' }}</p>
                         <div class="mt-5 flex flex-wrap justify-center gap-2">
                             @can('retry', $import)
@@ -106,7 +111,11 @@
                                     <button class="btn-primary btn-sm"><x-icon name="restore" class="h-4 w-4" /> Try again</button>
                                 </form>
                             @endcan
-                            <a href="{{ route('calendar.imports.index') }}" class="btn-secondary btn-sm">Upload another file</a>
+                            @if ($import->isFromNote())
+                                <a href="{{ $originUrl ?? route('calendar.imports.index') }}" class="btn-secondary btn-sm">{{ $originUrl ? 'Back to the note' : 'Your imports' }}</a>
+                            @else
+                                <a href="{{ route('calendar.imports.index') }}" class="btn-secondary btn-sm">Upload another file</a>
+                            @endif
                         </div>
                     </div>
                 </div>
@@ -114,20 +123,29 @@
             @elseif ($rows === [])
                 <div class="card">
                     <x-empty-state icon="calendar" title="No events found"
-                                   description="{{ $import->isPasted() ? 'Nothing in the pasted text had a date that could be turned into an event. Check it mentions dates, or paste more of it.' : 'Nothing in this file had a date that could be turned into an event. Try a clearer copy, or another file.' }}">
-                        <a href="{{ route('calendar.imports.index') }}" class="btn-primary btn-sm">Upload another file</a>
+                                   description="{{ match (true) {
+                                       $import->isFromNote() => 'Nothing in this note had a date that could be turned into an event.',
+                                       $import->isPasted() => 'Nothing in the pasted text had a date that could be turned into an event. Check it mentions dates, or paste more of it.',
+                                       default => 'Nothing in this file had a date that could be turned into an event. Try a clearer copy, or another file.',
+                                   } }}">
+                        @if ($import->isFromNote())
+                            <a href="{{ $originUrl ?? route('calendar.imports.index') }}" class="btn-primary btn-sm">{{ $originUrl ? 'Back to the note' : 'Your imports' }}</a>
+                        @else
+                            <a href="{{ route('calendar.imports.index') }}" class="btn-primary btn-sm">Upload another file</a>
+                        @endif
                     </x-empty-state>
                 </div>
 
             @else
                 {{-- Review --}}
-                <form method="POST" action="{{ route('calendar.imports.confirm', $import) }}"
+                {{-- $refs, not $root: recount() also runs from each row's own x-data, where $root is that row. --}}
+                <form method="POST" action="{{ route('calendar.imports.confirm', $import) }}" x-ref="review"
                       x-data="{
                           count: 0,
                           busy: false,
-                          boxes() { return [...this.$root.querySelectorAll('input[data-include]:not(:disabled)')] },
+                          boxes() { return [...this.$refs.review.querySelectorAll('input[data-include]:not(:disabled)')] },
                           recount() { this.count = this.boxes().filter(b => b.checked).length },
-                          setVisibility(v) { this.$root.querySelectorAll('select[id$=-visibility]').forEach(s => s.value = v) },
+                          setVisibility(v) { this.$refs.review.querySelectorAll('select[id$=-visibility]').forEach(s => s.value = v) },
                           setAll(on) { this.boxes().forEach(b => { if (b.checked !== on) { b.checked = on; b.dispatchEvent(new Event('change')) } }); this.recount() },
                       }"
                       x-init="$nextTick(() => recount())" @submit="busy = true">
@@ -141,6 +159,9 @@
                                     · {{ $import->source === EventImport::SOURCE_ICS ? 'read directly from the calendar '.($import->isPasted() ? 'data' : 'file') : 'found by Claude — check dates and times' }}
                                 </span>
                             </h2>
+                            @if ($import->reference_date)
+                                <p class="mt-0.5 text-xs text-slate-500">Dates like “next Friday” were read from the note’s date, {{ $import->reference_date->format('j M Y') }}.</p>
+                            @endif
                             @if ($added->isNotEmpty())
                                 <p class="mt-0.5 text-xs text-slate-500">{{ $added->count() }} already added from this import.</p>
                             @endif
@@ -279,7 +300,7 @@
                                                value="{{ old("$key.location", $row['location']) }}" placeholder="Room 4 / Zoom" class="field-input" @invalid("$key.location")>
                                     </x-field>
                                     <x-field label="Related release" for="ev-{{ $i }}-release" name="{{ $key }}.release_id" optional class="lg:col-span-6"
-                                             :hint="$releaseHintUnmatched ? 'The file mentions “'.$row['release_hint'].'”, which doesn’t match a release.' : null">
+                                             :hint="$releaseHintUnmatched ? 'The '.($import->isFromNote() ? 'note' : 'file').' mentions “'.$row['release_hint'].'”, which doesn’t match a release.' : null">
                                         <select id="ev-{{ $i }}-release" name="{{ "events[$i][release_id]" }}" class="field-select" @invalid("$key.release_id")>
                                             <option value="">— None —</option>
                                             @foreach ($releases as $r)

@@ -5,8 +5,11 @@ namespace App\Services\Calendar;
 use App\Jobs\ExtractCalendarEvents;
 use App\Models\Event;
 use App\Models\EventImport;
+use App\Models\MeetingNote;
+use App\Models\Note;
 use App\Models\Release;
 use App\Models\User;
+use App\Services\Ai\AiFeatures;
 use App\Services\EventService;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Carbon;
@@ -54,6 +57,7 @@ class EventImportService
         private readonly EventService $events,
         private readonly DocumentTextConverter $converter,
         private readonly IcsParser $ics,
+        private readonly AiFeatures $features,
     ) {}
 
     /** Store the upload privately, record it and queue the extraction. Returns at once. */
@@ -88,17 +92,61 @@ class EventImportService
         $text = $isIcs ? str_replace(["\r\n", "\r"], "\n", trim($pasted)) : self::pastedText($pasted);
         $extension = $isIcs ? 'ics' : 'txt';
 
-        $path = "event-imports/{$user->id}/".Str::uuid().'.'.$extension;
-        Storage::disk('local')->put($path, $text);
-
-        $import = EventImport::create([
-            'user_id' => $user->id,
+        return $this->queueText($user, $text, $extension, $timezone, [
             'input' => EventImport::INPUT_PASTE,
             'original_name' => $isIcs ? 'pasted-calendar.ics' : 'pasted-text.txt',
             'preview' => self::preview($text, $isIcs),
+            'mime_type' => $isIcs ? 'text/calendar' : 'text/plain',
+        ]);
+    }
+
+    /**
+     * Import a meeting note's or daily note's saved text. Its date becomes the
+     * reference for relative dates. Returns null when the note has no text to
+     * read, and the person's running import when this note already has one.
+     * Who may read the note is the caller's check (see the controller).
+     */
+    public function startFromNote(User $user, MeetingNote|Note $note, ?string $timezone): ?EventImport
+    {
+        $text = self::noteText($note->body);
+        if ($text === '') {
+            return null;
+        }
+
+        $running = EventImport::where('user_id', $user->id)
+            ->whereMorphedTo('origin', $note)
+            ->whereIn('status', [EventImport::STATUS_PENDING, EventImport::STATUS_PROCESSING])
+            ->latest('id')
+            ->first();
+        if ($running) {
+            return $running;
+        }
+
+        [$label, $date] = $note instanceof MeetingNote
+            ? ['Meeting note: '.$note->title, $note->meeting_date]
+            : ['Daily note, '.$note->date->format('j M Y'), $note->date];
+
+        return $this->queueText($user, $text, 'txt', $timezone, [
+            'input' => EventImport::INPUT_NOTE,
+            'original_name' => mb_substr($label, 0, 255),
+            'preview' => self::preview($text, false),
+            'mime_type' => 'text/plain',
+            'origin_type' => $note->getMorphClass(),
+            'origin_id' => $note->getKey(),
+            'reference_date' => $date->toDateString(),
+        ]);
+    }
+
+    /** Write text to the private disk like an upload, so the queued job, chunking, retry and delete treat it the same. */
+    private function queueText(User $user, string $text, string $extension, ?string $timezone, array $attributes): EventImport
+    {
+        $path = "event-imports/{$user->id}/".Str::uuid().'.'.$extension;
+        Storage::disk('local')->put($path, $text);
+
+        $import = EventImport::create($attributes + [
+            'user_id' => $user->id,
             'file_path' => $path,
             'extension' => $extension,
-            'mime_type' => $isIcs ? 'text/calendar' : 'text/plain',
             'size' => mb_strlen($text),
             'timezone' => $timezone ?: config('app.timezone'),
             'status' => EventImport::STATUS_PENDING,
@@ -124,14 +172,42 @@ class EventImportService
         $text = str_replace(["\r\n", "\r"], "\n", $pasted);
 
         if (preg_match('#<(html|body|div|p|br|span|table|tr|td|li|ul|ol|h[1-6]|a|b|strong|font)\b[^>]*>#i', $text)) {
-            $text = preg_replace('#<(script|style|head)\b[^>]*>.*?</\1>#is', '', $text);
-            $text = preg_replace('#</t[dh]>#i', ' | ', $text);
-            $text = preg_replace('#<br\s*/?>|</(div|p|li|tr|h[1-6]|blockquote|pre|table)>#i', "\n", $text);
-            $text = preg_replace('#<li[^>]*>#i', '- ', $text);
-            $text = html_entity_decode(strip_tags($text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-            $text = preg_replace('/[ \t]*\|[ \t]*\n/', "\n", $text);
+            $text = self::htmlToText($text);
         }
 
+        return self::tidyText($text);
+    }
+
+    /**
+     * A note's stored rich text as plain text. Always HTML, even with no tags
+     * (a stored "Q&amp;A" still needs decoding). Link targets are kept, since a
+     * meeting link is often all that says where an event is held, and
+     * non-breaking spaces go so a note of only "&nbsp;" counts as empty.
+     */
+    public static function noteText(?string $html): string
+    {
+        $text = preg_replace_callback(
+            '#<a\b[^>]*\bhref=(["\'])(.*?)\1[^>]*>(.*?)</a>#is',
+            fn (array $m) => trim(strip_tags($m[3])) === $m[2] ? $m[2] : $m[3].' ('.$m[2].')',
+            str_replace(["\r\n", "\r"], "\n", (string) $html),
+        );
+
+        return self::tidyText(str_replace("\u{a0}", ' ', self::htmlToText($text)));
+    }
+
+    private static function htmlToText(string $html): string
+    {
+        $text = preg_replace('#<(script|style|head)\b[^>]*>.*?</\1>#is', '', $html);
+        $text = preg_replace('#</t[dh]>#i', ' | ', $text);
+        $text = preg_replace('#<br\s*/?>|</(div|p|li|tr|h[1-6]|blockquote|pre|table)>#i', "\n", $text);
+        $text = preg_replace('#<li[^>]*>#i', '- ', $text);
+        $text = html_entity_decode(strip_tags($text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+
+        return preg_replace('/[ \t]*\|[ \t]*\n/', "\n", $text);
+    }
+
+    private static function tidyText(string $text): string
+    {
         return trim(preg_replace(["/[ \t]+\n/", "/\n{3,}/"], ["\n", "\n\n"], $text));
     }
 
@@ -189,6 +265,12 @@ class EventImportService
                 return;
             }
             // No VEVENT: read it like any other text document.
+        }
+
+        // Also covers what the upload check can't see: imports queued before the
+        // switch went off, retries, and the calendar file with no events above.
+        if (! $this->features->enabled('calendar_import')) {
+            throw new UnreadableDocumentException('Finding events with Claude is switched off. An admin can turn it on from the AI usage page, then try again.');
         }
 
         $context = $this->context($import);
@@ -518,13 +600,20 @@ class EventImportService
             'processed_at' => now(),
             'error' => null,
         ]);
+
+        // The note stays the source of truth: don't keep a second copy of its
+        // text once it has been read. A failed import keeps it for the retry.
+        if ($import->isFromNote()) {
+            Storage::disk('local')->delete($import->file_path);
+        }
     }
 
-    /** @return array{today: string, timezone: string, releases: list<string>} */
+    /** @return array{today: string, written_on: ?string, timezone: string, releases: list<string>} */
     private function context(EventImport $import): array
     {
         return [
             'today' => now($import->timezone)->format('l, Y-m-d'),
+            'written_on' => $import->reference_date?->format('l, Y-m-d'),
             'timezone' => $import->timezone,
             'releases' => Release::orderByDesc('year')->limit(100)->pluck('name')->filter()->values()->all(),
         ];

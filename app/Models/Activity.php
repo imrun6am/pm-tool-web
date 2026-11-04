@@ -2,12 +2,20 @@
 
 namespace App\Models;
 
+use App\Support\LogRetention;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\MassPrunable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 class Activity extends Model
 {
+    use MassPrunable;
+
+    /** Rows about these belong to a release's history, even if the backfill couldn't link them because the phase or off day is gone. */
+    private const RELEASE_SUBJECTS = [Release::class, ReleasePhase::class, ReleaseOffDay::class];
+
     protected $fillable = [
         'log_name', 'description', 'event', 'subject_type', 'subject_id', 'causer_id', 'release_id', 'properties',
     ];
@@ -17,6 +25,14 @@ class Activity extends Model
         return [
             'properties' => 'array',
         ];
+    }
+
+    /** Rows past the retention period; `model:prune` removes them. A release's history stays. */
+    public function prunable(): Builder
+    {
+        return static::where('created_at', '<', LogRetention::cutoff())
+            ->whereNull('release_id')
+            ->whereNotIn('subject_type', self::RELEASE_SUBJECTS);
     }
 
     public function subject(): MorphTo

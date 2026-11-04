@@ -7,6 +7,11 @@ use App\Models\User;
 
 class NotePolicy
 {
+    public function view(User $user, Note $note): bool
+    {
+        return $note->isVisibleTo($user);
+    }
+
     /**
      * Only the author may edit or delete a note — a private note is personal,
      * so not even admins manage someone else's notes.

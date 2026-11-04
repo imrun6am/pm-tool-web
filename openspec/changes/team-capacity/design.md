@@ -14,7 +14,7 @@ Tasks have estimates and logged time, the tasksheet records leave, and releases 
 
 ## Decisions
 
-**The working week is configuration.** `PLANNING_WEEKEND_DAYS` and `PLANNING_HOURS_PER_DAY`, defaulting to Saturday and Sunday and 8 hours, so it can match how the team actually works.
+**The working week is configuration.** `PLANNING_WEEKEND_DAYS` and `PLANNING_HOURS_PER_DAY`, defaulting to Friday, this team's weekend, and 8 hours, so it can match how the team actually works.
 
 **Load is the estimate less time logged on that task,** never below zero. It counts every open task assigned to the person, on any team, because a person's week isn't split by team. Parents and subtasks each count their own estimate, matching how the time summary adds them.
 

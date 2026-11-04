@@ -6,6 +6,8 @@
     // Start the composer open when a previous submit failed or left input behind.
     $composerOpen = $errors->hasAny(['body', 'date', 'visibility', 'recipients']) || old('body') !== null;
     $viewer = auth()->user();
+    // The feed only holds notes this viewer may read, so this one check is enough for every card.
+    $canFindEvents = app(\App\Services\Ai\AiFeatures::class)->available('calendar_import');
 @endphp
 <x-app-layout>
     <x-slot name="header">
@@ -132,7 +134,7 @@
                             </h2>
                             <div class="list-card">
                                 @foreach ($dayNotes as $note)
-                                    @include('notes._card', ['note' => $note, 'users' => $users])
+                                    @include('notes._card', ['note' => $note, 'users' => $users, 'canFindEvents' => $canFindEvents])
                                 @endforeach
                             </div>
                         </section>

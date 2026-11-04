@@ -12,9 +12,10 @@ use Illuminate\Support\Facades\DB;
 /**
  * Tasksheet "Add to board": turns a row's morning plan into To Do cards on
  * the board, assigned to the row's member, in the chosen release or in none.
- * Work the member already has there (any status, matched by meaning through
- * Claude and by exact title here) or repeated within the batch is skipped, so
- * editing the plan and pressing again only ever adds the new items.
+ * Work the member still has open there (matched by meaning through Claude and
+ * by exact title here) or repeated within the batch is skipped, so editing the
+ * plan and pressing again only adds new items. Done and archived tasks don't
+ * count: the same work can come round again.
  */
 class PlanToBoardService
 {
@@ -28,12 +29,12 @@ class PlanToBoardService
      */
     public function addPlanTasks(TasksheetEntry $entry, ?Release $release, User $actor): array
     {
-        // Everything the member already has in this release (or unlinked) — done
-        // and archived included — so pressing again only adds new work.
+        // What the member still has open in this release (or unlinked).
         $existing = Task::query()
             ->where('release_id', $release?->id)
             ->whereNull('parent_id')
             ->where('assignee_id', $entry->user_id)
+            ->whereNotIn('status', Task::DONE_STATUSES)
             ->latest('id')
             ->limit(self::EXISTING_LIMIT)
             ->pluck('title');

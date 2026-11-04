@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphTo;
 
 /**
  * "Create events from a file": an uploaded document, the events Claude (or the
@@ -30,6 +31,8 @@ class EventImport extends Model
 
     public const INPUT_PASTE = 'paste';
 
+    public const INPUT_NOTE = 'note';
+
     public const SOURCE_ICS = 'ics';
 
     public const SOURCE_CLAUDE = 'claude';
@@ -45,6 +48,7 @@ class EventImport extends Model
 
     protected $fillable = [
         'user_id', 'input', 'original_name', 'preview', 'file_path', 'extension', 'mime_type', 'size', 'timezone', 'status', 'source',
+        'origin_type', 'origin_id', 'reference_date',
         'chunks_total', 'chunks_done', 'proposals', 'events_created', 'input_tokens', 'output_tokens', 'error',
         'processed_at', 'confirmed_at',
     ];
@@ -53,6 +57,7 @@ class EventImport extends Model
     {
         return [
             'proposals' => 'array',
+            'reference_date' => 'date',
             'size' => 'integer',
             'chunks_total' => 'integer',
             'chunks_done' => 'integer',
@@ -67,6 +72,12 @@ class EventImport extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class)->withTrashed();
+    }
+
+    /** The meeting note or daily note this import read, if any and if it still exists. */
+    public function origin(): MorphTo
+    {
+        return $this->morphTo();
     }
 
     public function isRunning(): bool
@@ -87,6 +98,10 @@ class EventImport extends Model
 
     public function statusLabel(): string
     {
+        if ($this->status === self::STATUS_PROCESSING && $this->isFromNote()) {
+            return 'Reading note';
+        }
+
         return self::STATUSES[$this->status] ?? ucfirst($this->status);
     }
 
@@ -128,7 +143,42 @@ class EventImport extends Model
         return $this->input === self::INPUT_PASTE;
     }
 
-    /** The file name, or "Pasted text" for a paste. */
+    public function isFromNote(): bool
+    {
+        return $this->input === self::INPUT_NOTE;
+    }
+
+    /**
+     * Whether the user may read the note behind this import. An import that
+     * did not come from a note has nothing to check; a deleted note can no
+     * longer be read by anyone.
+     */
+    public function originReadableBy(User $user): bool
+    {
+        return ! $this->isFromNote() || ($this->origin?->isVisibleTo($user) ?? false);
+    }
+
+    /** Where the source note can be read, when this viewer may read it. */
+    public function originUrlFor(User $user): ?string
+    {
+        if (! $this->isFromNote() || ! $this->originReadableBy($user)) {
+            return null;
+        }
+
+        return $this->origin instanceof MeetingNote
+            ? route('meeting-notes.show', $this->origin)
+            : route('notes.index', ['date' => $this->origin->date->toDateString()]);
+    }
+
+    /** The confirmation shown before deleting, naming what goes with the import. */
+    public function deleteConfirmation(): string
+    {
+        return $this->isFromNote()
+            ? 'Delete this import? The note and any events already added stay as they are.'
+            : 'Delete this import and its '.($this->isPasted() ? 'pasted text' : 'uploaded file').'? Events already added stay on the calendar.';
+    }
+
+    /** The file name, "Pasted text" for a paste, or the note's label. */
     public function displayName(): string
     {
         return $this->isPasted() ? 'Pasted text' : $this->original_name;
@@ -136,7 +186,7 @@ class EventImport extends Model
 
     public function sizeLabel(): string
     {
-        if ($this->isPasted()) {
+        if ($this->isPasted() || $this->isFromNote()) {
             return number_format($this->size).' '.($this->size === 1 ? 'character' : 'characters');
         }
 

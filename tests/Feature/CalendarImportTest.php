@@ -10,6 +10,7 @@ use App\Models\Project;
 use App\Models\Release;
 use App\Models\Team;
 use App\Models\User;
+use App\Services\Ai\AiFeatures;
 use App\Services\Calendar\ClaudeEventExtractor;
 use App\Services\Calendar\DocumentTextConverter;
 use App\Services\Calendar\EventExtractor;
@@ -19,6 +20,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
+use PHPUnit\Framework\Attributes\DataProvider;
 use RuntimeException;
 use Tests\TestCase;
 use ZipArchive;
@@ -478,6 +480,104 @@ class CalendarImportTest extends TestCase
         $import->refresh();
         $this->assertSame(EventImport::STATUS_FAILED, $import->status);
         $this->assertStringContainsString('ANTHROPIC_API_KEY', $import->error);
+    }
+
+    private function switchOff(): void
+    {
+        app(AiFeatures::class)->set('calendar_import', false, User::factory()->create(['role' => User::ROLE_ADMIN]));
+    }
+
+    /** @return array<string, array{0: callable}> */
+    public static function unavailable(): array
+    {
+        return [
+            'switched off' => [fn (self $test) => $test->switchOff()],
+            'no API key' => [fn () => config(['services.anthropic.key' => null])],
+        ];
+    }
+
+    #[DataProvider('unavailable')]
+    public function test_uploads_and_pastes_that_need_claude_are_refused_when_it_is_unavailable(callable $makeUnavailable): void
+    {
+        Queue::fake();
+        $makeUnavailable($this);
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->post(route('calendar.imports.store'), [
+            'document' => UploadedFile::fake()->create('plan.pdf', 100, 'application/pdf'),
+        ])->assertSessionHasErrors(['document' => 'Claude isn’t available to read files right now. Only .ics calendar files can be imported.']);
+
+        $this->actingAs($user)->post(route('calendar.imports.text'), ['text' => 'Kick-off on Monday'])
+            ->assertSessionHasErrors(['text' => 'Claude isn’t available to read text right now. Only iCalendar (.ics) data can be imported.']);
+
+        $this->assertSame(0, EventImport::count());
+        Queue::assertNothingPushed();
+    }
+
+    #[DataProvider('unavailable')]
+    public function test_calendar_data_still_imports_when_claude_is_unavailable(callable $makeUnavailable): void
+    {
+        $makeUnavailable($this);
+        $this->result = new RuntimeException('Claude must not be called for .ics data');
+        $user = User::factory()->create();
+        $ics = "BEGIN:VCALENDAR\nBEGIN:VEVENT\nSUMMARY:Design review\nDTSTART:20261112T080000Z\nEND:VEVENT\nEND:VCALENDAR\n";
+
+        $this->actingAs($user)->post(route('calendar.imports.store'), [
+            'document' => UploadedFile::fake()->createWithContent('invite.ics', $ics),
+        ])->assertSessionHasNoErrors();
+        $this->actingAs($user)->post(route('calendar.imports.text'), ['text' => $ics])->assertSessionHasNoErrors();
+
+        $this->assertSame([], $this->calls);
+        $this->assertSame([EventImport::STATUS_NEEDS_REVIEW], EventImport::pluck('status')->unique()->all());
+        $this->assertSame(2, EventImport::count());
+    }
+
+    public function test_an_import_reaching_claude_while_switched_off_fails_and_can_be_retried_later(): void
+    {
+        $user = User::factory()->create();
+        $queued = $this->import($user, 'plan.txt', 'Kick-off on Monday');
+        $noEvents = $this->import($user, 'empty.ics', "BEGIN:VCALENDAR\nEND:VCALENDAR\n");
+        $this->switchOff();
+
+        ExtractCalendarEvents::dispatchSync($queued->id);
+        ExtractCalendarEvents::dispatchSync($noEvents->id);
+
+        $this->assertSame([], $this->calls);
+        foreach ([$queued, $noEvents] as $import) {
+            $this->assertSame(EventImport::STATUS_FAILED, $import->fresh()->status);
+            $this->assertStringContainsString('switched off', $import->fresh()->error);
+        }
+        Storage::disk('local')->assertExists($queued->file_path);
+
+        // Still off: the retry fails the same way, without calling Claude.
+        $this->actingAs($user)->post(route('calendar.imports.retry', $queued))->assertRedirect();
+        $this->assertSame([], $this->calls);
+        $this->assertSame(EventImport::STATUS_FAILED, $queued->fresh()->status);
+
+        // Back on: it reads as normal.
+        app(AiFeatures::class)->set('calendar_import', true, User::factory()->create(['role' => User::ROLE_ADMIN]));
+        $this->result = [$this->event()];
+        $this->actingAs($user)->post(route('calendar.imports.retry', $queued))->assertRedirect();
+
+        $this->assertCount(1, $this->calls);
+        $this->assertSame(EventImport::STATUS_NEEDS_REVIEW, $queued->fresh()->status);
+    }
+
+    public function test_the_import_page_explains_when_claude_is_switched_off(): void
+    {
+        $user = User::factory()->create();
+
+        $this->actingAs($user)->get(route('calendar.imports.index'))->assertOk()
+            ->assertDontSee('is switched off')
+            ->assertSee('accept=".pdf,', false);
+
+        $this->switchOff();
+
+        $this->actingAs($user)->get(route('calendar.imports.index'))->assertOk()
+            ->assertSee('is switched off')
+            ->assertSee('.ics calendar files only')
+            ->assertSee('accept=".ics"', false)
+            ->assertSee('Only calendar (.ics) text can be read right now.');
     }
 
     public function test_docx_and_csv_are_converted_to_text(): void

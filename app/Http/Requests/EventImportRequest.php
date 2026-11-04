@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Services\Ai\AiFeatures;
 use App\Services\Calendar\EventImportService;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Validator;
@@ -27,7 +28,8 @@ class EventImportRequest extends FormRequest
                 'file',
                 'max:20480', // 20 MB
                 // The content must look like one of these *and* the name must say so.
-                "mimes:{$types}",
+                // Calendar data is often detected as text/x-vcalendar, whose extension is vcs.
+                "mimes:{$types},vcs",
                 "extensions:{$types}",
             ],
             'timezone' => ['nullable', 'string', 'timezone:all'],
@@ -41,6 +43,12 @@ class EventImportRequest extends FormRequest
             if ($file && in_array(strtolower($file->getClientOriginalExtension()), EventImportService::IMAGE_EXTENSIONS, true)
                 && $file->getSize() > self::MAX_IMAGE_KB * 1024) {
                 $validator->errors()->add('document', 'Images may not be larger than 5 MB.');
+            }
+
+            // Only .ics files can be read without Claude.
+            if ($file && strtolower($file->getClientOriginalExtension()) !== 'ics'
+                && ! $validator->errors()->has('document') && ! app(AiFeatures::class)->available('calendar_import')) {
+                $validator->errors()->add('document', 'Claude isn’t available to read files right now. Only .ics calendar files can be imported.');
             }
         }];
     }

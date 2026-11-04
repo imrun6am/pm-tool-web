@@ -42,6 +42,7 @@ class MeetingActionExtractor
         $existing = Task::query()
             ->whereNull('parent_id')
             ->where('release_id', $note->release_id)
+            ->whereNotIn('status', Task::DONE_STATUSES) // finished work can come round again
             ->latest('id')->limit(150)->pluck('title');
 
         $prompt = "<meeting>\nTitle: {$note->title}\nDate: ".($note->meeting_date?->toDateString() ?? today()->toDateString())."\n"

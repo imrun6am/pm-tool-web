@@ -22,6 +22,19 @@ return [
 
     /*
     |--------------------------------------------------------------------------
+    | Log Retention
+    |--------------------------------------------------------------------------
+    |
+    | How long logs are kept, in months: the activity log, AI usage logs, failed
+    | queue jobs and daily log files. The daily scheduled cleanup removes anything
+    | older. Activity that belongs to a release is always kept.
+    |
+    */
+
+    'retention_months' => (int) env('LOG_RETENTION_MONTHS', 3),
+
+    /*
+    |--------------------------------------------------------------------------
     | Deprecations Log Channel
     |--------------------------------------------------------------------------
     |
@@ -54,7 +67,7 @@ return [
 
         'stack' => [
             'driver' => 'stack',
-            'channels' => explode(',', (string) env('LOG_STACK', 'single')),
+            'channels' => explode(',', (string) env('LOG_STACK', 'daily')),
             'ignore_exceptions' => false,
         ],
 
@@ -69,7 +82,7 @@ return [
             'driver' => 'daily',
             'path' => storage_path('logs/laravel.log'),
             'level' => env('LOG_LEVEL', 'debug'),
-            'days' => env('LOG_DAILY_DAYS', 14),
+            'days' => max(1, (int) env('LOG_RETENTION_MONTHS', 3)) * 30,
             'replace_placeholders' => true,
         ],
 

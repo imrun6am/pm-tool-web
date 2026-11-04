@@ -115,6 +115,29 @@ The seed data includes a deliberate same-team overlap (**Team Alpha** — *Check
 and *Billing hotfix* Jul 20–Aug 5) so the conflict warning and amber highlight are visible
 immediately on the dashboard.
 
+### Scheduled jobs
+
+Scheduled work only runs if the server calls Laravel's scheduler every minute. Add this to cron:
+
+```cron
+* * * * * cd /path/to/pm-tool && php artisan schedule:run >> /dev/null 2>&1
+```
+
+This runs the due-date reminders and standup digests, and the daily cleanup. The cleanup removes
+expired tasksheet exports, trashed tasks past 30 days, and logs older than `LOG_RETENTION_MONTHS`
+(3 by default):
+
+- **Activity log.** Rows that belong to a release are always kept.
+- **AI usage logs and failed queue jobs.**
+- **Log files.** Set `LOG_STACK=daily` to get one file per day. A leftover `storage/logs/laravel.log`
+  from the `single` channel isn't touched, so delete it by hand after switching.
+
+Removed rows can't be recovered. To see what the next run would remove, without removing anything:
+
+```bash
+php artisan model:prune --model="App\Models\Activity" --model="App\Models\AiUsageLog" --pretend
+```
+
 ## Database
 
 This app ships configured for **SQLite** (`database/database.sqlite`) so it runs with zero database

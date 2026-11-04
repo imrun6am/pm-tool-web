@@ -3,7 +3,9 @@
 namespace Tests\Feature\Ai;
 
 use App\Jobs\GenerateAiInsight;
+use App\Models\Activity;
 use App\Models\AiInsight;
+use App\Models\Task;
 use App\Models\TasksheetEntry;
 use App\Models\Team;
 use App\Models\User;
@@ -90,6 +92,19 @@ class LeadAiTest extends AiTestCase
         ])->assertOk()->assertJsonPath('strengths.0.text', 'Fixed login')->assertJsonPath('facts.days_logged', 1);
 
         $this->assertStringContainsString('never give, suggest or imply a score', $this->claude->requests[0]['system']);
+    }
+
+    public function test_evidence_still_counts_completed_tasks_after_the_activity_log_is_pruned(): void
+    {
+        $member = $this->user(User::ROLE_DEVELOPER, $this->team);
+        $task = Task::create(['release_id' => $this->release()->id, 'title' => 'Fix login', 'assignee_id' => $member->id, 'status' => 'todo']);
+        $task->update(['status' => 'done']);
+        Activity::query()->delete();
+        $this->claude->respond(['summary' => 'Finished login.', 'strengths' => [], 'concerns' => [], 'data_gaps' => []]);
+
+        $this->actingAs($this->user(User::ROLE_CTO))->postJson(route('ai.performance.evidence'), [
+            'team_id' => $this->team->id, 'user_id' => $member->id, 'cadence' => 'daily', 'date' => today()->toDateString(),
+        ])->assertOk()->assertJsonPath('facts.completed', 1);
     }
 
     public function test_evidence_is_scoped_like_performance_itself(): void

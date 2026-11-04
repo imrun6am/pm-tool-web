@@ -35,6 +35,7 @@ class CapacityTest extends TestCase
         parent::setUp();
 
         $this->travelTo('2026-11-02 09:00:00'); // a Monday
+        config(['planning.weekend_days' => ['saturday', 'sunday'], 'planning.hours_per_day' => 8]);
         $this->team = Team::create(['name' => 'Core', 'color' => '#0891b2']);
         $this->dev = User::factory()->create(['role' => User::ROLE_DEVELOPER, 'name' => 'Dana Dev']);
         $this->team->members()->attach($this->dev);

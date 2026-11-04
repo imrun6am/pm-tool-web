@@ -7,6 +7,7 @@ use App\Models\Release;
 use App\Models\Task;
 use App\Models\Team;
 use App\Models\User;
+use App\Support\LogRetention;
 use App\Support\Metric;
 use Illuminate\Contracts\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
@@ -266,16 +267,19 @@ class ActivityInsights
             ['deleted']
         )->first();
         $now = $counts($inWindow());
-        $before = $counts($inPrevious());
+        // Old rows are pruned, so a window reaching past the cutoff would compare
+        // against a period that only looks quiet.
+        $before = $window['previousStart']->gte(LogRetention::cutoff()) ? $counts($inPrevious()) : null;
+        $previous = fn (string $field): ?int => $before === null ? null : (int) $before->{$field};
 
         $byEvent = $inWindow()->select('event', DB::raw('count(*) as c'))->groupBy('event')->pluck('c', 'event');
 
         return [
             'window' => $window,
             'kpis' => [
-                'events' => Metric::compare((int) $now->total, (int) $before->total),
-                'people' => Metric::compare((int) $now->people, (int) $before->people),
-                'deletions' => Metric::compare((int) $now->deleted, (int) $before->deleted),
+                'events' => Metric::compare((int) $now->total, $previous('total')),
+                'people' => Metric::compare((int) $now->people, $previous('people')),
+                'deletions' => Metric::compare((int) $now->deleted, $previous('deleted')),
                 'perDay' => round((int) $now->total / $window['days'], 1),
             ],
             'volume' => $this->volume($inWindow, $window),

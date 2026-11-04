@@ -46,7 +46,7 @@ return [
         ],
         'calendar_import' => [
             'label' => 'Calendar import',
-            'description' => 'Finds events in uploaded files for the calendar.',
+            'description' => 'Finds events in uploaded files, pasted text and notes for the calendar.',
             'model' => env('CALENDAR_IMPORT_MODEL', $model),
             'effort' => env('CALENDAR_IMPORT_EFFORT', 'medium'),
             'enabled' => true,

@@ -2,9 +2,9 @@
 
 namespace App\Services\Ai;
 
-use App\Models\Activity;
 use App\Models\Task;
 use App\Models\TasksheetEntry;
+use App\Models\TaskStatusChange;
 use App\Models\Team;
 use App\Models\User;
 use App\Services\Board\PlanToBoardService;
@@ -91,13 +91,11 @@ class ScoreEvidence
     /** Tasks the member finished in the period (from status history) and their open load now. */
     private function board(User $member, Carbon $from, Carbon $to): array
     {
-        $doneIds = Activity::query()
-            ->where('subject_type', (new Task)->getMorphClass())
-            ->where('event', 'updated')
-            ->whereBetween('created_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])
-            ->get(['subject_id', 'properties'])
-            ->filter(fn (Activity $a) => ($a->changes()['status']['new'] ?? null) === 'done')
-            ->pluck('subject_id')->unique();
+        $doneIds = TaskStatusChange::query()
+            ->where('to_status', 'done')
+            ->whereNotNull('from_status')
+            ->whereBetween('changed_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])
+            ->pluck('task_id')->unique();
 
         $completed = Task::whereIn('id', $doneIds)->where('assignee_id', $member->id)->limit(60)->pluck('title')->all();
         $open = Task::counted()->where('assignee_id', $member->id)->where('status', '!=', 'done');

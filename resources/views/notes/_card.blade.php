@@ -1,5 +1,5 @@
 @php use App\Models\Note; @endphp
-{{-- One note in the day-grouped feed. Requires $note (author + recipients loaded) and $users. --}}
+{{-- One note in the day-grouped feed. Requires $note (author + recipients loaded), $users and $canFindEvents. --}}
 <article class="group/note px-4 py-4 sm:px-5" x-data="{ editing: false, vis: '{{ $note->visibility }}' }">
     <div class="flex gap-3">
         <x-avatar :user="$note->author" :name="$note->author->name ?? '?'" />
@@ -17,21 +17,35 @@
                     <span class="badge badge-slate"><x-icon name="lock-closed" variant="outline" class="h-3 w-3" />Private</span>
                 @endif
 
-                @can('update', $note)
+                @if ($canFindEvents || auth()->user()->can('update', $note))
                     {{-- Quiet actions: revealed on hover/focus, always shown on touch screens --}}
                     <div x-show="!editing"
                          class="ml-auto flex items-center gap-0.5 opacity-0 transition-opacity focus-within:opacity-100 group-hover/note:opacity-100 [@media(hover:none)]:opacity-100">
-                        <button type="button" @click="editing = true" class="btn-ghost btn-sm btn-icon h-8 w-8 text-slate-500" title="Edit note" aria-label="Edit note">
-                            <x-icon name="pencil-square" variant="outline" class="h-4 w-4" />
-                        </button>
-                        <form method="POST" action="{{ route('notes.destroy', $note) }}" data-confirm="Delete this note?" data-confirm-verb="Delete">
-                            @csrf @method('DELETE')
-                            <button class="btn-ghost btn-sm btn-icon h-8 w-8 text-slate-500 hover:bg-danger-50 hover:text-danger-600" title="Delete note" aria-label="Delete note">
-                                <x-icon name="trash" variant="outline" class="h-4 w-4" />
+                        @if ($canFindEvents)
+                            {{-- Leaves the feed for the import page, so it opts out of the live region. --}}
+                            <form method="POST" action="{{ route('notes.calendar-events', $note) }}" data-turbo-frame="_top"
+                                  x-data="{ tz: Intl.DateTimeFormat().resolvedOptions().timeZone || '' }">
+                                @csrf
+                                <input type="hidden" name="timezone" :value="tz">
+                                <button class="btn-ghost btn-sm h-8 text-slate-500" title="Find calendar events in this note" aria-label="Find calendar events">
+                                    <x-icon name="calendar" variant="outline" class="h-4 w-4" />
+                                    <span class="hidden sm:inline">Find calendar events</span>
+                                </button>
+                            </form>
+                        @endif
+                        @can('update', $note)
+                            <button type="button" @click="editing = true" class="btn-ghost btn-sm btn-icon h-8 w-8 text-slate-500" title="Edit note" aria-label="Edit note">
+                                <x-icon name="pencil-square" variant="outline" class="h-4 w-4" />
                             </button>
-                        </form>
+                            <form method="POST" action="{{ route('notes.destroy', $note) }}" data-confirm="Delete this note?" data-confirm-verb="Delete">
+                                @csrf @method('DELETE')
+                                <button class="btn-ghost btn-sm btn-icon h-8 w-8 text-slate-500 hover:bg-danger-50 hover:text-danger-600" title="Delete note" aria-label="Delete note">
+                                    <x-icon name="trash" variant="outline" class="h-4 w-4" />
+                                </button>
+                            </form>
+                        @endcan
                     </div>
-                @endcan
+                @endif
             </div>
 
             <div x-show="!editing" class="prose-notes mt-1.5 max-w-4xl text-sm leading-relaxed text-slate-700 [&>*:first-child]:mt-0">{!! $note->bodyHtml() !!}</div>

@@ -6,8 +6,11 @@ use App\Http\Requests\ConfirmEventImportRequest;
 use App\Http\Requests\EventImportRequest;
 use App\Http\Requests\EventImportTextRequest;
 use App\Models\EventImport;
+use App\Models\MeetingNote;
+use App\Models\Note;
 use App\Models\Release;
 use App\Models\User;
+use App\Services\Ai\AiFeatures;
 use App\Services\Calendar\EventImportService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
@@ -17,7 +20,7 @@ use Illuminate\Support\Str;
 use Illuminate\View\View;
 
 /**
- * Calendar "Import events" from a file or pasted text. Either queues the
+ * Calendar "Import events" from a file, pasted text or a note. Each queues the
  * extraction and returns at once; the import page polls until the proposals are ready, then the
  * uploader reviews and confirms them into events.
  */
@@ -25,11 +28,12 @@ class EventImportController extends Controller
 {
     public function __construct(private readonly EventImportService $imports) {}
 
-    public function index(Request $request): View
+    public function index(Request $request, AiFeatures $features): View
     {
         return view('calendar.imports.index', [
             'imports' => EventImport::where('user_id', $request->user()->id)->latest('id')->limit(25)->get(),
             'apiKeyMissing' => blank(config('services.anthropic.key')),
+            'claudeAvailable' => $features->available('calendar_import'),
         ]);
     }
 
@@ -49,6 +53,39 @@ class EventImportController extends Controller
             ->with('success', 'Text received. It is being read in the background.');
     }
 
+    /** "Find calendar events" on a meeting note's page. */
+    public function storeFromMeetingNote(Request $request, MeetingNote $meetingNote, AiFeatures $features): RedirectResponse
+    {
+        $this->authorize('view', $meetingNote);
+
+        return $this->startFromNote($request, $meetingNote, $features);
+    }
+
+    /** "Find calendar events" on a daily note in the feed. */
+    public function storeFromNote(Request $request, Note $note, AiFeatures $features): RedirectResponse
+    {
+        $this->authorize('view', $note);
+
+        return $this->startFromNote($request, $note, $features);
+    }
+
+    private function startFromNote(Request $request, MeetingNote|Note $note, AiFeatures $features): RedirectResponse
+    {
+        $data = $request->validate(['timezone' => ['nullable', 'string', 'timezone:all']]);
+
+        if (! $features->available('calendar_import')) {
+            return back()->with('error', 'Finding calendar events with Claude isn’t available right now.');
+        }
+
+        $import = $this->imports->startFromNote($request->user(), $note, $data['timezone'] ?? null);
+        if ($import === null) {
+            return back()->with('error', 'This note has no text to read. Write the notes first, then look for calendar events.');
+        }
+
+        return redirect()->route('calendar.imports.show', $import)
+            ->with('success', 'Looking for calendar events in this note. Nothing is added until you confirm.');
+    }
+
     public function show(EventImport $import): View
     {
         $this->authorize('view', $import);
@@ -60,6 +97,7 @@ class EventImportController extends Controller
             'releases' => Release::visibleTo(request()->user())->orderByDesc('year')->orderBy('name')->get(['id', 'name', 'year']),
             'canConfirm' => request()->user()->can('confirm', $import),
             'pastedText' => $import->isPasted() ? Storage::disk('local')->get($import->file_path) : null,
+            'originUrl' => $import->originUrlFor(request()->user()),
         ]);
     }
 

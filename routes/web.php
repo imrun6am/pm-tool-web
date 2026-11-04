@@ -232,12 +232,16 @@ Route::middleware('auth')->group(function () {
     Route::put('events/{event}', [EventController::class, 'update'])->name('events.update');
     Route::delete('events/{event}', [EventController::class, 'destroy'])->name('events.destroy');
 
-    // Calendar "Import from file" (any user uploads; uploader/admin sees, uploader confirms)
+    // Calendar "Import from file", pasted text or a note the user can read (uploader/admin sees, uploader confirms)
     Route::get('calendar/imports', [EventImportController::class, 'index'])->name('calendar.imports.index');
     Route::post('calendar/imports', [EventImportController::class, 'store'])
         ->middleware('throttle:calendar-import')->name('calendar.imports.store');
     Route::post('calendar/imports/text', [EventImportController::class, 'storeText'])
         ->middleware('throttle:calendar-import')->name('calendar.imports.text');
+    Route::post('meeting-notes/{meetingNote}/calendar-events', [EventImportController::class, 'storeFromMeetingNote'])
+        ->middleware('throttle:calendar-import')->name('meeting-notes.calendar-events');
+    Route::post('notes/{note}/calendar-events', [EventImportController::class, 'storeFromNote'])
+        ->middleware('throttle:calendar-import')->name('notes.calendar-events');
     Route::get('calendar/imports/{import}', [EventImportController::class, 'show'])->name('calendar.imports.show');
     Route::get('calendar/imports/{import}/status', [EventImportController::class, 'status'])->name('calendar.imports.status');
     Route::post('calendar/imports/{import}/confirm', [EventImportController::class, 'confirm'])->name('calendar.imports.confirm');

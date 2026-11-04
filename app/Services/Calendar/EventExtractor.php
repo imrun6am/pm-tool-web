@@ -13,7 +13,8 @@ interface EventExtractor
     /**
      * @param  array{kind: 'file', path: string, mime: string, name: string}|array{kind: 'text', text: string, part: int, parts: int, name: string}  $source
      *                                                                                                                                                        a PDF/image on disk, or a text chunk
-     * @param  array{today: string, timezone: string, releases: list<string>}  $context
+     * @param  array{today: string, written_on: ?string, timezone: string, releases: list<string>}  $context
+     *                                                                                                        written_on is the date of the note being read: relative dates count from it
      * @return array{events: list<array<string, mixed>>, usage: array{input_tokens: int, output_tokens: int}}
      *                                                                                                        raw events in the schema's shape; the caller normalizes them
      */

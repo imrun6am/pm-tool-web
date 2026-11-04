@@ -652,7 +652,12 @@ Like the rest of this section, these keys are camelCase because the analytics ar
 `updated` entries carry a `changes` object of old → new per field. Performance scores never
 appear in this feed.
 
-`/activities/analysis` compares the window with the equally long one before it. It returns:
+Activity older than the retention period (`LOG_RETENTION_MONTHS`, 3 by default) is removed, unless
+it belongs to a release, so the feed and totals only reach back that far.
+
+`/activities/analysis` compares the window with the equally long one before it. If that earlier
+window reaches past the retention period, as 90 days does by default, `previous` and `change` are
+null. It returns:
 
 - `window` and `kpis`: `events`, `people` and `deletions` as `{current, previous, change}`, plus `per_day`.
 - `volume[]`: daily buckets, or weekly ones for 90 days.

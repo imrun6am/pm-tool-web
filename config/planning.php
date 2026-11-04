@@ -6,7 +6,7 @@ return [
     */
     'weekend_days' => array_map(
         fn (string $day) => strtolower(trim($day)),
-        explode(',', (string) env('PLANNING_WEEKEND_DAYS', 'saturday,sunday')),
+        explode(',', (string) env('PLANNING_WEEKEND_DAYS', 'friday')),
     ),
 
     'hours_per_day' => (float) env('PLANNING_HOURS_PER_DAY', 8),

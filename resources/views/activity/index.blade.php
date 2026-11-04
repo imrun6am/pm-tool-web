@@ -102,7 +102,7 @@
                 <x-stat label="Workflow moves" :value="$a['flow']['moves']" icon="view-columns" tone="violet"
                         :sub="$a['flow']['milestones']['done'].' to Done · '.$a['flow']['milestones']['rework'].' to Recheck'" />
                 <x-stat label="Deletions" :value="$k['deletions']['current']" icon="trash" tone="rose"
-                        :sub="$stats['total'] ? number_format($stats['total']).' events all time' : 'Nothing recorded yet'">
+                        :sub="$stats['total'] ? number_format($stats['total']).' events on record' : 'Nothing recorded yet'">
                     <div class="mt-2">@include('partials.delta', ['change' => $k['deletions']['change'], 'versus' => $versus, 'lowerIsBetter' => true])</div>
                 </x-stat>
             </div>

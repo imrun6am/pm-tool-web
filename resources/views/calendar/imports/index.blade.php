@@ -12,6 +12,11 @@
                     <x-icon name="exclamation-circle" variant="outline" class="mt-0.5 h-5 w-5 flex-none" />
                     <p>Add <code class="font-mono">ANTHROPIC_API_KEY</code> to <code class="font-mono">.env</code> to read PDFs, images and documents. <code class="font-mono">.ics</code> calendar files import without it.</p>
                 </div>
+            @elseif (! $claudeAvailable)
+                <div class="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                    <x-icon name="exclamation-circle" variant="outline" class="mt-0.5 h-5 w-5 flex-none" />
+                    <p>Finding events with Claude is switched off, so PDFs, images, documents and pasted text can’t be read right now. <code class="font-mono">.ics</code> calendar files and pasted calendar data still import.</p>
+                </div>
             @endif
 
             <div class="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
@@ -67,7 +72,7 @@
                             <template x-if="! file">
                                 <div>
                                     <p class="mt-4 text-sm font-semibold text-slate-900">Drop a file here, or <span class="text-brand-700 underline decoration-brand-300 underline-offset-2">browse</span></p>
-                                    <p class="mt-1 text-xs text-slate-500">PDF, image, .ics, Word, Excel, CSV or text · up to 20 MB (images 5 MB)</p>
+                                    <p class="mt-1 text-xs text-slate-500">{{ $claudeAvailable ? 'PDF, image, .ics, Word, Excel, CSV or text · up to 20 MB (images 5 MB)' : '.ics calendar files only · up to 20 MB' }}</p>
                                 </div>
                             </template>
                             <template x-if="file">
@@ -77,7 +82,7 @@
                                 </div>
                             </template>
                             <input id="document" name="document" type="file" x-ref="input" class="sr-only" required
-                                   accept=".pdf,.png,.jpg,.jpeg,.gif,.webp,.ics,.docx,.xlsx,.csv,.txt,.md"
+                                   accept="{{ $claudeAvailable ? '.pdf,.png,.jpg,.jpeg,.gif,.webp,.ics,.docx,.xlsx,.csv,.txt,.md' : '.ics' }}"
                                    @change="file = $event.target.files[0] || null" @invalid('document')>
                         </label>
                         @error('document')
@@ -110,7 +115,7 @@
                         <input type="hidden" name="timezone" :value="tz">
 
                         <x-field label="Text with dates" for="import-text" name="text"
-                                 hint="An email or invite, a chat message, meeting minutes, an agenda or a schedule table. Calendar (.ics) text works too.">
+                                 :hint="$claudeAvailable ? 'An email or invite, a chat message, meeting minutes, an agenda or a schedule table. Calendar (.ics) text works too.' : 'Only calendar (.ics) text can be read right now.'">
                             <textarea id="import-text" name="text" rows="10" x-model="text" maxlength="{{ $maxChars }}" required
                                       class="field-textarea font-mono text-[13px] leading-relaxed"
                                       placeholder="e.g. “Kick-off with Sara and Omar on Monday 9 Nov at 10:00 in Room 4. Code freeze 20 Nov, go-live 27 Nov.”"
@@ -178,14 +183,16 @@
                                 <tr>
                                     <td class="max-w-xs px-4 py-3">
                                         <a href="{{ route('calendar.imports.show', $import) }}" class="flex items-center gap-2 font-medium text-slate-800 hover:text-brand-700">
-                                            @if ($import->isPasted())
+                                            @if ($import->isFromNote())
+                                                <x-icon name="pencil-square" variant="outline" class="h-4 w-4 flex-none text-slate-400" />
+                                            @elseif ($import->isPasted())
                                                 <x-icon name="clipboard-check" variant="outline" class="h-4 w-4 flex-none text-slate-400" />
                                             @else
                                                 <span class="flex-none rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[10px] uppercase text-slate-500">{{ $import->extension }}</span>
                                             @endif
                                             <span class="truncate">{{ $import->displayName() }}</span>
                                         </a>
-                                        @if ($import->isPasted() && $import->preview)
+                                        @if (($import->isPasted() || $import->isFromNote()) && $import->preview)
                                             <span class="block truncate text-xs text-slate-500" title="{{ $import->preview }}">“{{ $import->preview }}”</span>
                                         @endif
                                         <span class="text-xs text-slate-400">{{ $import->sizeLabel() }}</span>
@@ -214,15 +221,17 @@
                                             @elseif ($import->isReviewable())
                                                 <a href="{{ route('calendar.imports.show', $import) }}" class="btn-secondary btn-sm">Re-review</a>
                                             @elseif ($import->isFailed())
-                                                <form method="POST" action="{{ route('calendar.imports.retry', $import) }}">
-                                                    @csrf
-                                                    <button class="btn-secondary btn-sm">Try again</button>
-                                                </form>
+                                                @can('retry', $import)
+                                                    <form method="POST" action="{{ route('calendar.imports.retry', $import) }}">
+                                                        @csrf
+                                                        <button class="btn-secondary btn-sm">Try again</button>
+                                                    </form>
+                                                @endcan
                                             @else
                                                 <a href="{{ route('calendar.imports.show', $import) }}" class="btn-ghost btn-sm">View</a>
                                             @endif
                                             <form method="POST" action="{{ route('calendar.imports.destroy', $import) }}"
-                                                  data-confirm="Delete this import and its {{ $import->isPasted() ? 'pasted text' : 'uploaded file' }}? Events already added stay on the calendar." data-confirm-verb="Delete">
+                                                  data-confirm="{{ $import->deleteConfirmation() }}" data-confirm-verb="Delete">
                                                 @csrf @method('DELETE')
                                                 <button class="btn-ghost btn-sm !px-2 text-rose-600 hover:bg-rose-50" aria-label="Delete import">
                                                     <x-icon name="trash" class="h-4 w-4" />
@@ -237,7 +246,7 @@
                 @endif
             </x-poll-region>
             <p class="text-xs text-slate-400">
-                Files and pasted text are read by Claude, which can make mistakes; check each event before confirming.
+                Files, pasted text and notes are read by Claude, which can make mistakes; check each event before confirming.
                 The queue worker must be running (<code class="font-mono">php artisan queue:work</code>).
             </p>
         </div>

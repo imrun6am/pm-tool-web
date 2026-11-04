@@ -140,28 +140,41 @@ class TasksheetPlanToBoardTest extends TestCase
         $this->actingAs($this->dev)->put(route('tasksheet.entries.board'), $this->payload());
         Task::where('title', 'Write refund tests')->update(['status' => 'done']); // finished since
 
-        // The plan is edited (one new line) and pressed again. Claude sees every
-        // existing task — done ones too — and returns only the new item, having
-        // matched the two old lines by meaning.
-        $this->fakeClaude([['title' => 'Update API docs', 'description' => null]], covered: 2);
+        // The plan is edited (one new line) and pressed again. Claude sees the
+        // open task, not the finished one, and leaves out the line it matched.
+        $this->fakeClaude([['title' => 'Update API docs', 'description' => null]], covered: 1);
         $this->actingAs($this->dev)
             ->put(route('tasksheet.entries.board'), $this->payload([
-                'plan' => '<ul><li>Fix rounding of coupons</li><li>Refund tests</li><li>Update API docs</li></ul>',
+                'plan' => '<ul><li>Fix rounding of coupons</li><li>Update API docs</li></ul>',
             ]))
-            ->assertSessionHas('success', 'Tasksheet saved. Added 1 task to the board for Devin Dev. Skipped 2 already on the board.');
+            ->assertSessionHas('success', 'Tasksheet saved. Added 1 task to the board for Devin Dev. Skipped 1 already on the board.');
 
-        $this->assertEqualsCanonicalizing(['Fix coupon rounding', 'Write refund tests'], $this->sent['existing']);
+        $this->assertSame(['Fix coupon rounding'], $this->sent['existing']);
         $this->assertSame(3, Task::count());
         $this->assertSame(1, TasksheetEntry::count()); // the same row, saved again
     }
 
-    public function test_exact_titles_are_never_recreated_even_if_claude_repeats_them(): void
+    public function test_a_done_or_archived_task_can_be_added_again(): void
+    {
+        foreach (['done', 'archive'] as $status) {
+            $this->fakeClaude([['title' => 'Fix coupon rounding', 'description' => null]]);
+            $this->actingAs($this->dev)->put(route('tasksheet.entries.board'), $this->payload())
+                ->assertSessionHas('success', 'Tasksheet saved. Added 1 task to the board for Devin Dev.');
+
+            $this->assertSame([], $this->sent['existing']);
+            Task::query()->where('status', 'todo')->update(['status' => $status]);
+        }
+
+        $this->assertSame(2, Task::where('title', 'Fix coupon rounding')->count());
+    }
+
+    public function test_exact_titles_of_open_tasks_are_never_recreated_even_if_claude_repeats_them(): void
     {
         $this->fakeClaude([['title' => 'Fix coupon rounding', 'description' => null]]);
         $this->actingAs($this->dev)->put(route('tasksheet.entries.board'), $this->payload());
-        Task::query()->update(['status' => 'archive']);
+        Task::query()->update(['status' => 'in_review']);
 
-        // Safety net: Claude returns an existing title anyway (any status counts).
+        // Safety net: Claude returns an open task's title anyway.
         $this->fakeClaude([['title' => 'FIX coupon rounding ', 'description' => null]]);
         $this->actingAs($this->dev)->put(route('tasksheet.entries.board'), $this->payload())
             ->assertSessionHas('success', 'Tasksheet saved. Those tasks are already on the board for Devin Dev.');
@@ -173,7 +186,7 @@ class TasksheetPlanToBoardTest extends TestCase
     {
         $other = User::factory()->create();
         Task::create(['release_id' => $this->release->id, 'title' => 'Someone else’s task', 'status' => 'todo', 'assignee_id' => $other->id]);
-        Task::create(['release_id' => $this->release->id, 'title' => 'My old task', 'status' => 'done', 'assignee_id' => $this->dev->id]);
+        Task::create(['release_id' => $this->release->id, 'title' => 'My old task', 'status' => 'in_progress', 'assignee_id' => $this->dev->id]);
         $this->fakeClaude([]);
 
         $this->actingAs($this->dev)->put(route('tasksheet.entries.board'), $this->payload());

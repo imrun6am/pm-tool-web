@@ -48,6 +48,8 @@
                 <aside class="space-y-4">
                     {{-- Claude: action items → board tasks --}}
                     @include('ai.panels.meeting-note', ['meetingNote' => $meetingNote])
+                    {{-- Claude: dates in the minutes → calendar events --}}
+                    @include('ai.panels.meeting-note-events', ['meetingNote' => $meetingNote])
 
                     <section class="card">
                         <h2 class="card-header card-title">Details</h2>

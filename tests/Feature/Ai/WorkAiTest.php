@@ -21,6 +21,21 @@ class WorkAiTest extends AiTestCase
 
     // -- #2 Meeting notes → tasks ----------------------------------------------
 
+    public function test_finished_tasks_dont_block_a_meeting_action(): void
+    {
+        $lead = $this->user(User::ROLE_TEAM_LEAD);
+        $release = $this->release();
+        Task::create(['release_id' => $release->id, 'title' => 'Fix the coupon bug', 'status' => 'done']);
+        Task::create(['release_id' => $release->id, 'title' => 'Old checklist', 'status' => 'archive']);
+        $note = $this->meeting($lead, ['release_id' => $release->id]);
+        $this->claude->respond(['tasks' => [['title' => 'Fix the coupon bug', 'description' => null, 'owner' => null, 'due_date' => null]]]);
+
+        $tasks = $this->actingAs($lead)->postJson(route('ai.meeting-actions', $note))->assertOk()->json('tasks');
+
+        $this->assertCount(1, $tasks);
+        $this->assertStringNotContainsString('Old checklist', $this->claude->prompt());
+    }
+
     public function test_action_items_are_proposed_with_matched_owners_and_created_on_confirm(): void
     {
         $lead = $this->user(User::ROLE_TEAM_LEAD);

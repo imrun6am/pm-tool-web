@@ -12,7 +12,7 @@ interface PlanTaskExtractor
      *
      * @param  string  $plan  plain-text plan (one or more lines)
      * @param  string|null  $tickets  plain-text ticket list, used as context only
-     * @param  list<string>  $existing  titles of the member's tasks already on the board
+     * @param  list<string>  $existing  titles of the member's open tasks on the board
      * @return array{tasks: list<array{title: string, description: ?string}>, covered: int}
      */
     public function extract(string $plan, ?string $tickets = null, array $existing = []): array;
