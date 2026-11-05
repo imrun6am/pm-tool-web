@@ -55,9 +55,9 @@ class TasksheetPlanToBoardTest extends TestCase
         {
             public function __construct(private array $tasks, private ?\Throwable $error, private int $covered, private array &$sent) {}
 
-            public function extract(string $plan, ?string $tickets = null, array $existing = []): array
+            public function extract(string $plan, ?string $tickets = null, array $existing = [], array $teamTasks = []): array
             {
-                $this->sent = ['plan' => $plan, 'tickets' => $tickets, 'existing' => $existing];
+                $this->sent = ['plan' => $plan, 'tickets' => $tickets, 'existing' => array_column($existing, 'title')];
                 if ($this->error) {
                     throw $this->error;
                 }

@@ -727,7 +727,7 @@ class NotificationCoverageTest extends TestCase
     {
         $this->app->instance(PlanTaskExtractor::class, new class implements PlanTaskExtractor
         {
-            public function extract(string $plan, ?string $tickets = null, array $existing = []): array
+            public function extract(string $plan, ?string $tickets = null, array $existing = [], array $teamTasks = []): array
             {
                 return ['tasks' => [['title' => 'One', 'description' => null], ['title' => 'Two', 'description' => null]], 'covered' => 0];
             }

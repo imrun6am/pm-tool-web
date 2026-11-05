@@ -541,6 +541,7 @@ report, and **403** for anyone but a lead or a current member of the team.
 | ------ | --------------------------------- | -------------------------------------------- |
 | `GET`  | `/tasksheet?team_id=&date=`       | Rows + 14-day output trend                   |
 | `PUT`  | `/tasksheet/entries`              | Upsert one member's row for one date         |
+| `PUT`  | `/tasksheet/entries/board`        | Upsert the row, then add its plan to the board |
 | `GET`  | `/tasksheet/users/{member}`       | That member or a lead only                   |
 | `POST` | `/tasksheet/standup`              | **Leads only** — set standup attendance      |
 | `POST` | `/tasksheet/exports`              | Queue a PDF export → `202`; team-wide is lead-only |
@@ -552,6 +553,13 @@ report, and **403** for anyone but a lead or a current member of the team.
 | `DELETE` | `/tasksheet/exports/{id}`       | Cancel (if running) and delete               |
 | `GET`  | `/tasksheet/report`               | **Retired** — `410 Gone`, see below          |
 
+- `PUT /tasksheet/entries/board` takes the row's fields plus an optional `board_release_id` (an open
+  release of the row's team), and the same people may call it as `PUT /tasksheet/entries`. AI splits
+  the plan into To Do tasks and subtasks assigned to the row's member: nested items become subtasks,
+  and new items under a main task already open on the board are added to it. It returns `entry`,
+  `tasks` (each new task, with `parent_id`), `tasks_created`, `subtasks_created`, `skipped` and a
+  `message`. If the AI is unavailable the row is still saved and the answer is **503** with the
+  saved `entry` and no tasks.
 - Rows include people whose membership **covered that date** — even if they have since left, been
   deactivated, or been deleted. History does not rewrite itself.
 - A **full-day** leave (`casual`/`sick`) clears the task fields; **`half_day`** keeps them.

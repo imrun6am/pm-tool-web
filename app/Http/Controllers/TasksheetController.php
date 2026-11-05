@@ -8,14 +8,11 @@ use App\Models\Release;
 use App\Models\TasksheetExport;
 use App\Models\User;
 use App\Services\Board\PlanToBoardService;
-use App\Services\Kpi\MissingApiKeyException;
 use App\Services\TasksheetService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Str;
 use Illuminate\View\View;
-use Throwable;
 
 class TasksheetController extends Controller
 {
@@ -183,8 +180,8 @@ class TasksheetController extends Controller
 
     /**
      * "Add to board": save the row exactly like upsert(), then let the AI split
-     * the plan into To Do cards assigned to the row's member. The row is saved
-     * even when the AI is unavailable — only the board step is skipped.
+     * the plan into To Do cards and subtasks assigned to the row's member. The row
+     * is saved even when the AI is unavailable — only the board step is skipped.
      */
     public function addToBoard(TasksheetBoardRequest $request, PlanToBoardService $board): RedirectResponse
     {
@@ -201,28 +198,9 @@ class TasksheetController extends Controller
             'date' => $entry->date->toDateString(),
         ]);
 
-        try {
-            $release = isset($data['board_release_id']) ? Release::findOrFail($data['board_release_id']) : null;
-            $result = $board->addPlanTasks($entry, $release, $request->user());
-        } catch (MissingApiKeyException) {
-            return $back->with('error', 'Tasksheet saved, but no tasks were added: AI isn’t configured (ANTHROPIC_API_KEY).');
-        } catch (Throwable $e) {
-            report($e);
+        $release = isset($data['board_release_id']) ? Release::findOrFail($data['board_release_id']) : null;
+        $result = $board->attempt($entry, $release, $request->user());
 
-            return $back->with('error', 'Tasksheet saved, but no tasks were added: the AI couldn’t split the plan right now. Please try again.');
-        }
-
-        $created = count($result['created']);
-        $name = $entry->member->name;
-        $message = match (true) {
-            $created > 0 => "Tasksheet saved. Added {$created} ".Str::plural('task', $created)." to the board for {$name}.",
-            $result['skipped'] > 0 => "Tasksheet saved. Those tasks are already on the board for {$name}.",
-            default => 'Tasksheet saved. The AI found no actionable tasks in the plan.',
-        };
-        if ($created > 0 && $result['skipped'] > 0) {
-            $message .= " Skipped {$result['skipped']} already on the board.";
-        }
-
-        return $back->with('success', $message);
+        return $back->with($result['ok'] ? 'success' : 'error', $result['message']);
     }
 }

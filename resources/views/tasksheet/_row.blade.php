@@ -282,7 +282,7 @@
 
                                 {{-- Footer --}}
                                 <footer class="space-y-3 border-t border-slate-200 bg-slate-50/80 px-6 py-4">
-                                    {{-- Add to board: AI splits the plan into To Do cards for this member --}}
+                                    {{-- Add to board: AI splits the plan into To Do cards and subtasks for this member --}}
                                     <div class="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg bg-white px-3 py-2 ring-1 ring-inset ring-violet-200">
                                         <x-icon name="sparkles" variant="outline" class="h-4 w-4 flex-none text-violet-600" />
                                         <label for="{{ $idp }}-board-release" class="text-xs font-medium text-slate-700">Board release</label>
@@ -294,7 +294,7 @@
                                             @endforeach
                                         </select>
                                         <span class="w-full text-[11px] leading-snug text-slate-500 sm:w-auto sm:flex-1">
-                                            AI splits the plan into tasks assigned to {{ Str::before($rowUser->name, ' ') ?: $rowUser->name }}.
+                                            AI splits the plan into tasks assigned to {{ Str::before($rowUser->name, ' ') ?: $rowUser->name }}. Indented lines become subtasks.
                                         </span>
                                     </div>
 

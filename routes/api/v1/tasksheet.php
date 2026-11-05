@@ -30,6 +30,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('tasksheet', [TasksheetController::class, 'index'])->name('tasksheet.index');
 Route::put('tasksheet/entries', [TasksheetController::class, 'upsert'])->name('tasksheet.entries.upsert');
+Route::put('tasksheet/entries/board', [TasksheetController::class, 'addToBoard'])->name('tasksheet.entries.board');
 Route::post('tasksheet/standup', [TasksheetController::class, 'verifyStandup'])->name('tasksheet.standup');
 Route::get('tasksheet/report', [TasksheetController::class, 'report'])->name('tasksheet.report');
 

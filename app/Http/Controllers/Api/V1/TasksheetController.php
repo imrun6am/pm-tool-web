@@ -2,11 +2,15 @@
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Http\Requests\TasksheetBoardRequest;
 use App\Http\Requests\TasksheetEntryRequest;
 use App\Http\Resources\V1\TasksheetEntryResource;
+use App\Http\Resources\V1\TaskSummaryResource;
 use App\Http\Resources\V1\TeamSummaryResource;
 use App\Http\Resources\V1\UserSummaryResource;
+use App\Models\Release;
 use App\Models\User;
+use App\Services\Board\PlanToBoardService;
 use App\Services\TasksheetService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -170,6 +174,36 @@ class TasksheetController extends ApiController
             new TasksheetEntryResource($entry->load(['member', 'team'])),
             'Tasksheet saved.'
         );
+    }
+
+    /**
+     * The API form of the sheet's "Add to board", through the same service. The
+     * row is saved even when the AI is unavailable; that answers 503, with the
+     * saved entry, so a client can't take it for a success.
+     */
+    public function addToBoard(TasksheetBoardRequest $request, PlanToBoardService $board): JsonResponse
+    {
+        $data = $request->validated();
+
+        $entry = $this->tasksheet->resolveEntry($data);
+        $this->authorize('update', $entry);
+
+        $this->tasksheet->save($entry, $data, $request->user(), $request->has('feedback'));
+        $entry->refresh()->load(['member', 'team']);
+
+        $release = isset($data['board_release_id']) ? Release::findOrFail($data['board_release_id']) : null;
+        $result = $board->attempt($entry, $release, $request->user());
+
+        return response()->json([
+            'data' => [
+                'entry' => (new TasksheetEntryResource($entry))->resolve($request),
+                'tasks' => TaskSummaryResource::collection([...$result['created'], ...$result['subtasks']])->resolve($request),
+                'tasks_created' => count($result['created']),
+                'subtasks_created' => count($result['subtasks']),
+                'skipped' => $result['skipped'],
+            ],
+            'message' => $result['message'],
+        ], $result['ok'] ? 200 : 503);
     }
 
     /**

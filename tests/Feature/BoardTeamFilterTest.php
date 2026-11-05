@@ -213,7 +213,7 @@ class BoardTeamFilterTest extends TestCase
     {
         $this->app->instance(PlanTaskExtractor::class, new class implements PlanTaskExtractor
         {
-            public function extract(string $plan, ?string $tickets = null, array $existing = []): array
+            public function extract(string $plan, ?string $tickets = null, array $existing = [], array $teamTasks = []): array
             {
                 return ['tasks' => [['title' => 'Planned', 'description' => null]], 'covered' => 0];
             }
