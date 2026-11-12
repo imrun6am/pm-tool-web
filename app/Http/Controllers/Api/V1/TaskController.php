@@ -53,8 +53,8 @@ class TaskController extends ApiController
         $this->dependencies->loadLinks($task, $request->user());
 
         $task->load([
-            'release.project', 'release.team', 'team', 'assignee', 'creator',
-            'parent', 'subtasks.assignee', 'comments.user', 'labels',
+            'release.project', 'release.team', 'team', 'assignee', 'assignees', 'creator',
+            'parent', 'subtasks.assignee', 'subtasks.assignees', 'comments.user', 'labels',
         ])->loadCount(['comments', 'subtasks']);
 
         return $this->ok(new TaskResource($task));
@@ -126,7 +126,7 @@ class TaskController extends ApiController
     private function hydrate(Task $task): TaskResource
     {
         return new TaskResource(
-            $task->load(['assignee', 'creator', 'subtasks.assignee', 'release', 'team', 'labels'])
+            $task->load(['assignee', 'assignees', 'creator', 'subtasks.assignee', 'subtasks.assignees', 'release', 'team', 'labels'])
                 ->loadCount(['comments', 'subtasks'])
         );
     }

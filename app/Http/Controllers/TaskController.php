@@ -88,8 +88,8 @@ class TaskController extends Controller
         $limited = $viewer->hasLimitedAccess();
         $teamIds = $limited ? $viewer->currentTeamIds() : null;
 
-        $task->load(['release.project', 'release.team', 'team', 'assignee', 'creator',
-            'subtasks.assignee', 'comments.user', 'parent', 'labels']);
+        $task->load(['release.project', 'release.team', 'team', 'assignee', 'assignees', 'creator',
+            'subtasks.assignee', 'subtasks.assignees', 'comments.user', 'parent', 'labels']);
         $this->dependencies->loadLinks($task, $viewer);
 
         return view('tasks.show', [
@@ -129,7 +129,7 @@ class TaskController extends Controller
 
         $viewer = $request->user();
 
-        $task->load(['assignee', 'subtasks', 'comments.user', 'labels', 'team', 'release']);
+        $task->load(['assignee', 'assignees', 'subtasks', 'comments.user', 'labels', 'team', 'release']);
         $this->dependencies->loadLinks($task, $viewer);
 
         return view('tasks.panel', [

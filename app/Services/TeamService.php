@@ -156,7 +156,7 @@ class TeamService
      */
     public function taskSummary(Team $team): array
     {
-        $open = fn (): Builder => $this->openTasks()->where('team_id', $team->id);
+        $open = fn (): Builder => $this->openTasks()->where('tasks.team_id', $team->id);
 
         return [
             'open' => $open()->count(),
@@ -165,10 +165,11 @@ class TeamService
             'doneThisMonth' => $this->completions
                 ->since(fn () => Task::query()->where('team_id', $team->id), now()->startOfMonth())
                 ->count(),
+            // Every assignee of a shared task counts it.
             'byAssignee' => $open()
-                ->whereNotNull('assignee_id')
-                ->groupBy('assignee_id')
-                ->selectRaw('assignee_id, count(*) as open_count')
+                ->join('task_user', 'task_user.task_id', '=', 'tasks.id')
+                ->groupBy('task_user.user_id')
+                ->selectRaw('task_user.user_id as assignee_id, count(*) as open_count')
                 ->pluck('open_count', 'assignee_id')
                 ->map(fn ($count) => (int) $count),
         ];

@@ -99,9 +99,9 @@ class PlanToBoardService
             ->whereNull('parent_id')
             ->whereNotIn('status', Task::DONE_STATUSES)
             ->where(fn ($q) => $q
-                ->where('assignee_id', $entry->user_id)
+                ->assignedTo($entry->user_id)
                 ->orWhereHas('subtasks', fn ($sub) => $sub
-                    ->where('assignee_id', $entry->user_id)
+                    ->assignedTo($entry->user_id)
                     ->whereNotIn('status', Task::DONE_STATUSES)))
             ->with('subtasks')
             ->latest('id')

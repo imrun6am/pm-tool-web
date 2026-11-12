@@ -105,6 +105,11 @@ class DatabaseSeeder extends Seeder
             'team_id' => DB::raw('(select releases.team_id from releases where releases.id = tasks.release_id)'),
         ]);
 
+        // The same for the assignee list, which the lead (assignee_id) is always on.
+        DB::table('task_user')->insertOrIgnore(Task::whereNotNull('assignee_id')->get(['id', 'assignee_id'])
+            ->map(fn (Task $task) => ['task_id' => $task->id, 'user_id' => $task->assignee_id, 'created_at' => now(), 'updated_at' => now()])
+            ->all());
+
         // Off-days: a holiday plus the weekends in the window.
         $r1->offDays()->create(['date' => "$year-07-14", 'reason' => 'Public holiday']);
         $cursor = $r1->start_date->copy();

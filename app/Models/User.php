@@ -217,9 +217,10 @@ class User extends Authenticatable
         return $query->whereNull('deactivated_at');
     }
 
-    public function assignedTasks(): HasMany
+    /** Every task this user is one of the assignees of, lead or not. */
+    public function assignedTasks(): BelongsToMany
     {
-        return $this->hasMany(Task::class, 'assignee_id');
+        return $this->belongsToMany(Task::class)->withTimestamps();
     }
 
     /** Teams this user currently belongs to (left teams excluded). */

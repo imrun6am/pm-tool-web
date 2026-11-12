@@ -146,7 +146,7 @@ class WorkspaceAsk
             ? $q
             : $q->where(fn ($w) => $w->whereIn('team_id', $teams->pluck('id'))->orWhereIn('release_id', $namedReleases->pluck('id')));
         $taskQuery = fn () => Task::visibleTo($user)
-            ->with(['release:id,name', 'assignee:id,name', 'team:id,name', 'labels', 'openBlockers'])
+            ->with(['release:id,name', 'assignees:users.id,users.name', 'team:id,name', 'labels', 'openBlockers'])
             ->withExists(['openBlockers as has_open_blockers'])
             ->withSum('timeLogs as logged_minutes', 'minutes')
             ->withMax('statusChanges', 'changed_at');
@@ -160,9 +160,9 @@ class WorkspaceAsk
         $tasks = $direct
             ->merge($teams->isEmpty() ? collect() : $taskQuery()
                 ->whereIn('team_id', $teams->pluck('id'))->whereNull('parent_id')->counted()->latest('updated_at')->limit(30)->get())
-            ->merge($taskQuery()->where('assignee_id', $user->id)->whereNotIn('status', Task::DONE_STATUSES)->orderBy('due_date')->limit(10)->get())
+            ->merge($taskQuery()->assignedTo($user)->whereNotIn('status', Task::DONE_STATUSES)->orderBy('due_date')->limit(10)->get())
             ->merge($people->isEmpty() ? collect() : $taskQuery()
-                ->whereIn('assignee_id', $people->pluck('id'))->whereNotIn('status', Task::DONE_STATUSES)->orderByRaw($urgentOrder)->orderBy('due_date')->limit(15)->get())
+                ->assignedToAny($people->pluck('id'))->whereNotIn('status', Task::DONE_STATUSES)->orderByRaw($urgentOrder)->orderBy('due_date')->limit(15)->get())
             ->merge($focus($taskQuery())->blocked()->orderByRaw($urgentOrder)->orderBy('due_date')->limit(self::LISTED_BLOCKED)->get())
             ->merge($focus($taskQuery())->whereNotIn('status', Task::DONE_STATUSES)->whereDate('due_date', '<', today()->toDateString())
                 ->orderByRaw($urgentOrder)->orderBy('due_date')->limit(self::LISTED_OVERDUE)->get())
@@ -299,7 +299,7 @@ class WorkspaceAsk
     private function openWorkTotals(User $user, \Closure $focus, Collection $teams, Collection $releases): array
     {
         $open = fn () => $focus(Task::visibleTo($user))->whereNotIn('status', Task::DONE_STATUSES);
-        $mine = fn () => $open()->where('assignee_id', $user->id);
+        $mine = fn () => $open()->assignedTo($user);
         $overdue = fn (Builder $q) => $q->whereDate('due_date', '<', today()->toDateString());
         $scope = $teams->pluck('name')->map(fn ($n) => "team {$n}")->concat($releases->pluck('name')->map(fn ($n) => "release {$n}"))->implode(', ');
         $pending = $user->isLead() ? TriageItem::decidableBy($user)->where('status', TriageItem::PENDING)->get(['id', 'created_at']) : collect();
@@ -386,6 +386,14 @@ class WorkspaceAsk
         return $days;
     }
 
+    /** Everyone on the task, the lead first. */
+    private function assigneesText(Task $t): string
+    {
+        $names = $t->assigneeList()->pluck('name');
+
+        return ($names->count() > 1 ? 'assignees ' : 'assignee ').($names->implode(', ') ?: 'none');
+    }
+
     private function describeTask(Task $t, User $viewer, int $excerptLength): string
     {
         $logged = (int) $t->logged_minutes;
@@ -401,7 +409,7 @@ class WorkspaceAsk
             $t->reference().' '.$t->title,
             "status {$t->statusLabel()} for {$t->daysInStatus()} days",
             $t->priority ? 'priority '.$t->priorityLabel() : null,
-            'assignee '.($t->assignee?->name ?? 'none'),
+            $this->assigneesText($t),
             'team '.($t->team?->name ?? 'none'),
             'due '.($t->due_date?->toDateString() ?? 'none').($overdue ? ' (overdue)' : ''),
             'release '.($t->release?->name ?? 'none'),

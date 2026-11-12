@@ -31,6 +31,7 @@ class TaskSummaryResource extends JsonResource
             'due_date' => $this->due_date?->toDateString(),
             'position' => $this->position,
             'assignee' => new UserSummaryResource($this->whenLoaded('assignee')),
+            'assignees' => UserSummaryResource::collection($this->whenLoaded('assignees', fn () => $this->assigneeList())),
         ];
     }
 }

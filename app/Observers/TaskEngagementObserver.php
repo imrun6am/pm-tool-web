@@ -22,22 +22,11 @@ class TaskEngagementObserver
         private readonly PendingCelebration $pending,
     ) {}
 
-    public function created(Task $task): void
-    {
-        $this->notifications->taskAssigned($task, Auth::user());
-    }
+    // Assignment notices come from TaskAssignees, which knows who was added.
 
     public function updated(Task $task): void
     {
         $actor = Auth::user();
-
-        if ($task->wasChanged('assignee_id')) {
-            $this->notifications->taskAssigned($task, $actor);
-
-            if ($previous = (int) $task->getOriginal('assignee_id')) {
-                $this->notifications->taskUnassigned($task, $previous, $actor);
-            }
-        }
 
         if ($actor && $task->wasChanged('blocked_at') && $task->blocked_at) {
             $this->notifications->taskBlocked($task, $actor);

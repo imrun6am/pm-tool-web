@@ -52,7 +52,7 @@ class ReleaseController extends ApiController
             'documents.uploader', 'offDays', 'comments.user',
             // Developers and QA see only their own teams' tasks here too.
             'rootTasks' => fn ($q) => $q->visibleTo($request->user()),
-            'rootTasks.assignee', 'rootTasks.subtasks.assignee',
+            'rootTasks.assignee', 'rootTasks.assignees', 'rootTasks.subtasks.assignee', 'rootTasks.subtasks.assignees',
         ])->loadCount([
             'tasks' => fn ($q) => $q->visibleTo($request->user()),
             'documents', 'comments', 'offDays', 'members',

@@ -7,6 +7,7 @@ use App\Models\TaskStatusChange;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * When work was finished, read from the task's status history
@@ -22,21 +23,31 @@ use Illuminate\Support\Collection;
  * done) falls back to `updated_at` and is flagged `estimated`; callers use
  * those for counts but never for durations.
  *
- * Two queries regardless of history: the candidate tasks, then their status
- * changes. Candidates are bounded by `updated_at >= $from`, since a task
- * completed in the window was necessarily saved in it.
+ * One record per task, so totals count each task once. `assigneeId` is the
+ * lead and `assigneeIds` everyone on it; perAssignee() gives each of them a
+ * record of their own for per-person counts.
+ *
+ * Three queries regardless of history: the candidate tasks, their assignees,
+ * then their status changes. Candidates are bounded by `updated_at >= $from`,
+ * since a task completed in the window was necessarily saved in it.
  */
 class TaskCompletions
 {
     /**
      * @param  \Closure(): Builder  $tasks  a fresh, scoped Task query per call
-     * @return Collection<int, array{taskId: int, assigneeId: ?int, teamId: ?int, estimateMinutes: ?int, completedAt: Carbon, startedAt: ?Carbon, reworked: bool, estimated: bool, dueDate: ?Carbon, createdAt: Carbon}>
+     * @return Collection<int, array{taskId: int, assigneeId: ?int, assigneeIds: list<int>, teamId: ?int, estimateMinutes: ?int, completedAt: Carbon, startedAt: ?Carbon, reworked: bool, estimated: bool, dueDate: ?Carbon, createdAt: Carbon}>
      */
     public function since(\Closure $tasks, Carbon $from): Collection
     {
         $done = fn (): Builder => $tasks()->where('status', 'done')->where('updated_at', '>=', $from);
 
         $candidates = $done()->get(['id', 'assignee_id', 'team_id', 'estimate_minutes', 'due_date', 'created_at', 'updated_at']);
+
+        $assignees = DB::table('task_user')
+            ->whereIn('task_id', $done()->select('id'))
+            ->orderBy('id')
+            ->get(['task_id', 'user_id'])
+            ->groupBy('task_id');
 
         $history = TaskStatusChange::query()
             ->whereIn('task_id', $done()->select('id'))
@@ -45,7 +56,7 @@ class TaskCompletions
             ->get(['id', 'task_id', 'from_status', 'to_status', 'changed_at'])
             ->groupBy('task_id');
 
-        return $candidates->map(function (Task $task) use ($history) {
+        return $candidates->map(function (Task $task) use ($history, $assignees) {
             $startedAt = $completedAt = null;
             $reworked = false;
 
@@ -64,6 +75,7 @@ class TaskCompletions
             return [
                 'taskId' => $task->id,
                 'assigneeId' => $task->assignee_id,
+                'assigneeIds' => $this->assigneeIds($task, $assignees->get($task->id, collect())),
                 'teamId' => $task->team_id,
                 'estimateMinutes' => $task->estimate_minutes,
                 'completedAt' => $completedAt ?? $task->updated_at,
@@ -74,6 +86,28 @@ class TaskCompletions
                 'createdAt' => $task->created_at,
             ];
         })->filter(fn (array $c) => $c['completedAt']->gte($from))->values();
+    }
+
+    /** @return list<int> the lead first, then the others in the order they were added */
+    private function assigneeIds(Task $task, Collection $rows): array
+    {
+        $lead = $task->assignee_id === null ? null : (int) $task->assignee_id;
+        $ids = $rows->pluck('user_id')->map(fn ($id) => (int) $id)->all();
+
+        return $lead === null ? $ids : array_values(array_unique([$lead, ...$ids]));
+    }
+
+    /**
+     * One record per assignee, for per-person counts: each of them is credited
+     * with the whole task. `lead` marks the lead's record (and an unassigned
+     * task's only one), so a group can still count each task once.
+     */
+    public static function perAssignee(Collection $completions): Collection
+    {
+        return $completions->flatMap(fn (array $c) => $c['assigneeIds'] === []
+            ? [$c + ['lead' => true]]
+            : array_map(fn (int $id) => ['assigneeId' => $id, 'lead' => $id === (int) $c['assigneeId']] + $c, $c['assigneeIds'])
+        )->values();
     }
 
     /** Average days from start to completion, or null with nothing measurable. */

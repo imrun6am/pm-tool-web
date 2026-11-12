@@ -55,7 +55,7 @@ class TasksheetDrafter
     /** @return array{html: string, count: int, unconfirmed: array<int, string>} */
     public function plan(Team $team, User $member, Carbon $date, User $by): array
     {
-        $open = $this->tasks($team)->where('assignee_id', $member->id)
+        $open = $this->tasks($team)->assignedTo($member)
             ->whereNotIn('status', Task::DONE_STATUSES)
             ->with('parent:id,title')
             ->get()
@@ -134,7 +134,7 @@ class TasksheetDrafter
             ->whereDate('created_at', $date->toDateString())
             ->whereNotNull('properties->attributes->status')
             ->where(fn (Builder $q) => $q->where('causer_id', $member->id)
-                ->orWhereIn('subject_id', Task::where('assignee_id', $member->id)->select('id')))
+                ->orWhereIn('subject_id', Task::assignedTo($member)->select('id')))
             ->orderBy('created_at')->orderBy('id')
             ->limit(self::MAX_TASKS)
             ->get(['subject_id', 'event', 'properties']);

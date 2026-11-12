@@ -70,7 +70,7 @@ class MemberAnalyticsService
 
         $tasks = Task::query()
             ->with('release')
-            ->where('assignee_id', $user->id)
+            ->assignedTo($user)
             ->get();
 
         $completions = $this->completions($user, $tasks);
@@ -121,7 +121,7 @@ class MemberAnalyticsService
         // One query for every status change on the member's tasks; the id list
         // is a sub-select so a long history never becomes a huge IN binding.
         $history = TaskStatusChange::query()
-            ->whereIn('task_id', Task::select('id')->where('assignee_id', $user->id))
+            ->whereIn('task_id', Task::select('id')->assignedTo($user))
             ->orderBy('changed_at')
             ->orderBy('id')
             ->get(['id', 'task_id', 'from_status', 'to_status', 'changed_at'])

@@ -448,7 +448,9 @@
 
             document.querySelector('.board-scroller').addEventListener('click', function (e) {
                 const button = e.target.closest('.board-assign');
-                if (button) openPicker(button);
+                if (!button) return;
+                if (picker?.card === button.closest('.board-card')) closePicker(true);
+                else openPicker(button);
             });
 
             // An accepted AI suggestion arrives here (see aiAssignee in resources/js/ai.js).
@@ -475,66 +477,184 @@
                 });
             }
 
-            function showPicker(button, data) {
-                const select = document.createElement('select');
-                select.className = 'board-assign-select';
-                select.dataset.ssKind = 'person';
-                select.setAttribute('aria-label', 'Assignee of “' + button.dataset.title + '”');
-                select.add(new Option('Unassigned', ''));
-                data.people.forEach((person) => select.add(new Option(person.name, person.id)));
-                select.value = data.assignee_id ?? '';
+            // The picker is a small checklist: ticking someone adds them to the card,
+            // unticking takes them off, and each change saves at once.
+            let picker = null;
 
-                let saving = false;
-                let refocus = false;
-                const holdsFocus = () => select.parentElement?.contains(document.activeElement);
-                const dismiss = function () {
-                    refocus ||= holdsFocus();
-                    select.remove();
-                    button.hidden = false;
-                    if (refocus) button.focus({ preventScroll: true });
-                };
-
-                // The dropdown closes before it reports the change, so wait a tick to see if a save began.
-                select.addEventListener('ss:close', () => setTimeout(() => { if (!saving) dismiss(); }));
-                select.addEventListener('change', function () {
-                    saving = true;
-                    const assigneeId = select.value === '' ? null : Number(select.value);
-                    // Disabling it drops focus, so note now where focus should return.
-                    refocus = holdsFocus();
-                    select.disabled = true;
-                    saveAssignee(button, assigneeId, dismiss);
-                });
-
-                button.hidden = true;
-                button.after(select);
-                // The searchable-select observer enhances it first; a native select just shows.
-                setTimeout(() => select.dispatchEvent(new CustomEvent('ss:open')));
+            function closePicker(refocus) {
+                if (!picker) return;
+                const { panel, card, cleanup } = picker;
+                picker = null;
+                cleanup();
+                panel.remove();
+                if (refocus) card.querySelector('.board-assign')?.focus({ preventScroll: true });
             }
 
-            function saveAssignee(button, assigneeId, dismiss) {
-                fetch(button.dataset.assignUrl, {
+            function personAvatar(person) {
+                const avatar = document.createElement('span');
+                avatar.className = 'ss-avatar';
+                avatar.dataset.tone = String(Number(person.id) % 8); // = x-avatar's tone for that user
+                avatar.textContent = person.name.split(/\s+/).filter(Boolean).slice(0, 2).map((p) => p[0].toUpperCase()).join('') || '?';
+                return avatar;
+            }
+
+            function showPicker(button, data) {
+                closePicker(false);
+                const card = button.closest('.board-card');
+                let ids = (data.assignee_ids ?? []).map(Number);
+                let saving = false;
+
+                const panel = document.createElement('div');
+                panel.className = 'menu-panel board-assign-panel';
+                panel.setAttribute('role', 'dialog');
+                panel.setAttribute('aria-label', 'Assignees of “' + button.dataset.title + '”');
+                panel.innerHTML = '<div class="ss-search"><svg class="ss-search-icon" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true"><path fill-rule="evenodd" d="M9 3.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM2 9a7 7 0 1112.45 4.39l3.08 3.08a.75.75 0 11-1.06 1.06l-3.08-3.08A7 7 0 012 9z" clip-rule="evenodd"/></svg>'
+                    + '<input type="text" class="ss-input" placeholder="Search people…" aria-label="Search people" autocomplete="off" spellcheck="false"></div>'
+                    + '<ul class="board-assign-list scroll-area" role="group" aria-label="People"></ul>'
+                    + '<div class="board-assign-foot"><span class="board-assign-count" aria-live="polite"></span>'
+                    + '<button type="button" class="board-assign-clear">Clear all</button>'
+                    + '<button type="button" class="btn-primary btn-sm board-assign-done">Done</button></div>';
+                const search = panel.querySelector('input');
+                const list = panel.querySelector('ul');
+                const count = panel.querySelector('.board-assign-count');
+
+                // Who's on the card first, so they're easy to find and untick.
+                const people = data.people.slice().sort((a, b) => (ids.includes(b.id) - ids.includes(a.id)));
+                people.forEach(function (person) {
+                    const li = document.createElement('li');
+                    const label = document.createElement('label');
+                    label.className = 'board-assign-option';
+                    const box = document.createElement('input');
+                    box.type = 'checkbox';
+                    box.className = 'field-check';
+                    box.value = person.id;
+                    box.checked = ids.includes(person.id);
+                    const name = document.createElement('span');
+                    name.className = 'truncate';
+                    name.textContent = person.name;
+                    label.append(box, personAvatar(person), name);
+                    if (person.id === data.assignee_id) {
+                        const lead = document.createElement('span');
+                        lead.className = 'board-assign-lead';
+                        lead.textContent = 'Lead';
+                        label.append(lead);
+                    }
+                    li.dataset.name = person.name.toLowerCase();
+                    li.append(label);
+                    list.append(li);
+                });
+                const empty = document.createElement('li');
+                empty.className = 'ss-empty';
+                empty.textContent = 'No matches';
+                empty.hidden = true;
+                list.append(empty);
+
+                const showCount = () => { count.textContent = ids.length ? ids.length + ' assigned' : 'No one assigned'; };
+                showCount();
+
+                search.addEventListener('input', function () {
+                    const q = search.value.trim().toLowerCase();
+                    let shown = 0;
+                    list.querySelectorAll('li[data-name]').forEach(function (li) {
+                        li.hidden = q !== '' && !li.dataset.name.includes(q);
+                        if (!li.hidden) shown++;
+                    });
+                    empty.hidden = shown > 0;
+                });
+
+                function save(next, said) {
+                    if (saving) return;
+                    saving = true;
+                    panel.setAttribute('aria-busy', 'true');
+                    list.querySelectorAll('input').forEach((box) => { box.disabled = true; });
+                    saveAssignees(card.querySelector('.board-assign'), next, said).then(function (saved) {
+                        if (saved) ids = saved;
+                    }).finally(function () {
+                        saving = false;
+                        if (!panel.isConnected) return;
+                        panel.removeAttribute('aria-busy');
+                        list.querySelectorAll('input').forEach((box) => { box.disabled = false; box.checked = ids.includes(Number(box.value)); });
+                        showCount();
+                    });
+                }
+
+                list.addEventListener('change', function (e) {
+                    const id = Number(e.target.value);
+                    const person = data.people.find((p) => p.id === id);
+                    const next = e.target.checked ? [...ids, id] : ids.filter((x) => x !== id);
+                    save(next, person.name + (e.target.checked ? ' added.' : ' removed.'));
+                });
+                panel.querySelector('.board-assign-clear').addEventListener('click', function () {
+                    if (ids.length) save([], 'Unassigned.');
+                });
+                panel.querySelector('.board-assign-done').addEventListener('click', () => closePicker(true));
+
+                // Clicks and keys inside stay inside, so the board's own handlers don't react.
+                panel.addEventListener('keydown', function (e) {
+                    e.stopPropagation();
+                    if (e.key === 'Escape') { e.preventDefault(); closePicker(true); }
+                });
+                const outside = function (e) {
+                    if (!panel.contains(e.target) && !card.querySelector('.board-assign')?.contains(e.target)) closePicker(false);
+                };
+                const away = () => closePicker(false);
+                const scroller = document.querySelector('.board-scroller');
+                setTimeout(() => document.addEventListener('pointerdown', outside, true));
+                scroller.addEventListener('scroll', away, { passive: true });
+                window.addEventListener('resize', away);
+
+                document.body.append(panel);
+                // Below the button, or above it when there's no room; a bottom sheet on phones (CSS).
+                if (window.innerWidth >= 640) {
+                    const rect = button.getBoundingClientRect();
+                    const width = panel.offsetWidth;
+                    const height = panel.offsetHeight;
+                    const below = rect.bottom + 6 + height <= window.innerHeight - 8;
+                    panel.style.left = Math.max(8, Math.min(rect.left, window.innerWidth - width - 8)) + 'px';
+                    panel.style.top = (below ? rect.bottom + 6 : Math.max(8, rect.top - 6 - height)) + 'px';
+                }
+                search.focus({ preventScroll: true });
+
+                picker = {
+                    panel, card,
+                    cleanup() {
+                        document.removeEventListener('pointerdown', outside, true);
+                        scroller.removeEventListener('scroll', away);
+                        window.removeEventListener('resize', away);
+                    },
+                };
+            }
+
+            /** Save the card's whole list; resolves to the saved ids, or null when it failed. */
+            function saveAssignees(button, ids, said) {
+                return fetch(button.dataset.assignUrl, {
                     method: 'PATCH',
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-TOKEN': csrf, 'Accept': 'application/json' },
-                    body: JSON.stringify({ assignee_id: assigneeId }),
+                    body: JSON.stringify({ assignee_ids: ids }),
                 }).then(function (r) {
                     return r.json().catch(() => ({})).then((data) => ({ status: r.status, data }));
                 }).then(function ({ status, data }) {
-                    if (status === 422) throw new Error(data.errors?.assignee_id?.[0] ?? 'That person can’t be assigned here.');
+                    if (status === 422) {
+                        const errors = data.errors ?? {};
+                        const first = Object.keys(errors).find((key) => key.startsWith('assignee'));
+                        throw new Error(first ? errors[first][0] : 'That person can’t be assigned here.');
+                    }
                     if (status === 403) throw new Error('You can’t change this task.');
-                    if (status < 200 || status >= 300) throw new Error('Couldn’t save the assignee. Please try again.');
+                    if (status < 200 || status >= 300) throw new Error('Couldn’t save the assignees. Please try again.');
 
-                    dismiss();
-                    applyAssignee(button, data);
+                    applyAssignee(button, data, said);
+                    return data.assignee_ids;
                 }).catch(function (error) {
-                    dismiss();
                     toast('error', error.message);
+                    return null;
                 });
             }
 
-            function applyAssignee(button, data) {
-                const said = data.assignee_name ? 'Assigned to ' + data.assignee_name : 'Unassigned';
+            function applyAssignee(button, data, said) {
+                const ids = data.assignee_ids ?? (data.assignee_id ? [data.assignee_id] : []);
+                said ??= data.assignee_names?.length ? 'Assigned to ' + data.assignee_names.join(', ') + '.' : 'Unassigned.';
                 const matches = assigneeFilter === null
-                    || (assigneeFilter === 'none' ? data.assignee_id === null : data.assignee_id === assigneeFilter);
+                    || (assigneeFilter === 'none' ? ids.length === 0 : ids.includes(assigneeFilter));
 
                 const card = button.closest('.board-card');
 
@@ -542,14 +662,15 @@
                     const hadFocus = document.activeElement === button;
                     button.outerHTML = data.html;
                     if (hadFocus) card.querySelector('.board-assign').focus({ preventScroll: true });
-                    toast('success', said + '.');
+                    toast('success', said);
                     return;
                 }
 
+                if (picker?.card === card) closePicker(false);
                 card.remove();
                 refresh();
                 @if ($canDelete) syncSelection(); @endif
-                toast('success', said + '. It no longer matches this view.');
+                toast('success', said.replace(/\.$/, '') + '. It no longer matches this view.');
             }
 
             function refresh() {

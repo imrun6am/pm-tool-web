@@ -48,8 +48,11 @@ class TaskResource extends JsonResource
             'blocking' => TaskSummaryResource::collection($this->whenLoaded('blocking')),
             'position' => $this->position,
 
+            // The lead assignee, kept for older clients; assignee_ids is everyone, lead first.
             'assignee_id' => $this->assignee_id,
             'assignee' => new UserSummaryResource($this->whenLoaded('assignee')),
+            'assignee_ids' => $this->assigneeIds(),
+            'assignees' => UserSummaryResource::collection($this->whenLoaded('assignees', fn () => $this->assigneeList())),
             'created_by' => new UserSummaryResource($this->whenLoaded('creator')),
             'release' => new ReleaseSummaryResource($this->whenLoaded('release')),
             'team' => new TeamSummaryResource($this->whenLoaded('team')),

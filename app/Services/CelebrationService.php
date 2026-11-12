@@ -45,8 +45,8 @@ class CelebrationService
             return null;
         }
 
-        $allClear = (int) $task->assignee_id === $actor->id && ! Task::query()
-            ->where('assignee_id', $actor->id)
+        $allClear = $task->hasAssignee($actor) && ! Task::query()
+            ->assignedTo($actor)
             ->whereKeyNot($task->id)
             ->whereNotIn('status', Task::DONE_STATUSES)
             ->exists();

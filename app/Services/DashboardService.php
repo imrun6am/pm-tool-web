@@ -214,7 +214,7 @@ class DashboardService
     {
         // Open tasks assigned to me — most urgent first, undated last.
         $tasks = Task::with('release')
-            ->where('assignee_id', $user->id)
+            ->assignedTo($user)
             ->whereNotIn('status', Task::DONE_STATUSES)
             ->orderByRaw('due_date is null')
             ->orderBy('due_date')

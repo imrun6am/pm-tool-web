@@ -4,13 +4,15 @@ namespace App\Services;
 
 use App\Models\Task;
 use App\Models\TasksheetEntry;
+use App\Models\User;
 use App\Support\HtmlSanitizer;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Str;
 
 /**
  * Keeps today's day-end result in step with the board: a finished task adds a
- * line to its assignee's row, and reopening it the same day takes the line back
- * out. No AI call, so a move to Done never waits on or fails with a model.
+ * line to the row of the assignee who finished it (else its lead's), and
+ * reopening it the same day takes the line back out of any assignee's row. No AI call, so a move to Done never waits on or fails with a model.
  * Lead feedback is never touched.
  */
 class TasksheetResultSync
@@ -19,7 +21,9 @@ class TasksheetResultSync
 
     public function taskFinished(Task $task): void
     {
-        $entry = $this->todaysEntry($task);
+        $actor = Auth::user();
+        $person = $actor && $task->hasAssignee($actor) ? $actor : $task->assignee;
+        $entry = $person ? $this->todaysEntry($task, $person) : null;
         if (! $entry || $entry->isFullDayLeave()) {
             return;
         }
@@ -39,23 +43,20 @@ class TasksheetResultSync
 
     public function taskReopened(Task $task): void
     {
-        $entry = $this->todaysEntry($task);
-        if (! $entry?->exists || ! str_contains((string) $entry->result, $this->line($task))) {
-            return;
-        }
+        foreach ($task->assignees as $assignee) {
+            $entry = $this->todaysEntry($task, $assignee);
+            if (! $entry?->exists || ! str_contains((string) $entry->result, $this->line($task))) {
+                continue;
+            }
 
-        $entry->result = str_replace('<ul></ul>', '', Str::replaceFirst($this->line($task), '', $entry->result));
-        $entry->save();
+            $entry->result = str_replace('<ul></ul>', '', Str::replaceFirst($this->line($task), '', $entry->result));
+            $entry->save();
+        }
     }
 
-    /** Today's row (possibly unsaved) on the team this task's work belongs to, if one can be told. */
-    private function todaysEntry(Task $task): ?TasksheetEntry
+    /** The person's row today (possibly unsaved) on the team this task's work belongs to, if one can be told. */
+    private function todaysEntry(Task $task, User $assignee): ?TasksheetEntry
     {
-        $assignee = $task->assignee;
-        if (! $assignee) {
-            return null;
-        }
-
         $teamIds = $assignee->currentTeamIds();
         $teamId = $task->team_id && $teamIds->contains($task->team_id)
             ? $task->team_id

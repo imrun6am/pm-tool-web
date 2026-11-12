@@ -110,6 +110,7 @@ class BoardController extends Controller
 
         return response()->json([
             'assignee_id' => $task->assignee_id,
+            'assignee_ids' => $task->assigneeIds(),
             'people' => $this->tasks->cardAssignees($task, $request->user())
                 ->map(fn (User $user) => ['id' => $user->id, 'name' => $user->name])->all(),
         ]);
@@ -121,13 +122,15 @@ class BoardController extends Controller
      */
     public function assign(AssignTaskRequest $request, Task $task): JsonResponse
     {
-        $this->board->assign($task, $request->validated('assignee_id'));
-        $task->load('assignee');
+        $this->board->assign($task, $request->validated());
+        $task->load(['assignee', 'assignees']);
 
         return response()->json([
             'ok' => true,
             'assignee_id' => $task->assignee_id,
+            'assignee_ids' => $task->assigneeIds(),
             'assignee_name' => $task->assignee?->name,
+            'assignee_names' => $task->assigneeList()->pluck('name')->all(),
             'visible' => $task->isVisibleTo($request->user()),
             'html' => view('partials.board-assignee', ['task' => $task])->render(),
         ]);

@@ -78,7 +78,9 @@
                 </span>
             @endif
             <span class="ml-1 flex items-center gap-1.5 text-slate-500">
-                @if ($task->assignee)
+                @if ($task->assignees->count() > 1)
+                    <span class="text-slate-700">@include('partials.assignee-stack', ['people' => $task->assigneeList(), 'size' => 'sm', 'names' => 'all'])</span>
+                @elseif ($task->assignee)
                     <x-avatar :user="$task->assignee" size="sm" />
                     <span class="text-slate-700">{{ $task->assignee->name }}</span>@include('partials.user-tag', ['tagUser' => $task->assignee])
                 @else
@@ -180,13 +182,12 @@
                                 </select>
                             </div>
                             <div class="{{ $row }}">
-                                <label for="task-assignee" class="{{ $rowLabel }}"><x-icon name="user" class="{{ $rowIcon }}" />Assignee</label>
-                                <select id="task-assignee" name="assignee_id" form="task-form" @invalid('assignee_id') class="field-select field-sm !mt-0">
-                                    <option value="">Unassigned</option>
-                                    @foreach ($users as $u)
-                                        <option value="{{ $u->id }}" @selected((int) old('assignee_id', $task->assignee_id) === $u->id)>{{ $u->name }}</option>
-                                    @endforeach
-                                </select>
+                                <label for="task-assignees" class="{{ $rowLabel }}"><x-icon name="user" class="{{ $rowIcon }}" />Assignees</label>
+                                <div class="min-w-0">
+                                    <x-multi-select id="task-assignees" name="assignee_ids" form="task-form" sent-name="assignee_ids_sent" placeholder="Unassigned"
+                                        :options="$users->map(fn ($u) => ['value' => $u->id, 'label' => $u->name, 'hint' => $u->id === $task->assignee_id ? 'Lead' : null])"
+                                        :selected="$task->assigneeIds()" />
+                                </div>
                             </div>
                             {{-- Team: a linked task takes its release's team; a subtask its parent's --}}
                             <div class="{{ $row }}">
@@ -271,7 +272,7 @@
                                     @endforeach
                                 </div>
                             </div>
-                            @foreach (['release_id', 'team_id', 'status', 'assignee_id', 'due_date', 'phase', 'priority', 'estimate_minutes', 'label_ids'] as $f)
+                            @foreach (['release_id', 'team_id', 'status', 'assignee_id', 'assignee_ids', 'assignee_ids.*', 'due_date', 'phase', 'priority', 'estimate_minutes', 'label_ids'] as $f)
                                 @error($f)
                                     <p id="{{ $f }}-error" class="field-error !mt-0 px-5 py-2.5">
                                         <x-icon name="exclamation-circle" variant="outline" class="h-4 w-4 flex-none" />{{ $message }}
@@ -387,7 +388,7 @@
                                             <div class="flex flex-none items-center gap-2">
                                                 @if ($sub->assignee)
                                                     <span class="hidden items-center gap-1.5 text-xs text-slate-500 sm:flex">
-                                                        <x-avatar :user="$sub->assignee" size="xs" />{{ $sub->assignee->name }}
+                                                        @include('partials.assignee-stack', ['people' => $sub->assigneeList(), 'size' => 'xs', 'names' => 'first'])
                                                     </span>
                                                 @endif
                                                 @include('partials.status-badge', ['status' => $sub->status])

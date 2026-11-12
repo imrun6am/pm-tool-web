@@ -9,7 +9,7 @@ use App\Models\User;
  * Developers and QA don't choose a task's team: work they file goes to their
  * current team, whatever team_id they send. Someone on several teams picks one
  * of their own; someone on none files teamless (personal) tasks. They may only
- * link their own teams' releases and assign their own teammates. Leads and
+ * link their own teams' releases and add their own teammates as assignees. Leads and
  * viewers are untouched.
  */
 trait KeepsTasksInViewerTeams
@@ -63,18 +63,23 @@ trait KeepsTasksInViewerTeams
         if ($creating && count($teamIds) > 1) {
             $rules['team_id'][] = 'required_without:release_id';
         }
-        if (isset($rules['assignee_id'])) {
-            $rules['assignee_id'][] = $this->assigneeIsTeammate(...);
+        foreach (['assignee_id', 'assignee_ids.*'] as $field) {
+            if (isset($rules[$field])) {
+                $rules[$field][] = $this->assigneeIsTeammate(...);
+            }
         }
 
         return $rules;
     }
 
-    /** A developer or QA may assign only themselves or a current teammate. */
+    /**
+     * A developer or QA may add only themselves or a current teammate; people
+     * already on the task may stay.
+     */
     private function assigneeIsTeammate(string $attribute, mixed $value, \Closure $fail): void
     {
-        if ($value === null || (int) $value === $this->route('task')?->assignee_id) {
-            return; // unassigned, or unchanged
+        if ($value === null || $this->route('task')?->hasAssignee((int) $value)) {
+            return; // unassigned, or already assigned
         }
 
         if (! User::teammatesOf($this->user())->whereKey((int) $value)->exists()) {

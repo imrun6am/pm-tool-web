@@ -22,6 +22,9 @@ use Illuminate\Support\Collection;
  * one past the window go in `later`. A task with no estimate can't be counted,
  * so it's reported as `unestimated`, because a person can look free when their
  * work just isn't estimated yet.
+ *
+ * A task with several assignees is on each of their rows, with what's left of
+ * its estimate split evenly between them.
  */
 class CapacityService
 {
@@ -51,14 +54,14 @@ class CapacityService
         $end = $weeks[array_key_last($weeks)]['end'];
         $offDays = $this->offDays($team, $start, $end);
         $leave = $this->leave($people, $start, $end);
-        $tasks = $this->openTasks($people)->groupBy('assignee_id');
+        $tasks = $this->openTasks($people);
 
         return [
             'weeks' => $weeks,
             'people' => $people->map(fn (User $person) => $this->row(
                 $person,
                 $weeks,
-                $tasks->get($person->id, collect()),
+                $tasks->filter(fn (Task $task) => $task->assignees->contains('id', $person->id)),
                 $offDays,
                 $leave->get($person->id, collect()),
             ))->all(),
@@ -90,8 +93,9 @@ class CapacityService
     private function openTasks(Collection $people): Collection
     {
         return Task::query()
-            ->whereIn('assignee_id', $people->pluck('id'))
+            ->assignedToAny($people->pluck('id'))
             ->whereNotIn('status', Task::DONE_STATUSES)
+            ->with('assignees:users.id')
             ->withSum('timeLogs as logged_minutes', 'minutes')
             ->get(['id', 'assignee_id', 'due_date', 'estimate_minutes']);
     }
@@ -130,7 +134,8 @@ class CapacityService
 
         foreach ($tasks as $task) {
             $index = $this->weekIndex($task, $weeks);
-            $remaining = max(0, (int) $task->estimate_minutes - (int) $task->logged_minutes);
+            // Each assignee carries an even share of what's left.
+            $remaining = (int) round(max(0, (int) $task->estimate_minutes - (int) $task->logged_minutes) / max(1, $task->assignees->count()));
 
             if ($index === null) {
                 $later['tasks']++;

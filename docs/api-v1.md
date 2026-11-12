@@ -288,8 +288,8 @@ serialized, so there is no public URL to leak.
 
 | Method            | Path                                                     |
 | ----------------- | -------------------------------------------------------- |
-| `GET`             | `/tasks` — `?q=&release_id=&team_id=&assignee_id=&status=&phase=&priority=&label_id=&blocked=1&overdue=1&include_subtasks=1&sort=&direction=`; `sort` is `title`, `status`, `priority`, `assignee`, `due_date` or `updated_at`; `assignee_id=none` selects unassigned |
-| `POST`            | `/tasks/bulk` — `{ ids[], status?, assignee_id?, priority?, add_label_id? }`, up to 200 tasks, all or nothing. `"none"` clears `assignee_id` or `priority`; a field left out or null changes nothing. Returns `updated_ids`. 403 if any task is out of reach; 422 on a bad id or an assignee who doesn't suit every task |
+| `GET`             | `/tasks` — `?q=&release_id=&team_id=&assignee_id=&status=&phase=&priority=&label_id=&blocked=1&overdue=1&include_subtasks=1&sort=&direction=`; `sort` is `title`, `status`, `priority`, `assignee` (the lead), `due_date` or `updated_at`; `assignee_id=<id>` matches any of a task's assignees, `assignee_id=none` selects unassigned |
+| `POST`            | `/tasks/bulk` — `{ ids[], status?, assignee_id?, priority?, add_label_id? }`, up to 200 tasks, all or nothing. `"none"` clears `assignee_id` or `priority`; a field left out or null changes nothing. `assignee_id` makes that person each task's only assignee. Returns `updated_ids`. 403 if any task is out of reach; 422 on a bad id or an assignee who doesn't suit every task |
 | `POST`            | `/tasks` — top-level task; `release_id`, `team_id` optional |
 | `GET/PUT/DELETE`  | `/tasks/{id}` — `DELETE` is **admin only**, for a task or a subtask, and moves it to the trash |
 | `GET`             | `/tasks/trash` — **admin only**; deleted tasks, newest first, paginated |
@@ -340,8 +340,8 @@ serialized, so there is no public URL to leak.
 | `GET`             | `/board` — every status column, even when empty; `?release_id=&team_id=&assignee_id=&priority=&label_id=`, each also takes `none` |
 | `POST`            | `/board/tasks` — `{ title, status, release_id?, team_id?, assignee_id? }` |
 | `PATCH`           | `/board/tasks/{id}` — `{ status, ordered_ids[] }`, atomic |
-| `GET`             | `/board/tasks/{id}/assignees` — who the caller may pick for this card. Returns `assignee_id`, `people[]`. 403 on a task they can't update |
-| `PATCH`           | `/board/tasks/{id}/assignee` — `{ assignee_id }`, `null` clears; the key is required and nothing else changes. 403 on a task they can't update; 422 on a person they can't pick |
+| `GET`             | `/board/tasks/{id}/assignees` — who the caller may pick for this card. Returns `assignee_id` (the lead), `assignee_ids[]`, `people[]`. 403 on a task they can't update |
+| `PATCH`           | `/board/tasks/{id}/assignee` — `{ assignee_ids[] }` sets the whole list (`[]` clears), or `{ assignee_id }` as before (see **Several assignees**); one of the two is required and nothing else changes. 403 on a task they can't update; 422 on a person they can't pick |
 | `DELETE`          | `/board/tasks/{id}` — **admin only**; moves a top-level task and its subtasks to the trash. Returns `deleted_ids`, `subtasks_deleted`. 403 for other roles and on a subtask |
 | `POST`            | `/board/tasks/bulk-delete` — **admin only**; `{ ids[] }`, up to 1000 top-level task ids, all or nothing. Returns `deleted_ids`, `subtasks_deleted`. 403 for other roles whatever is sent; 422 on any bad id, with nothing deleted |
 | `GET`             | `/events` — `?year=&month=` or `?from=&to=`, `?show=all\|mine\|shared` (`mine`: events you created or attend); returns `events_by_date`. Others' private events are never listed |
@@ -356,10 +356,30 @@ serialized, so there is no public URL to leak.
 | `PUT/DELETE`      | `/quick-links/{id}` — **author only**                    |
 | `POST`            | `/quick-links/{id}/pin` — toggles; **anyone who can see it** |
 
+**Several assignees.** A task or subtask can have up to 10 assignees. Every task returns
+`assignee_ids` (everyone, lead first) and, when loaded, `assignees` (user summaries, lead first),
+next to `assignee_id` and `assignee`, which are the **lead assignee**: one of them, the first person
+chosen, and `null` only when there are none.
+
+- **Writing:** `POST /tasks`, `PUT /tasks/{id}`, `POST /tasks/{id}/subtasks` and
+  `PATCH /board/tasks/{id}/assignee` take `assignee_ids[]` as the whole list; `[]` clears it.
+  Sending `assignee_id` as well picks the lead when it's in the list.
+- **Older clients** that send only `assignee_id` keep working: `null` clears every assignee, the
+  current lead's id changes nothing (co-assignees stay), and any other id makes that person the
+  only assignee.
+- **Rules:** each person *added* must pass the assignee rules below (release team, teammates for
+  developers and QA, active on the board). People already on the task always pass.
+- **Lead:** stays while they are assigned; when they are removed, the next remaining assignee in
+  the order they were added becomes lead.
+- **Filters:** `assignee_id=<id>` on `GET /tasks`, `GET /board` and `GET /releases/{id}/tasks`
+  matches a task when that person is any of its assignees.
+- **Notifications:** each person added is told once; each person removed hears they were taken
+  off; nobody else is told about the assignment. Other task notices go to every assignee.
+
 **Assigning from the board.** `GET /board?assignee_id=none` lists the cards with no assignee.
 `GET /board/tasks/{id}/assignees` lists who can be picked: the release team's active members, or
 every active user on an unlinked task, narrowed to teammates for developers and QA, plus the
-current assignee. `PATCH /board/tasks/{id}/assignee` applies the same rules as `PUT /tasks/{id}`
+current assignees. `PATCH /board/tasks/{id}/assignee` applies the same rules as `PUT /tasks/{id}`
 using the task's own release, and also refuses a newly assigned deactivated user.
 
 **Deleting from the board.** To clear what a filtered board shows, read `GET /board` with the same
@@ -411,8 +431,8 @@ on an unlinked task.
   follows the parent when the parent's release changes.
 - **Filtering:** `?release_id=none` on `GET /tasks` and `GET /board` selects unlinked tasks.
   `?team_id=` works the same way (`none` selects tasks with no team), and all filters combine.
-- **Assignees:** on a linked task, the assignee must be a member of the release's team. On an
-  unlinked task, any user may be assigned.
+- **Assignees:** on a linked task, every newly added assignee must be a member of the release's
+  team. On an unlinked task, any user may be assigned.
 - **Deleting a release:** its tasks stay, unlinked.
 
 **Task teams.** Every task carries an optional `team_id`, and `team` is a team summary when
@@ -429,8 +449,8 @@ loaded.
 **Developers and QA are kept to their own teams.** These rules apply to everyone whose role is
 `developer` or `qa`.
 
-- **What they see:** tasks of their current teams, tasks assigned to them, and teamless tasks they
-  created.
+- **What they see:** tasks of their current teams, tasks they are one of the assignees of, and
+  teamless tasks they created.
   - `GET /tasks`, `GET /board`, `GET /releases/{id}/tasks` and `tasks_count` on `GET /releases/{id}`
     leave out everything else, whatever the filters ask for.
   - Any other task is **403** on `GET/PUT/DELETE /tasks/{id}`, `PATCH /tasks/{id}/status`,
@@ -445,8 +465,9 @@ loaded.
     assignee and leads.
 - **Releases:** `release_id` must be one of their teams' releases (422).
   `POST /releases/{id}/tasks` on another team's release is 403.
-- **Assignees:** they may assign only themselves or a current teammate (422).
-- **Editing:** keeping a task's current release, team or assignee is always allowed, so a task lent
+- **Assignees:** they may add only themselves or a current teammate (422), on every task, so a
+  task never gains someone from another team through them.
+- **Editing:** keeping a task's current release, team or assignees is always allowed, so a task lent
   to them from another team can still be edited.
 - **Leads and viewers** see every task and may set any team.
 

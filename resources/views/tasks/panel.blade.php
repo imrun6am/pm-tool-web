@@ -57,14 +57,15 @@
                         </select>
                     </div>
                     <div class="col-span-2">
-                        <label for="panel-assignee" class="field-label !mt-0">Assignee</label>
-                        <select id="panel-assignee" name="assignee_id" class="field-select field-sm !mt-1">
-                            <option value="">Unassigned</option>
-                            @foreach ($users as $u)
-                                <option value="{{ $u->id }}" @selected((int) old('assignee_id', $task->assignee_id) === $u->id)>{{ $u->name }}</option>
-                            @endforeach
-                        </select>
-                        @error('assignee_id')<p class="field-error" role="alert">{{ $message }}</p>@enderror
+                        <label for="panel-assignees" class="field-label !mt-0">Assignees</label>
+                        <div class="mt-1">
+                            <x-multi-select id="panel-assignees" name="assignee_ids" sent-name="assignee_ids_sent" placeholder="Unassigned"
+                                :options="$users->map(fn ($u) => ['value' => $u->id, 'label' => $u->name, 'hint' => $u->id === $task->assignee_id ? 'Lead' : null])"
+                                :selected="$task->assigneeIds()" />
+                        </div>
+                        @foreach (['assignee_id', 'assignee_ids', 'assignee_ids.*'] as $f)
+                            @error($f)<p class="field-error" role="alert">{{ $message }}</p>@enderror
+                        @endforeach
                     </div>
                     <div>
                         <label for="panel-due" class="field-label !mt-0">Due date</label>

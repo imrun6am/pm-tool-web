@@ -32,6 +32,7 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Notifications\Notification;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Throwable;
 
@@ -119,15 +120,31 @@ class NotificationService
         return $result;
     }
 
-    /** Tell a task's (new) assignee, unless they assigned it themselves. */
-    public function taskAssigned(Task $task, ?User $actor): void
+    /**
+     * Tell the people just added to a task, unless they added themselves.
+     * TaskAssignees calls this once per change, with only the newcomers.
+     *
+     * @param  iterable<int, int>  $userIds
+     */
+    public function taskAssigned(Task $task, ?User $actor, iterable $userIds): void
     {
-        // Ids straight from a request are strings until the model is reloaded.
-        if (! $actor || ! $task->assignee_id || (int) $task->assignee_id === $actor->id) {
+        $ids = collect($userIds)->map(fn ($id) => (int) $id)->reject(fn (int $id) => $id === $actor?->id);
+
+        if (! $actor || $ids->isEmpty()) {
             return;
         }
 
-        $this->deliver(User::whereKey($task->assignee_id)->get(), $task, new TaskAssigned($task, $actor));
+        $this->deliver(User::whereKey($ids->all())->get(), $task, new TaskAssigned($task, $actor));
+    }
+
+    /**
+     * Everyone the task is assigned to, as ids.
+     *
+     * @return Collection<int, int>
+     */
+    private function assigneeIds(Task $task): Collection
+    {
+        return DB::table('task_user')->where('task_id', $task->id)->orderBy('id')->pluck('user_id')->map(fn ($id) => (int) $id);
     }
 
     /**
@@ -136,7 +153,7 @@ class NotificationService
      */
     public function taskCommented(Task $task, Comment $comment): void
     {
-        $ids = collect([$task->assignee_id, $task->created_by])
+        $ids = $this->assigneeIds($task)->push($task->created_by)
             ->merge($task->comments()->whereKeyNot($comment->id)->pluck('user_id'))
             ->filter()
             ->unique()
@@ -159,7 +176,7 @@ class NotificationService
         $hasLead = $leadId && User::active()->whereKey($leadId)->exists();
 
         $ids = collect($hasLead ? [$leadId] : $this->orgLeadIds())
-            ->push($task->assignee_id)
+            ->merge($this->assigneeIds($task))
             ->filter()
             ->unique()
             ->reject(fn ($id) => (int) $id === $actor?->id);
@@ -169,18 +186,24 @@ class NotificationService
         }
     }
 
-    /** Tell whoever had a task that it's gone from them. */
-    public function taskUnassigned(Task $task, int $previousId, ?User $actor): void
+    /**
+     * Tell whoever had a task that it's gone from them. `$addedIds` are the
+     * people put on it in the same change: with none, they were taken off;
+     * otherwise it was handed over (to the actor, or to someone else).
+     *
+     * @param  array<int, int>  $addedIds
+     */
+    public function taskUnassigned(Task $task, int $previousId, ?User $actor, array $addedIds = []): void
     {
         if (! $actor || $previousId === $actor->id) {
             return;
         }
 
-        $next = $task->assignee_id ? User::withTrashed()->find($task->assignee_id) : null;
+        $next = User::withTrashed()->whereKey($addedIds)->orderBy('name')->get();
         $message = match (true) {
-            $next === null => "{$actor->name} took you off {$this->quote($task->title)}",
-            $next->id === $actor->id => "{$actor->name} took over {$this->quote($task->title)}",
-            default => "{$actor->name} reassigned {$this->quote($task->title)} to {$next->name}",
+            $next->isEmpty() => "{$actor->name} took you off {$this->quote($task->title)}",
+            $next->count() === 1 && $next->first()->id === $actor->id => "{$actor->name} took over {$this->quote($task->title)}",
+            default => "{$actor->name} reassigned {$this->quote($task->title)} to {$next->pluck('name')->join(', ', ' and ')}",
         };
 
         $this->deliver(User::whereKey($previousId)->get(), $task, $this->taskRow('unassigned', $message, $task, $actor));
@@ -193,7 +216,7 @@ class NotificationService
             return;
         }
 
-        $ids = collect([$task->team?->team_lead_id, $task->assignee_id])
+        $ids = collect([$task->team?->team_lead_id])->merge($this->assigneeIds($task))
             ->filter()
             ->unique()
             ->reject(fn ($id) => (int) $id === $actor->id);
@@ -238,8 +261,8 @@ class NotificationService
             return;
         }
 
-        $ids = $task->subtasks()->onlyTrashed()->where('trashed_with_parent', true)->pluck('assignee_id')
-            ->push($task->assignee_id)
+        $subtaskIds = $task->subtasks()->onlyTrashed()->where('trashed_with_parent', true)->pluck('id');
+        $ids = DB::table('task_user')->whereIn('task_id', $subtaskIds->push($task->id))->pluck('user_id')
             ->filter()
             ->unique()
             ->reject(fn ($id) => (int) $id === $actor->id);
@@ -260,9 +283,10 @@ class NotificationService
     {
         $this->batch(function () use ($tasks) {
             foreach ($tasks as $task) {
-                if ($task->assignee_id) {
+                $ids = $this->assigneeIds($task);
+                if ($ids->isNotEmpty()) {
                     $message = "Recurring task {$this->quote($task->title)} was created for you";
-                    $this->deliver(User::whereKey($task->assignee_id)->get(), $task, $this->taskRow('assigned', $message, $task));
+                    $this->deliver(User::whereKey($ids->all())->get(), $task, $this->taskRow('assigned', $message, $task));
                 }
             }
         });
@@ -563,8 +587,12 @@ class NotificationService
             ->whereNull('blocked_at')
             ->whereDoesntHave('openBlockers')
             ->get()
-            ->reject(fn (Task $waiting) => (int) $waiting->assignee_id === $actor?->id)
-            ->each(fn (Task $waiting) => $this->deliver(User::whereKey($waiting->assignee_id)->get(), $waiting, new TaskUnblocked($waiting, $finished)));
+            ->each(function (Task $waiting) use ($finished, $actor) {
+                $ids = $this->assigneeIds($waiting)->reject(fn (int $id) => $id === $actor?->id);
+                if ($ids->isNotEmpty()) {
+                    $this->deliver(User::whereKey($ids->all())->get(), $waiting, new TaskUnblocked($waiting, $finished));
+                }
+            });
     }
 
     /**
@@ -580,13 +608,15 @@ class NotificationService
 
         foreach (['due_tomorrow' => $today->copy()->addDay(), 'overdue' => $today->copy()->subDay()] as $kind => $date) {
             Task::query()
-                ->with('assignee')
+                ->with('assignees')
                 ->whereNotNull('assignee_id')
                 ->whereNotIn('status', Task::DONE_STATUSES)
                 ->whereDate('due_date', $date->toDateString())
                 ->each(function (Task $task) use ($kind, &$sent) {
-                    if ($task->assignee && ! $this->alreadyReminded($task->assignee, $task, $kind)) {
-                        $sent += $this->deliver(collect([$task->assignee]), $task, new TaskDueSoon($task, $kind));
+                    foreach ($task->assignees as $assignee) {
+                        if (! $this->alreadyReminded($assignee, $task, $kind)) {
+                            $sent += $this->deliver(collect([$assignee]), $task, new TaskDueSoon($task, $kind));
+                        }
                     }
                 });
         }
@@ -737,8 +767,10 @@ class NotificationService
 
     private function toAssignee(string $kind, string $message, Task $task, ?User $actor): void
     {
-        if ($actor && $task->assignee_id && (int) $task->assignee_id !== $actor->id) {
-            $this->deliver(User::whereKey($task->assignee_id)->get(), $task, $this->taskRow($kind, $message, $task, $actor));
+        $ids = $actor ? $this->assigneeIds($task)->reject(fn (int $id) => $id === $actor->id) : collect();
+
+        if ($ids->isNotEmpty()) {
+            $this->deliver(User::whereKey($ids->all())->get(), $task, $this->taskRow($kind, $message, $task, $actor));
         }
     }
 

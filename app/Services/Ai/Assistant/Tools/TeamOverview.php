@@ -56,14 +56,16 @@ class TeamOverview extends ReadTool
         $sections = [];
         $refs = [];
         foreach ($teams->take(5) as $team) {
-            $tasks = Task::counted()->whereNull('parent_id')->where('team_id', $team->id)->with(['assignee:id,name', 'release:id,name', 'team:id,name'])->get();
+            $tasks = Task::counted()->whereNull('parent_id')->where('team_id', $team->id)->with(['assignees:users.id,users.name', 'release:id,name', 'team:id,name'])->get();
             $open = $tasks->whereNotIn('status', Task::DONE_STATUSES);
             $overdue = $open->filter(fn (Task $t) => $t->due_date?->isPast());
             $unassigned = $open->whereNull('assignee_id');
 
+            // A shared task counts for each of its assignees.
+            $theirs = fn ($set, User $m) => $set->filter(fn (Task $t) => $t->assignees->contains('id', $m->id))->count();
             $people = $team->members()->active()->orderBy('name')->get(['users.id', 'users.name'])
                 ->map(fn (User $m) => sprintf('%s (id %d): %d open, %d overdue.', $m->name, $m->id,
-                    $open->where('assignee_id', $m->id)->count(), $overdue->where('assignee_id', $m->id)->count()));
+                    $theirs($open, $m), $theirs($overdue, $m)));
 
             $entries = $this->tasksheet->entriesFor($team, today());
             $missing = $this->tasksheet->rowUsersFor($team, today(), $entries)

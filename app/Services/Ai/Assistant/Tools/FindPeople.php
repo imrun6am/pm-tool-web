@@ -42,10 +42,12 @@ class FindPeople extends ReadTool
             ->when(filled($input['team_id'] ?? null), fn ($q) => $q->whereHas('teams', fn ($t) => $t->whereKey((int) $input['team_id'])))
             ->orderBy('name')->limit(self::LIMIT)->get();
 
-        $open = Task::visibleTo($user)->counted()->whereNull('parent_id')
-            ->whereNotIn('status', Task::DONE_STATUSES)
-            ->whereIn('assignee_id', $people->pluck('id'))
-            ->selectRaw('assignee_id, count(*) as n')->groupBy('assignee_id')->pluck('n', 'assignee_id');
+        // A shared task counts for each of its assignees.
+        $open = Task::visibleTo($user)->counted()->whereNull('tasks.parent_id')
+            ->whereNotIn('tasks.status', Task::DONE_STATUSES)
+            ->join('task_user', 'task_user.task_id', '=', 'tasks.id')
+            ->whereIn('task_user.user_id', $people->pluck('id'))
+            ->selectRaw('task_user.user_id as user_id, count(*) as n')->groupBy('task_user.user_id')->pluck('n', 'user_id');
 
         $lines = $people->map(fn (User $p) => sprintf('%s (id %d), %s; teams: %s; open tasks: %d.',
             $p->name, $p->id, $p->roleLabel(), $p->teams->pluck('name')->implode(', ') ?: 'none', (int) ($open[$p->id] ?? 0)));

@@ -90,7 +90,7 @@ class BoardController extends ApiController
         );
 
         return $this->created(
-            new TaskResource($task->load(['release.project', 'team', 'assignee'])->loadCount('comments')),
+            new TaskResource($task->load(['release.project', 'team', 'assignee', 'assignees'])->loadCount('comments')),
             'Task added to the board.'
         );
     }
@@ -108,7 +108,7 @@ class BoardController extends ApiController
         );
 
         return $this->ok(
-            new TaskResource($task->fresh()->load(['release.project', 'team', 'assignee'])->loadCount('comments')),
+            new TaskResource($task->fresh()->load(['release.project', 'team', 'assignee', 'assignees'])->loadCount('comments')),
             'Card moved.'
         );
     }
@@ -120,17 +120,21 @@ class BoardController extends ApiController
 
         return $this->ok([
             'assignee_id' => $task->assignee_id,
+            'assignee_ids' => $task->assigneeIds(),
             'people' => UserSummaryResource::collection($this->tasks->cardAssignees($task, $request->user()))->resolve($request),
         ]);
     }
 
-    /** Set the card's assignee, or clear it with `assignee_id: null`. Nothing else changes. */
+    /**
+     * Set the card's assignees with `assignee_ids`, or one with `assignee_id`
+     * (null clears them). Nothing else changes.
+     */
     public function assign(AssignTaskRequest $request, Task $task): JsonResponse
     {
-        $this->board->assign($task, $request->validated('assignee_id'));
+        $this->board->assign($task, $request->validated());
 
         return $this->ok(
-            new TaskResource($task->load(['release.project', 'team', 'assignee'])->loadCount('comments')),
+            new TaskResource($task->load(['release.project', 'team', 'assignee', 'assignees'])->loadCount('comments')),
             $task->assignee_id ? 'Task assigned.' : 'Task unassigned.'
         );
     }

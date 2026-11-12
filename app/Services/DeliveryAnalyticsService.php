@@ -301,7 +301,7 @@ class DeliveryAnalyticsService
     }
 
     /**
-     * The busiest assignees in scope.
+     * The busiest assignees in scope. Each assignee of a shared task counts it.
      *
      * @param  \Closure(): Builder  $open
      * @return list<array{user: User, open: int, inProgress: int, inReview: int, overdue: int}>
@@ -309,17 +309,17 @@ class DeliveryAnalyticsService
     private function peopleLoad(\Closure $open, Carbon $today): array
     {
         $rows = $open()
-            ->whereNotNull('assignee_id')
+            ->join('task_user', 'task_user.task_id', '=', 'tasks.id')
             ->selectRaw(
-                'assignee_id, count(*) as open_count,
-                 sum(case when status = ? then 1 else 0 end) as in_progress,
-                 sum(case when status = ? then 1 else 0 end) as in_review,
-                 sum(case when due_date < ? then 1 else 0 end) as overdue',
+                'task_user.user_id as assignee_id, count(*) as open_count,
+                 sum(case when tasks.status = ? then 1 else 0 end) as in_progress,
+                 sum(case when tasks.status = ? then 1 else 0 end) as in_review,
+                 sum(case when tasks.due_date < ? then 1 else 0 end) as overdue',
                 ['in_progress', 'in_review', $today->toDateString()]
             )
-            ->groupBy('assignee_id')
+            ->groupBy('task_user.user_id')
             ->orderByDesc('open_count')
-            ->orderBy('assignee_id')
+            ->orderBy('task_user.user_id')
             ->limit(self::PEOPLE_LIMIT)
             ->get();
 
@@ -507,7 +507,7 @@ class DeliveryAnalyticsService
     private function mine(User $user, Carbon $today): array
     {
         $row = Task::query()
-            ->where('assignee_id', $user->id)
+            ->assignedTo($user)
             ->whereNotIn('status', Task::DONE_STATUSES)
             ->selectRaw(
                 'count(*) as open_count,

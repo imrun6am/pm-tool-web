@@ -39,7 +39,7 @@ class OnboardingService
                 'key' => 'finish_task',
                 'label' => 'Finish a task',
                 'description' => 'Drag a card to Done on the board.',
-                'done' => Task::where('assignee_id', $user->id)->where('status', 'done')->exists(),
+                'done' => Task::assignedTo($user)->where('status', 'done')->exists(),
                 'action' => 'board.index',
             ],
             [

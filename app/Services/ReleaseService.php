@@ -349,8 +349,8 @@ class ReleaseService
     public function assignableUsers(Release $release): Collection
     {
         $current = $release->relationLoaded('rootTasks')
-            ? collect($release->rootTasks)->map->assignee->filter()
-                ->concat(collect($release->rootTasks)->flatMap(fn ($t) => $t->subtasks->map->assignee)->filter())
+            ? collect($release->rootTasks)->flatMap->assignees
+                ->concat(collect($release->rootTasks)->flatMap(fn ($t) => $t->subtasks->flatMap->assignees))
             : collect();
 
         return $release->team->members()->active()->orderBy('name')->get()

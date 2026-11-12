@@ -127,15 +127,17 @@ class TasksheetService
             return collect();
         }
 
+        // A shared task is listed under each of its assignees.
         return Task::query()
-            ->whereIn('assignee_id', $userIds)
-            ->whereNotIn('status', Task::DONE_STATUSES)
-            ->orderByRaw('CASE WHEN priority IS NULL THEN 1 ELSE 0 END')
-            ->orderByRaw("CASE priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END")
-            ->orderByRaw('CASE WHEN due_date IS NULL THEN 1 ELSE 0 END')
-            ->orderBy('due_date')
-            ->orderBy('id')
-            ->get(['id', 'title', 'assignee_id'])
+            ->join('task_user', 'task_user.task_id', '=', 'tasks.id')
+            ->whereIn('task_user.user_id', $userIds)
+            ->whereNotIn('tasks.status', Task::DONE_STATUSES)
+            ->orderByRaw('CASE WHEN tasks.priority IS NULL THEN 1 ELSE 0 END')
+            ->orderByRaw("CASE tasks.priority WHEN 'urgent' THEN 0 WHEN 'high' THEN 1 WHEN 'medium' THEN 2 ELSE 3 END")
+            ->orderByRaw('CASE WHEN tasks.due_date IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('tasks.due_date')
+            ->orderBy('tasks.id')
+            ->get(['tasks.id', 'tasks.title', 'task_user.user_id as assignee_id'])
             ->groupBy('assignee_id');
     }
 

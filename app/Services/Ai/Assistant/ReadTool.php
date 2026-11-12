@@ -32,11 +32,13 @@ abstract class ReadTool extends AssistantTool
     protected static function taskLine(Task $task): array
     {
         $ref = "T{$task->id}";
+        // Everyone on it, the lead first. Callers eager-load `assignees`.
+        $people = $task->assigneeList()->map(fn (User $u) => "{$u->name} (id {$u->id})");
 
         return [
-            sprintf('[%s] %s; status %s; priority %s; assignee %s (id %s); due %s%s; release %s; team %s.',
+            sprintf('[%s] %s; status %s; priority %s; %s %s; due %s%s; release %s; team %s.',
                 $ref, $task->title, $task->statusLabel(), $task->priority ?? 'none',
-                $task->assignee?->name ?? 'none', $task->assignee_id ?? '-',
+                $people->count() > 1 ? 'assignees' : 'assignee', $people->implode(', ') ?: 'none',
                 $task->due_date?->toDateString() ?? 'none',
                 $task->due_date && $task->due_date->isPast() && ! in_array($task->status, Task::DONE_STATUSES, true) ? ' (overdue)' : '',
                 $task->release?->name ?? 'none', $task->team?->name ?? 'none'),

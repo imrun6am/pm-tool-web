@@ -104,7 +104,9 @@ class AssigneeSuggester
     /** Active people who could do the work: on the task's team when it has one and they're on it. */
     private function eligible(Task $task, Collection $people): Collection
     {
-        $people = $people->filter(fn (User $u) => $u->id !== $task->assignee_id && $u->isActive() && ! $u->isViewer())->values();
+        // Nobody already on the task.
+        $assigned = $task->assignees()->pluck('users.id');
+        $people = $people->filter(fn (User $u) => ! $assigned->contains($u->id) && $u->isActive() && ! $u->isViewer())->values();
 
         if ($task->team_id) {
             $members = $task->team?->members()->pluck('users.id') ?? collect();
@@ -121,15 +123,19 @@ class AssigneeSuggester
     {
         $ids = $people->pluck('id')->all();
 
-        $open = Task::query()->whereIn('assignee_id', $ids)->whereNotIn('status', Task::DONE_STATUSES)
-            ->get(['assignee_id', 'due_date'])->groupBy('assignee_id');
+        // A shared task counts for each of its assignees.
+        $assigned = fn () => Task::query()->join('task_user', 'task_user.task_id', '=', 'tasks.id')
+            ->whereIn('task_user.user_id', $ids);
+
+        $open = $assigned()->whereNotIn('tasks.status', Task::DONE_STATUSES)
+            ->get(['task_user.user_id as assignee_id', 'tasks.due_date'])->groupBy('assignee_id');
 
         // Only tasks this viewer may see, so a reason can't reveal another team's work.
-        $recent = Task::query()->visibleTo($viewer)->whereIn('assignee_id', $ids)
-            ->where('status', 'done')->whereNull('parent_id')
-            ->where('updated_at', '>=', now()->subMonths(6))
-            ->latest('updated_at')->limit(count($ids) * self::RECENT_PER_PERSON * 3)
-            ->get(['assignee_id', 'title'])->groupBy('assignee_id');
+        $recent = $assigned()->visibleTo($viewer)
+            ->where('tasks.status', 'done')->whereNull('tasks.parent_id')
+            ->where('tasks.updated_at', '>=', now()->subMonths(6))
+            ->latest('tasks.updated_at')->limit(count($ids) * self::RECENT_PER_PERSON * 3)
+            ->get(['task_user.user_id as assignee_id', 'tasks.title'])->groupBy('assignee_id');
 
         $leave = TasksheetEntry::query()->whereIn('user_id', $ids)->whereNotNull('leave_type')
             ->whereDate('date', '>=', today()->toDateString())

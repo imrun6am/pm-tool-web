@@ -393,8 +393,30 @@
     .board-assign[hidden] {
         @apply hidden;
     }
-    .board-assign-select {
-        @apply -mx-1 h-7 min-w-0 flex-1 rounded-md py-0 pl-1.5 text-xs;
+    /* The card's assignee checklist, in <body> so the board never clips it; a bottom sheet on phones. */
+    .board-assign-panel {
+        @apply fixed inset-x-0 bottom-0 z-[60] flex max-h-[70vh] flex-col overflow-hidden rounded-b-none sm:inset-x-auto sm:bottom-auto sm:w-64 sm:rounded-b-xl;
+    }
+    .board-assign-panel[aria-busy="true"] .board-assign-list {
+        @apply opacity-60;
+    }
+    .board-assign-list {
+        @apply max-h-60 min-h-0 flex-1 overflow-y-auto p-1.5 sm:max-h-64;
+    }
+    .board-assign-option {
+        @apply flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-slate-700 transition-colors hover:bg-brand-50 hover:text-brand-700;
+    }
+    .board-assign-lead {
+        @apply ml-auto flex-none text-xs text-slate-400;
+    }
+    .board-assign-foot {
+        @apply flex items-center gap-2 border-t border-slate-100 px-3 py-2 text-xs;
+    }
+    .board-assign-count {
+        @apply mr-auto text-slate-500;
+    }
+    .board-assign-clear {
+        @apply font-medium text-slate-500 hover:text-rose-600;
     }
 
     /* Feed list (notes / meeting rows) */

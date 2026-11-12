@@ -75,7 +75,7 @@ class ReleaseRiskGenerator implements InsightGenerator
         $release->loadMissing(['project', 'team', 'phases', 'offDays']);
         $today = today();
 
-        $tasks = $release->tasks()->counted()->whereNull('parent_id')->with('assignee:id,name')->get();
+        $tasks = $release->tasks()->counted()->whereNull('parent_id')->with('assignees:users.id,users.name')->get();
         $open = $tasks->where('status', '!=', 'done');
         $overdue = $open->filter(fn (Task $t) => $t->due_date && $t->due_date->lt($today));
         $stalled = $open->filter(fn (Task $t) => in_array($t->status, ['in_progress', 'in_review'], true)
@@ -105,7 +105,8 @@ class ReleaseRiskGenerator implements InsightGenerator
         $taskLine = fn (Task $t) => [
             'title' => mb_strimwidth($t->title, 0, 140, '…'),
             'status' => $t->statusLabel(),
-            'assignee' => $t->assignee?->name,
+            // Everyone on it, the lead first.
+            'assignees' => $t->assigneeList()->pluck('name')->all(),
             'due' => $t->due_date?->toDateString(),
             'last_update' => $t->updated_at->toDateString(),
         ];

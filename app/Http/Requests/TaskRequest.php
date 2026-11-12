@@ -45,6 +45,13 @@ class TaskRequest extends FormRequest
         if ($this->boolean('label_ids_sent') && ! $this->has('label_ids')) {
             $this->merge(['label_ids' => []]);
         }
+        // The same for the assignee picker, whose hidden inputs may be blank.
+        if ($this->boolean('assignee_ids_sent') && ! $this->has('assignee_ids')) {
+            $this->merge(['assignee_ids' => []]);
+        }
+        if (is_array($this->input('assignee_ids'))) {
+            $this->merge(['assignee_ids' => array_values(array_filter($this->input('assignee_ids'), 'filled'))]);
+        }
 
         // A subtask's team is its parent's, and a release's task is the
         // release's team's — only a standalone task or an edit takes one.
@@ -71,6 +78,9 @@ class TaskRequest extends FormRequest
             'description' => ['nullable', 'string', 'max:5000'],
             'status' => ['nullable', Rule::in(array_keys(Task::STATUSES))],
             'assignee_id' => ['nullable', 'integer', Rule::exists('users', 'id'), $this->assigneeOnTeam(...)],
+            // The full list; assignee_id then only picks the lead among them.
+            'assignee_ids' => ['sometimes', 'array', 'max:'.Task::MAX_ASSIGNEES],
+            'assignee_ids.*' => ['integer', 'distinct', Rule::exists('users', 'id'), $this->assigneeOnTeam(...)],
             'due_date' => ['nullable', 'date'],
             'phase' => ['nullable', Rule::in(array_keys(Release::PHASES))],
             'priority' => ['nullable', Rule::in(array_keys(Task::PRIORITIES))],
@@ -87,12 +97,13 @@ class TaskRequest extends FormRequest
             'estimate_minutes.integer' => 'Enter the estimate like 4h or 1h 30m.',
             'estimate_minutes.min' => 'Enter the estimate like 4h or 1h 30m.',
             'estimate_minutes.max' => 'That estimate is too long. Split the work into smaller tasks.',
+            'assignee_ids.max' => 'A task can have at most '.Task::MAX_ASSIGNEES.' assignees.',
         ];
     }
 
     /**
      * Assignees are team-wise: they must belong to the release's owning team.
-     * Keeping a task's unchanged assignee is allowed even if that person has
+     * Keeping someone already assigned is allowed even if that person has
      * since left the team. A task with no release may go to anyone.
      */
     private function assigneeOnTeam(string $attribute, mixed $value, \Closure $fail): void
@@ -105,8 +116,8 @@ class TaskRequest extends FormRequest
             return;
         }
 
-        if ($task && (int) $value === $task->assignee_id) {
-            return; // unchanged
+        if ($task && $task->hasAssignee((int) $value)) {
+            return; // already assigned
         }
 
         $isMember = $release->team->members()->whereKey((int) $value)->exists();

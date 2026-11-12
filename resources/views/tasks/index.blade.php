@@ -237,7 +237,7 @@
                                             </td>
                                             <td class="hidden whitespace-nowrap md:table-cell">
                                                 @if ($task->assignee)
-                                                    <span class="flex items-center gap-1.5 text-sm text-slate-700"><x-avatar :user="$task->assignee" size="xs" />{{ $task->assignee->name }}</span>
+                                                    <span class="flex items-center gap-1.5 text-sm text-slate-700">@include('partials.assignee-stack', ['people' => $task->assigneeList(), 'size' => 'xs', 'names' => 'first'])</span>
                                                 @else
                                                     <span class="text-sm text-slate-400">Unassigned</span>
                                                 @endif

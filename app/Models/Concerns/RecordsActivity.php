@@ -65,6 +65,31 @@ trait RecordsActivity
     }
 
     /**
+     * Log a change that isn't a column on this model, such as a relation's
+     * members, as an ordinary `updated` entry.
+     *
+     * @param  array<string, mixed>  $old
+     * @param  array<string, mixed>  $new
+     */
+    public function recordFieldChange(array $old, array $new): void
+    {
+        if (! static::$activityLoggingEnabled || $old == $new) {
+            return;
+        }
+
+        Activity::create([
+            'log_name' => $this->activityLogName(),
+            'description' => mb_strimwidth($this->activityDescription('updated'), 0, 255, '…'),
+            'event' => 'updated',
+            'subject_type' => $this->getMorphClass(),
+            'subject_id' => $this->getKey(),
+            'causer_id' => Auth::id(),
+            'release_id' => $this->activityReleaseId(),
+            'properties' => ['old' => $old, 'attributes' => $new],
+        ]);
+    }
+
+    /**
      * @return array<string, mixed>
      */
     protected function activityProperties(string $event): array

@@ -97,8 +97,8 @@ class ScoreEvidence
             ->whereBetween('changed_at', [$from->copy()->startOfDay(), $to->copy()->endOfDay()])
             ->pluck('task_id')->unique();
 
-        $completed = Task::whereIn('id', $doneIds)->where('assignee_id', $member->id)->limit(60)->pluck('title')->all();
-        $open = Task::counted()->where('assignee_id', $member->id)->where('status', '!=', 'done');
+        $completed = Task::whereIn('id', $doneIds)->assignedTo($member)->limit(60)->pluck('title')->all();
+        $open = Task::counted()->assignedTo($member)->where('status', '!=', 'done');
 
         return [
             'completed' => $completed,

@@ -3,6 +3,9 @@
     'options' => [],        // iterable of ['value' => ..., 'label' => ..., 'hint' => ?]
     'selected' => [],       // pre-selected values
     'placeholder' => 'Select…',
+    'form' => null,         // a form id, for a control that sits outside its form
+    'sentName' => null,     // also submit name=1, so choosing nobody still sends the field
+    'id' => null,           // for a <label for>
 ])
 @php
     $opts = collect($options)->map(fn ($o) => [
@@ -19,7 +22,13 @@
         query: '',
         options: @js($opts),
         selected: @js($sel),
-        toggle(v) { this.selected = this.selected.includes(v) ? this.selected.filter(x => x !== v) : [...this.selected, v]; },
+        toggle(v) { this.selected = this.selected.includes(v) ? this.selected.filter(x => x !== v) : [...this.selected, v]; this.changed(); },
+        clear() { this.selected = []; this.changed(); },
+        {{-- Tell the page (a save bar, say) the field changed, as a native control would. --}}
+        {{-- Held from init: $refs looked up from a removed chip finds nothing. --}}
+        sent: null,
+        init() { this.sent = this.$refs.sent; },
+        changed() { this.$nextTick(() => this.sent.dispatchEvent(new Event('change', { bubbles: true }))); },
         labelFor(v) { const o = this.options.find(o => o.value === v); return o ? o.label : v; },
         filtered() { const q = this.query.trim().toLowerCase(); return q ? this.options.filter(o => o.label.toLowerCase().includes(q) || (o.hint || '').toLowerCase().includes(q)) : this.options; },
     }"
@@ -29,12 +38,13 @@
     data-selected="{{ $sel->implode(',') }}"
 >
     {{-- Submitted values --}}
+    <input type="hidden" x-ref="sent" @if ($sentName) name="{{ $sentName }}" value="1" @endif @if ($form) form="{{ $form }}" @endif>
     <template x-for="v in selected" :key="v">
-        <input type="hidden" name="{{ $name }}[]" :value="v">
+        <input type="hidden" name="{{ $name }}[]" :value="v" @if ($form) form="{{ $form }}" @endif>
     </template>
 
     {{-- Control: selected chips + open toggle. min-h-[2.5rem] matches native .field-input/.field-select (40px). --}}
-    <button type="button" @click="open = !open"
+    <button type="button" @click="open = !open" @if ($id) id="{{ $id }}" @endif
             :aria-expanded="open.toString()" aria-haspopup="listbox"
             class="flex min-h-[2.5rem] w-full flex-wrap items-center gap-1.5 rounded-lg border border-slate-300 bg-white px-2.5 py-1 text-left text-sm text-slate-800 shadow-[0_1px_2px_0_rgb(15_23_42/0.04)] transition hover:border-slate-400 focus:border-brand-500 focus:outline-none focus:ring-4 focus:ring-brand-500/15"
             :class="open && 'border-brand-500 ring-4 ring-brand-500/15'">
@@ -78,7 +88,7 @@
         </ul>
         <div x-show="selected.length" class="flex items-center justify-between border-t border-slate-100 px-3 py-1.5 text-xs">
             <span class="text-slate-400"><span x-text="selected.length"></span> selected</span>
-            <button type="button" @click="selected = []" class="font-medium text-slate-500 hover:text-rose-600">Clear all</button>
+            <button type="button" @click="clear()" class="font-medium text-slate-500 hover:text-rose-600">Clear all</button>
         </div>
     </div>
 </div>

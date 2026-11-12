@@ -36,7 +36,10 @@ class TaskService
     /** What the task list can sort by. */
     public const SORTS = ['title', 'status', 'priority', 'assignee', 'due_date', 'updated_at'];
 
-    public function __construct(private readonly NotificationService $notifications) {}
+    public function __construct(
+        private readonly NotificationService $notifications,
+        private readonly TaskAssignees $assignees,
+    ) {}
 
     /**
      * The cross-release task query, limited to what `$viewer` may see when given.
@@ -48,7 +51,7 @@ class TaskService
     {
         return Task::query()
             ->when($viewer, fn ($q) => $q->visibleTo($viewer))
-            ->with(['release.project', 'team', 'assignee', 'creator', 'labels'])
+            ->with(['release.project', 'team', 'assignee', 'assignees', 'creator', 'labels'])
             ->withCount(['comments', 'subtasks'])
             ->withExists('openBlockers as has_open_blockers')
             ->unless($filters['include_subtasks'] ?? false, fn ($q) => $q->whereNull('parent_id'))
@@ -102,7 +105,8 @@ class TaskService
 
     /**
      * Change many tasks together, all or none. Each goes through the model, so
-     * status history, the activity log and notifications all follow.
+     * status history, the activity log and notifications all follow. An
+     * `assignee_id` makes that person each task's only assignee.
      *
      * @param  iterable<int, Task>  $tasks
      * @param  array{attributes?: array<string, mixed>, add_label_id?: int}  $changes
@@ -113,9 +117,16 @@ class TaskService
         return $this->notifications->batch(fn () => DB::transaction(function () use ($tasks, $changes) {
             $count = 0;
 
+            $attributes = $changes['attributes'] ?? [];
+
             foreach ($tasks as $task) {
-                if ($changes['attributes'] ?? []) {
-                    $task->update($changes['attributes']);
+                if ($attributes) {
+                    $task->update($attributes);
+                }
+                // "Assign to" hands each task to that one person (or nobody),
+                // even one who already led it with others.
+                if (array_key_exists('assignee_id', $attributes) && count($task->assigneeIds()) > 1) {
+                    $this->assignees->sync($task, $attributes['assignee_id'] === null ? [] : [(int) $attributes['assignee_id']], direct: true);
                 }
                 if ($changes['add_label_id'] ?? null) {
                     $task->labels()->syncWithoutDetaching([$changes['add_label_id']]);
@@ -137,10 +148,10 @@ class TaskService
     {
         return $release->rootTasks()
             ->when($viewer, fn ($q) => $q->visibleTo($viewer))
-            ->with(['assignee', 'creator', 'subtasks.assignee', 'labels'])
+            ->with(['assignee', 'assignees', 'creator', 'subtasks.assignee', 'subtasks.assignees', 'labels'])
             ->withCount(['comments', 'subtasks'])
             ->withExists('openBlockers as has_open_blockers')
-            ->when($filters['assignee_id'] ?? null, fn ($q, $id) => $q->where('assignee_id', $id))
+            ->when($filters['assignee_id'] ?? null, fn ($q, $id) => self::whereIdOrNone($q, 'assignee_id', $id))
             ->when($filters['status'] ?? null, fn ($q, $status) => $q->where('status', $status))
             ->when($filters['phase'] ?? null, fn ($q, $phase) => $q->where('phase', $phase))
             ->getQuery();
@@ -166,15 +177,21 @@ class TaskService
 
     /**
      * Narrow a task query on `release_id` / `team_id` / `assignee_id` to one id,
-     * or to tasks with none set for NONE.
+     * or to tasks with none set for NONE. An assignee id matches any of a
+     * task's assignees; NONE on assignee_id is "nobody", since the lead is
+     * null exactly when the task has no assignees.
      *
      * @param  Builder<Task>  $query
      * @return Builder<Task>
      */
     public static function whereIdOrNone(Builder $query, string $column, int|string $value): Builder
     {
-        return $value === self::NONE
-            ? $query->whereNull($column)
+        if ($value === self::NONE) {
+            return $query->whereNull($column);
+        }
+
+        return $column === 'assignee_id'
+            ? $query->assignedTo((int) $value)
             : $query->where($column, (int) $value);
     }
 
@@ -187,18 +204,53 @@ class TaskService
     public function create(array $attributes, User $author): Task
     {
         $releaseId = isset($attributes['release_id']) ? (int) $attributes['release_id'] : null;
+        $assignees = TaskAssignees::requested($attributes);
+        $lead = $assignees ? self::leadOf($assignees) : null;
 
-        return $this->withLabels(Task::create($this->attributes($attributes, [
+        $task = new Task($this->attributes(['assignee_id' => $lead] + $attributes, [
             'release_id' => $releaseId,
             'team_id' => self::teamFor(
                 $releaseId,
                 isset($attributes['team_id']) ? (int) $attributes['team_id'] : null,
-                isset($attributes['assignee_id']) ? (int) $attributes['assignee_id'] : null,
+                $lead,
             ),
             'parent_id' => null,
             'position' => self::nextPosition($releaseId),
             'created_by' => $author->id,
-        ])), $attributes);
+        ]));
+
+        return $this->withLabels($this->saveNew($task, $assignees), $attributes);
+    }
+
+    /**
+     * Save a new task, then give it its assignees, so each one is told once.
+     *
+     * @param  array{ids: list<int>, lead: ?int}|null  $assignees
+     */
+    private function saveNew(Task $task, ?array $assignees): Task
+    {
+        $task->assignee_id = $assignees ? self::leadOf($assignees) : null;
+        $task->syncingAssignees = true;
+        try {
+            $task->save();
+        } finally {
+            $task->syncingAssignees = false;
+        }
+
+        if ($assignees && $assignees['ids']) {
+            // The lead is already on the row; this fills the list and tells everyone.
+            $this->assignees->sync($task, $assignees['ids'], (int) $task->assignee_id);
+        }
+
+        return $task;
+    }
+
+    /** @param  array{ids: list<int>, lead: ?int}  $assignees */
+    private static function leadOf(array $assignees): ?int
+    {
+        return $assignees['lead'] !== null && in_array($assignees['lead'], $assignees['ids'], true)
+            ? $assignees['lead']
+            : ($assignees['ids'][0] ?? null);
     }
 
     /**
@@ -246,13 +298,15 @@ class TaskService
     {
         abort_if($parent->isSubtask(), 422, 'A subtask cannot have its own subtasks.');
 
-        return $this->withLabels($parent->subtasks()->create($this->attributes($attributes, [
+        $task = new Task($this->attributes($attributes, [
             'release_id' => $parent->release_id,
             'team_id' => $parent->team_id,
             'parent_id' => $parent->id,
             'position' => $parent->subtasks()->count(),
             'created_by' => $author->id,
-        ])), $attributes);
+        ]));
+
+        return $this->withLabels($this->saveNew($task, TaskAssignees::requested($attributes)), $attributes);
     }
 
     /**
@@ -274,8 +328,17 @@ class TaskService
             $attributes['team_id'] = self::teamFor((int) $releaseId);
         }
 
-        DB::transaction(function () use ($task, $attributes) {
+        // Other fields first: people already assigned hear about a new due
+        // date, and people added now hear only that they were added.
+        $assignees = TaskAssignees::requested($attributes, $task);
+        unset($attributes['assignee_id'], $attributes['assignee_ids']);
+
+        DB::transaction(function () use ($task, $attributes, $assignees) {
             $task->update($this->attributes($attributes));
+
+            if ($assignees !== null) {
+                $this->assignees->sync($task, $assignees['ids'], $assignees['lead']);
+            }
 
             if ($task->wasChanged(['release_id', 'team_id'])) {
                 $task->subtasks()->toBase()->update(['release_id' => $task->release_id, 'team_id' => $task->team_id]);
@@ -314,15 +377,15 @@ class TaskService
     /**
      * Assignable people for a task: the release team's active members (every
      * active user when the task has no release; only their own teammates for a
-     * developer or QA viewer) plus any current assignee who has since left, so
-     * nothing renders blank.
+     * developer or QA viewer) plus any current assignee (of the task or its
+     * subtasks) who has since left, so nothing renders blank.
      *
      * @return Collection<int, User>
      */
     public function assignableUsers(Task $task, ?User $viewer = null): Collection
     {
-        $current = collect([$task->assignee])
-            ->merge($task->subtasks->map->assignee)
+        $current = $task->assignees
+            ->concat($task->subtasks->flatMap->assignees)
             ->filter();
 
         return $this->assignablePool($task, $viewer)->concat($current)
@@ -333,14 +396,14 @@ class TaskService
 
     /**
      * Who `$viewer` may pick for a board card: the same pool, plus the card's
-     * own assignee. Not its subtasks' assignees, who may be from other teams
+     * own assignees. Not its subtasks' assignees, who may be from other teams
      * and could not be picked anyway.
      *
      * @return Collection<int, User>
      */
     public function cardAssignees(Task $task, User $viewer): Collection
     {
-        return $this->assignablePool($task, $viewer)->concat(collect([$task->assignee])->filter())
+        return $this->assignablePool($task, $viewer)->concat($task->assignees)
             ->unique('id')
             ->sortBy('name')
             ->values();

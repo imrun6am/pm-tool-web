@@ -105,7 +105,7 @@ class BoardService
         $tasks = Task::query()
             ->when($viewer, fn ($q) => $q->visibleTo($viewer))
             ->whereNull('parent_id') // top-level tasks are the cards
-            ->with(['release.project', 'team', 'assignee', 'subtasks', 'labels'])
+            ->with(['release.project', 'team', 'assignee', 'assignees', 'subtasks', 'labels'])
             ->withExists('openBlockers as has_open_blockers')
             ->withMax('statusChanges', 'changed_at')
             ->tap(fn ($q) => TaskService::whereFields($q, $filters))
@@ -142,13 +142,20 @@ class BoardService
     }
 
     /**
-     * Give a card an assignee, or none. Only that column changes:
-     * TaskService::update() would default a missing status back to the first
-     * column. The activity log and the assignment notice follow the model write.
+     * Set a card's assignees: `assignee_ids` for the whole list, or
+     * `assignee_id` alone (see TaskAssignees::requested()). Only the assignees
+     * change: TaskService::update() would default a missing status back to the
+     * first column. TaskAssignees logs it and tells whoever was added.
+     *
+     * @param  array{assignee_id?: int|string|null, assignee_ids?: array<int, int|string>}  $data
      */
-    public function assign(Task $task, ?int $assigneeId): Task
+    public function assign(Task $task, array $data): Task
     {
-        $task->update(['assignee_id' => $assigneeId]);
+        $requested = TaskAssignees::requested($data, $task);
+
+        if ($requested !== null) {
+            app(TaskAssignees::class)->sync($task, $requested['ids'], $requested['lead']);
+        }
 
         return $task;
     }

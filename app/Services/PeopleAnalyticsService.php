@@ -41,6 +41,11 @@ use Illuminate\Support\Facades\DB;
  * meetings, meeting notes, comments and AI uses can't be split that way, so
  * they stay whole-person; a team row sums them over its members.
  *
+ * A task with several assignees counts in full for each of them, with its
+ * estimate (and logged time, for the estimate comparison) split evenly. Team
+ * rows and the summary count each task once instead, from `teamParts`, under
+ * the lead's team when the task has none of its own.
+ *
  * Tasksheet feedback and rating notes are never read, and private events are
  * left out: they're only for their creator and attendees.
  */
@@ -60,6 +65,13 @@ class PeopleAnalyticsService
 
     /** Rows of each task list on a person's page. The CSV has them all. */
     public const TASK_LIST_LIMIT = 25;
+
+    /** Parts read from tasks, which a group takes from `teamParts` so a shared task counts once. */
+    private const TASK_PARTS = [
+        'completed', 'dated', 'onTime', 'reworked', 'cycles', 'leads',
+        'open', 'todo', 'inProgress', 'inReview', 'recheck', 'overdue',
+        'blockedNow', 'blockedSeconds', 'unestimated', 'comparedTasks', 'estimatedMinutes', 'comparedLogged',
+    ];
 
     public function __construct(
         private readonly TaskCompletions $completions,
@@ -95,7 +107,7 @@ class PeopleAnalyticsService
         $facts = $this->facts($filters['from'], $filters['to']);
         $people = $this->peopleRows($facts, $teamId);
 
-        $parts = $this->merge(array_column($people, 'parts'));
+        $parts = array_replace($this->merge(array_column($people, 'parts')), $this->taskParts($facts, $teamId));
         $whole = $this->mergeWhole(array_column($people, 'whole'));
         $summary = $this->record($parts, $whole, $this->averageRating($people), $this->sumKpi($people));
 
@@ -103,7 +115,7 @@ class PeopleAnalyticsService
         $before = $this->facts($previous['from'], $previous['to'], light: true);
         $beforeRows = $this->peopleRows($before, $teamId);
         $previousSummary = $this->record(
-            $this->merge(array_column($beforeRows, 'parts')),
+            array_replace($this->merge(array_column($beforeRows, 'parts')), $this->taskParts($before, $teamId)),
             $this->mergeWhole(array_column($beforeRows, 'whole')),
             $this->averageRating($beforeRows),
             $this->sumKpi($beforeRows),
@@ -214,6 +226,7 @@ class PeopleAnalyticsService
             'singleTeam' => $this->singleTeams($memberships),
             'teams' => Team::with('teamLead:id,name')->orderBy('name')->get()->keyBy('id'),
             'parts' => [],
+            'teamParts' => [],
             'sheet' => [],
             'whole' => [],
             'scores' => [],
@@ -278,7 +291,7 @@ class PeopleAnalyticsService
         $completions = $this->completions
             ->since(fn (): Builder => Task::query()
                 ->whereNotNull('assignee_id')
-                ->when($userId, fn ($q) => $q->where('assignee_id', $userId)), $start)
+                ->when($userId, fn ($q) => $q->assignedTo($userId)), $start)
             ->filter(fn (array $c) => $c['completedAt']->lte($end))
             ->values();
 
@@ -290,36 +303,20 @@ class PeopleAnalyticsService
             ->pluck('minutes', 'task_id');
 
         $kept = [];
-        foreach ($completions as $c) {
+        foreach (TaskCompletions::perAssignee($completions) as $c) {
             $uid = (int) $c['assigneeId'];
+            if ($userId && $uid !== $userId) {
+                continue;
+            }
+
             $bucket = $this->bucket($facts, $c['teamId'], $uid);
-            $parts = &$this->parts($facts, $uid, $bucket);
-
-            $parts['completed']++;
-            if ($c['reworked']) {
-                $parts['reworked']++;
-            }
-            if ($c['dueDate'] !== null) {
-                $parts['dated']++;
-                if ($c['completedAt']->toDateString() <= $c['dueDate']->toDateString()) {
-                    $parts['onTime']++;
-                }
-            }
-            if (! $c['estimated']) {
-                $parts['leads'][] = $c['createdAt']->diffInSeconds($c['completedAt']) / 86400;
-                if ($c['startedAt'] !== null) {
-                    $parts['cycles'][] = $c['startedAt']->diffInSeconds($c['completedAt']) / 86400;
-                }
-            }
-
-            // The same rule as the time report: estimated, and with time logged.
             $minutes = (int) ($logged[$c['taskId']] ?? 0);
-            if ($c['estimateMinutes'] > 0 && $minutes > 0) {
-                $parts['comparedTasks']++;
-                $parts['estimatedMinutes'] += $c['estimateMinutes'];
-                $parts['comparedLogged'] += $minutes;
+
+            // Each assignee gets the whole task, and a share of its estimate.
+            $this->addCompletion($this->parts($facts, $uid, $bucket), $c, $minutes, max(1, count($c['assigneeIds'])));
+            if ($c['lead']) {
+                $this->addCompletion($this->teamParts($facts, $bucket), $c, $minutes, 1);
             }
-            unset($parts);
 
             $kept[] = $c + ['bucket' => $bucket];
         }
@@ -327,49 +324,97 @@ class PeopleAnalyticsService
         $facts['completions'] = collect($kept);
     }
 
+    /** One finished task, with its estimate and logged time divided by `$share`. */
+    private function addCompletion(array &$parts, array $c, int $minutes, int $share): void
+    {
+        $parts['completed']++;
+        if ($c['reworked']) {
+            $parts['reworked']++;
+        }
+        if ($c['dueDate'] !== null) {
+            $parts['dated']++;
+            if ($c['completedAt']->toDateString() <= $c['dueDate']->toDateString()) {
+                $parts['onTime']++;
+            }
+        }
+        if (! $c['estimated']) {
+            $parts['leads'][] = $c['createdAt']->diffInSeconds($c['completedAt']) / 86400;
+            if ($c['startedAt'] !== null) {
+                $parts['cycles'][] = $c['startedAt']->diffInSeconds($c['completedAt']) / 86400;
+            }
+        }
+
+        // The same rule as the time report: estimated, and with time logged.
+        if ($c['estimateMinutes'] > 0 && $minutes > 0) {
+            $parts['comparedTasks']++;
+            $parts['estimatedMinutes'] += (int) round($c['estimateMinutes'] / $share);
+            $parts['comparedLogged'] += (int) round($minutes / $share);
+        }
+    }
+
     /** Open work is as of now: the board keeps only the current status. */
     private function addOpenWork(array &$facts, ?int $userId): void
     {
-        $open = Task::query()
-            ->whereNotIn('status', Task::DONE_STATUSES)
-            ->whereNotNull('assignee_id')
-            ->when($userId, fn ($q) => $q->where('assignee_id', $userId))
+        // Per person through task_user, so every assignee counts the task;
+        // per team by the lead alone, so it counts once.
+        $open = fn (bool $perPerson) => Task::query()
+            ->whereNotIn('tasks.status', Task::DONE_STATUSES)
+            ->when($perPerson, fn ($q) => $q->join('task_user', 'task_user.task_id', '=', 'tasks.id')
+                ->when($userId, fn ($q) => $q->where('task_user.user_id', $userId)))
+            ->when(! $perPerson, fn ($q) => $q->whereNotNull('tasks.assignee_id'))
             ->selectRaw(
-                'assignee_id, team_id, status, count(*) as total,'
-                .' sum(case when due_date < ? then 1 else 0 end) as overdue,'
-                .' sum(case when estimate_minutes is null then 1 else 0 end) as unestimated',
+                ($perPerson ? 'task_user.user_id' : 'tasks.assignee_id').' as assignee_id, tasks.team_id as team_id, tasks.status as status, count(*) as total,'
+                .' sum(case when tasks.due_date < ? then 1 else 0 end) as overdue,'
+                .' sum(case when tasks.estimate_minutes is null then 1 else 0 end) as unestimated',
                 [today()->toDateString()]
             )
-            ->groupBy('assignee_id', 'team_id', 'status')
+            ->groupBy($perPerson ? 'task_user.user_id' : 'tasks.assignee_id', 'tasks.team_id', 'tasks.status')
             ->toBase()
             ->get();
 
-        $statusPart = ['todo' => 'todo', 'in_progress' => 'inProgress', 'in_review' => 'inReview', 'recheck' => 'recheck'];
-        foreach ($open as $row) {
-            $parts = &$this->parts($facts, (int) $row->assignee_id, $this->bucket($facts, $row->team_id ? (int) $row->team_id : null, (int) $row->assignee_id));
-            $parts['open'] += (int) $row->total;
-            $parts['overdue'] += (int) $row->overdue;
-            $parts['unestimated'] += (int) $row->unestimated;
-            if (isset($statusPart[$row->status])) {
-                $parts[$statusPart[$row->status]] += (int) $row->total;
-            }
-            unset($parts);
-        }
-
-        $blocked = Task::query()
+        $blocked = fn (bool $perPerson) => Task::query()
             ->blocked()
-            ->whereNotNull('assignee_id')
-            ->when($userId, fn ($q) => $q->where('assignee_id', $userId))
-            ->selectRaw('assignee_id, team_id, count(*) as total')
-            ->groupBy('assignee_id', 'team_id')
+            ->when($perPerson, fn ($q) => $q->join('task_user', 'task_user.task_id', '=', 'tasks.id')
+                ->when($userId, fn ($q) => $q->where('task_user.user_id', $userId)))
+            ->when(! $perPerson, fn ($q) => $q->whereNotNull('tasks.assignee_id'))
+            ->selectRaw(($perPerson ? 'task_user.user_id' : 'tasks.assignee_id').' as assignee_id, tasks.team_id as team_id, count(*) as total')
+            ->groupBy($perPerson ? 'task_user.user_id' : 'tasks.assignee_id', 'tasks.team_id')
             ->toBase()
             ->get();
 
-        foreach ($blocked as $row) {
-            $parts = &$this->parts($facts, (int) $row->assignee_id, $this->bucket($facts, $row->team_id ? (int) $row->team_id : null, (int) $row->assignee_id));
-            $parts['blockedNow'] += (int) $row->total;
-            unset($parts);
+        // A person's own page has no team rows.
+        foreach ($userId ? [true] : [true, false] as $perPerson) {
+            $statusPart = ['todo' => 'todo', 'in_progress' => 'inProgress', 'in_review' => 'inReview', 'recheck' => 'recheck'];
+            foreach ($open($perPerson) as $row) {
+                $parts = &$this->openParts($facts, $row, $perPerson);
+                $parts['open'] += (int) $row->total;
+                $parts['overdue'] += (int) $row->overdue;
+                $parts['unestimated'] += (int) $row->unestimated;
+                if (isset($statusPart[$row->status])) {
+                    $parts[$statusPart[$row->status]] += (int) $row->total;
+                }
+                unset($parts);
+            }
+
+            foreach ($blocked($perPerson) as $row) {
+                $parts = &$this->openParts($facts, $row, $perPerson);
+                $parts['blockedNow'] += (int) $row->total;
+                unset($parts);
+            }
         }
+    }
+
+    /** @return array<string, mixed> the parts a grouped open-work row adds to */
+    private function &openParts(array &$facts, object $row, bool $perPerson): array
+    {
+        $uid = (int) $row->assignee_id;
+        $bucket = $this->bucket($facts, $row->team_id ? (int) $row->team_id : null, $uid);
+
+        if ($perPerson) {
+            return $this->parts($facts, $uid, $bucket);
+        }
+
+        return $this->teamParts($facts, $bucket);
     }
 
     /**
@@ -402,7 +447,7 @@ class PeopleAnalyticsService
             ->whereNotNull('blocked_at')
             ->whereNotIn('status', Task::DONE_STATUSES)
             ->whereNotNull('assignee_id')
-            ->when($userId, fn ($q) => $q->where('assignee_id', $userId))
+            ->when($userId, fn ($q) => $q->assignedTo($userId))
             ->get(['id', 'blocked_at']);
 
         foreach ($flagged as $task) {
@@ -416,9 +461,13 @@ class PeopleAnalyticsService
         $tasks = Task::query()
             ->whereKey(array_unique(array_column($intervals, 0)))
             ->whereNotNull('assignee_id')
-            ->when($userId, fn ($q) => $q->where('assignee_id', $userId))
+            ->when($userId, fn ($q) => $q->assignedTo($userId))
             ->get(['id', 'assignee_id', 'team_id'])
             ->keyBy('id');
+
+        $assignees = DB::table('task_user')->whereIn('task_id', $tasks->keys())
+            ->get(['task_id', 'user_id'])
+            ->groupBy('task_id');
 
         foreach ($intervals as [$taskId, $began, $ended]) {
             $task = $tasks->get($taskId);
@@ -427,11 +476,22 @@ class PeopleAnalyticsService
             }
 
             $seconds = $began->copy()->max($start)->diffInSeconds($ended->copy()->min($until), false);
-            if ($seconds > 0) {
-                $parts = &$this->parts($facts, $task->assignee_id, $this->bucket($facts, $task->team_id, $task->assignee_id));
-                $parts['blockedSeconds'] += (int) $seconds;
-                unset($parts);
+            if ($seconds <= 0) {
+                continue;
             }
+
+            // Each assignee waited the whole time; the team waited it once.
+            foreach ($assignees->get($taskId, collect([(object) ['user_id' => $task->assignee_id]])) as $row) {
+                $uid = (int) $row->user_id;
+                if (! $userId || $uid === $userId) {
+                    $parts = &$this->parts($facts, $uid, $this->bucket($facts, $task->team_id, $uid));
+                    $parts['blockedSeconds'] += (int) $seconds;
+                    unset($parts);
+                }
+            }
+            $parts = &$this->teamParts($facts, $this->bucket($facts, $task->team_id, $task->assignee_id));
+            $parts['blockedSeconds'] += (int) $seconds;
+            unset($parts);
         }
     }
 
@@ -776,6 +836,26 @@ class PeopleAnalyticsService
         return $facts['parts'][$userId][$bucket];
     }
 
+    /** @return array<string, mixed> a team's task parts, each task counted once */
+    private function &teamParts(array &$facts, int $bucket): array
+    {
+        $facts['teamParts'][$bucket] ??= $this->blank();
+
+        return $facts['teamParts'][$bucket];
+    }
+
+    /**
+     * The task parts of one team, or of every team, for a group's row.
+     *
+     * @return array<string, mixed>
+     */
+    private function taskParts(array $facts, ?int $bucket): array
+    {
+        $sets = $bucket === null ? array_values($facts['teamParts']) : array_filter([$facts['teamParts'][$bucket] ?? null]);
+
+        return array_intersect_key($this->merge($sets), array_flip(self::TASK_PARTS));
+    }
+
     /** @return array<string, int> */
     private function &whole(array &$facts, int $userId): array
     {
@@ -962,10 +1042,10 @@ class PeopleAnalyticsService
     /** @return array<string, mixed> */
     private function teamRow(array $facts, int $bucket, string $name, ?string $color, ?User $lead, int $people, bool $archived): array
     {
-        $parts = $this->merge(array_values(array_filter(array_map(
+        $parts = array_replace($this->merge(array_values(array_filter(array_map(
             fn (array $buckets) => $buckets[$bucket] ?? null,
             $facts['parts'],
-        ))));
+        )))), $this->taskParts($facts, $bucket));
 
         $memberIds = $facts['membershipsByTeam']->get($bucket, collect())->pluck('user_id')->map(fn ($id) => (int) $id)->unique();
 
@@ -1244,7 +1324,8 @@ class PeopleAnalyticsService
         }
 
         foreach ($facts['completions'] as $c) {
-            if ((! $teamId || $c['bucket'] === $teamId) && (! $userId || $c['assigneeId'] === $userId)) {
+            // A group counts each task once, by its lead's record.
+            if ((! $teamId || $c['bucket'] === $teamId) && ($userId ? $c['assigneeId'] === $userId : $c['lead'])) {
                 $k = $key($c['completedAt']->toDateString());
                 if (isset($buckets[$k])) {
                     $buckets[$k]['completed']++;
@@ -1305,7 +1386,7 @@ class PeopleAnalyticsService
     private function openTasks(array $facts, User $user, ?int $teamId): array
     {
         return Task::query()
-            ->where('assignee_id', $user->id)
+            ->assignedTo($user)
             ->whereNotIn('status', Task::DONE_STATUSES)
             ->with(['release:id,name', 'team:id,name'])
             ->withExists('openBlockers as has_open_blockers')

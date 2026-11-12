@@ -39,7 +39,7 @@
                 <div class="min-w-0">
                     <a href="{{ route('tasks.show', $task) }}" class="text-sm font-medium text-slate-900 hover:text-brand-600">{{ $task->title }}</a>
                     <div class="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                        @if ($task->assignee) <span>👤 {{ $task->assignee->name }}</span> @endif
+                        @if ($task->assignee) <span>👤 {{ $task->assigneeList()->pluck('name')->implode(', ') }}</span> @endif
                         @if ($task->due_date) <span>📅 {{ $task->due_date->format('M j') }}</span> @endif
                         @if ($task->phase) <span class="rounded bg-slate-100 px-1.5 py-0.5">{{ $task->phaseLabel() }}</span> @endif
                         @if ($progress['total'] > 0) <span>☑ {{ $progress['done'] }}/{{ $progress['total'] }} subtasks</span> @endif

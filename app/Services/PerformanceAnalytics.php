@@ -227,7 +227,7 @@ class PerformanceAnalytics
             'distribution' => $this->distribution($scores, $week),
             'recordWindow' => ['start' => $recordFrom, 'end' => $recordTo, 'weeks' => self::RECORD_WEEKS],
             'records' => $records,
-            'recordTotals' => $this->recordTotals($records),
+            'recordTotals' => $this->recordTotals($records, $this->taskTotals($team, $memberIds, $recordFrom, $recordTo)),
             'topPerformer' => $leaderboard->first(fn ($r) => $r['overall'] !== null),
             'categoryAverages' => $this->teamCategoryAverages($rows),
             'coverage' => [
@@ -412,20 +412,23 @@ class PerformanceAnalytics
             ->get(['user_id', 'date', ...TasksheetEntry::TASK_FIELDS, 'leave_type', 'standup_attended'])
             ->groupBy('user_id');
 
-        $teamTasks = fn () => Task::query()
-            ->whereIn('assignee_id', $memberIds)
-            ->where(fn ($q) => $q->where('team_id', $team->id)->orWhereNull('team_id'));
+        $teamTasks = $this->teamTasks($team, $memberIds);
 
-        $done = $this->completions->since($teamTasks, $from)
-            ->filter(fn (array $c) => $c['completedAt']->lte($to))
+        // Each assignee is credited with the whole task.
+        $ids = $memberIds->map(fn ($id) => (int) $id)->all();
+        $done = TaskCompletions::perAssignee($this->completions->since($teamTasks, $from)
+            ->filter(fn (array $c) => $c['completedAt']->lte($to)))
+            ->filter(fn (array $c) => in_array($c['assigneeId'], $ids, true))
             ->groupBy('assigneeId');
 
         $overdue = $teamTasks()->counted()
-            ->whereNotIn('status', Task::DONE_STATUSES)
-            ->whereDate('due_date', '<', today()->toDateString())
-            ->selectRaw('assignee_id, count(*) as aggregate')
-            ->groupBy('assignee_id')
-            ->pluck('aggregate', 'assignee_id');
+            ->join('task_user', 'task_user.task_id', '=', 'tasks.id')
+            ->whereIn('task_user.user_id', $memberIds)
+            ->whereNotIn('tasks.status', Task::DONE_STATUSES)
+            ->whereDate('tasks.due_date', '<', today()->toDateString())
+            ->selectRaw('task_user.user_id as user_id, count(*) as aggregate')
+            ->groupBy('task_user.user_id')
+            ->pluck('aggregate', 'user_id');
 
         // A member owes rows only from the day they joined this team.
         $joined = DB::table('team_user')
@@ -478,14 +481,49 @@ class PerformanceAnalytics
         return $records;
     }
 
+    /** The tasks a team's record reads: its members' tasks on this team or on none. */
+    private function teamTasks(Team $team, Collection $memberIds): \Closure
+    {
+        return fn () => Task::query()
+            ->assignedToAny($memberIds)
+            ->where(fn ($q) => $q->where('tasks.team_id', $team->id)->orWhereNull('tasks.team_id'));
+    }
+
+    /**
+     * Finished and overdue tasks for the whole team, each task counted once
+     * however many members it's assigned to.
+     *
+     * @return array{completed: int, overdue: int}
+     */
+    private function taskTotals(Team $team, Collection $memberIds, Carbon $from, Carbon $to): array
+    {
+        if ($memberIds->isEmpty()) {
+            return ['completed' => 0, 'overdue' => 0];
+        }
+
+        $teamTasks = $this->teamTasks($team, $memberIds);
+
+        return [
+            'completed' => $this->completions->since($teamTasks, $from)
+                ->filter(fn (array $c) => $c['completedAt']->lte($to))
+                ->count(),
+            'overdue' => $teamTasks()->counted()
+                ->whereNotIn('status', Task::DONE_STATUSES)
+                ->whereDate('due_date', '<', today()->toDateString())
+                ->count(),
+        ];
+    }
+
     /**
      * The team's record as one line: summed counts, and rates recomputed from
-     * the summed parts (not an average of averages).
+     * the summed parts (not an average of averages). Task counts come from
+     * `$tasks`, so a shared task counts once.
      *
      * @param  array<int, array<string, mixed>>  $records
+     * @param  array{completed: int, overdue: int}  $tasks
      * @return array<string, int|float|null>
      */
-    private function recordTotals(array $records): array
+    private function recordTotals(array $records, array $tasks): array
     {
         $sum = fn (string $key) => (int) collect($records)->sum($key);
         $cycles = collect($records)->pluck('cycleDays')->filter(fn ($v) => $v !== null);
@@ -495,9 +533,9 @@ class PerformanceAnalytics
             'daysExpected' => $sum('daysExpected'),
             'tasksheetRate' => Metric::pct($sum('daysLogged'), $sum('daysExpected')),
             'standupRate' => Metric::pct($sum('standupAttended'), $sum('standupMarked')),
-            'completed' => $sum('completed'),
+            'completed' => $tasks['completed'],
             'cycleDays' => $cycles->isNotEmpty() ? round($cycles->avg(), 1) : null,
-            'overdue' => $sum('overdue'),
+            'overdue' => $tasks['overdue'],
         ];
     }
 
@@ -726,7 +764,7 @@ class PerformanceAnalytics
     private function boardPanel(User $member): array
     {
         // Archived tasks are filed away and left out of the record entirely.
-        $tasks = Task::counted()->where('assignee_id', $member->id)->get();
+        $tasks = Task::counted()->assignedTo($member)->get();
         $assigned = $tasks->count();
         $done = $tasks->where('status', 'done')->count();
         $rework = $tasks->where('status', 'recheck')->count();

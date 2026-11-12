@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Concerns\RecordsActivity;
+use App\Services\TaskAssignees;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Prunable;
@@ -12,6 +13,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 
 class Task extends Model
@@ -72,6 +74,15 @@ class Task extends Model
         'low' => 'slate',
     ];
 
+    /** The most people one task can be assigned to. */
+    public const MAX_ASSIGNEES = 10;
+
+    /**
+     * Set by TaskAssignees while it saves the lead, so the saved hook below
+     * doesn't treat that write as a direct one.
+     */
+    public bool $syncingAssignees = false;
+
     /** What comes before the id in a task's short reference, such as PM-123. */
     public const KEY_PREFIX = 'PM';
 
@@ -109,6 +120,20 @@ class Task extends Model
             if ($task->isDirty('status') && in_array($task->status, self::DONE_STATUSES, true)) {
                 $task->blocked_at = null;
                 $task->blocked_reason = null;
+            }
+        });
+
+        // A direct write of assignee_id (bulk edit, quick add, triage, a
+        // factory) means "only this person", as it always did; the assignee
+        // list follows, and TaskAssignees sends the notices.
+        static::created(function (Task $task) {
+            if ($task->assignee_id !== null && ! $task->syncingAssignees) {
+                app(TaskAssignees::class)->sync($task, [(int) $task->assignee_id], direct: true);
+            }
+        });
+        static::updated(function (Task $task) {
+            if ($task->wasChanged('assignee_id') && ! $task->syncingAssignees) {
+                app(TaskAssignees::class)->sync($task, $task->assignee_id ? [(int) $task->assignee_id] : [], direct: true);
             }
         });
 
@@ -165,7 +190,7 @@ class Task extends Model
 
         return $query->where(fn (Builder $q) => $q
             ->whereIn('team_id', $teamIds)
-            ->orWhere('assignee_id', $user->id)
+            ->orWhere(fn (Builder $mine) => $mine->assignedTo($user))
             ->orWhere(fn (Builder $own) => $own->whereNull('team_id')->where('created_by', $user->id)));
     }
 
@@ -177,7 +202,7 @@ class Task extends Model
         }
 
         return ($this->team_id !== null && $user->currentTeamIds()->contains($this->team_id))
-            || $this->assignee_id === $user->id
+            || $this->hasAssignee($user)
             || ($this->team_id === null && $this->created_by === $user->id);
     }
 
@@ -202,9 +227,81 @@ class Task extends Model
         return $this->hasMany(Task::class, 'parent_id')->orderBy('position')->orderBy('id');
     }
 
+    /** The lead assignee: always one of assignees(), and null only when there are none. */
     public function assignee(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assignee_id')->withTrashed();
+    }
+
+    /**
+     * Everyone the task is assigned to, the lead included, in the order they
+     * were added. Change it through TaskAssignees, never directly.
+     */
+    public function assignees(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class)->withTrashed()->withTimestamps()
+            ->orderBy('task_user.id');
+    }
+
+    /**
+     * Tasks the user is one of the assignees of, lead or not. The column is
+     * qualified, so it also works inside a subtasks whereHas (a self-join).
+     */
+    public function scopeAssignedTo(Builder $query, User|int $user): Builder
+    {
+        $id = $user instanceof User ? $user->id : $user;
+
+        return $query->whereExists(fn ($q) => $q->selectRaw('1')->from('task_user')
+            ->whereColumn('task_user.task_id', $query->qualifyColumn('id'))
+            ->where('task_user.user_id', $id));
+    }
+
+    /** Tasks assigned to any of these people. */
+    public function scopeAssignedToAny(Builder $query, iterable $userIds): Builder
+    {
+        $ids = collect($userIds)->map(fn ($id) => (int) $id)->all();
+
+        return $query->whereExists(fn ($q) => $q->selectRaw('1')->from('task_user')
+            ->whereColumn('task_user.task_id', $query->qualifyColumn('id'))
+            ->whereIn('task_user.user_id', $ids));
+    }
+
+    public function hasAssignee(User|int $user): bool
+    {
+        $id = $user instanceof User ? $user->id : $user;
+
+        return $this->relationLoaded('assignees')
+            ? $this->assignees->contains('id', $id)
+            : $this->assignees()->whereKey($id)->exists();
+    }
+
+    /** @return list<int> every assignee's id, the lead first */
+    public function assigneeIds(): array
+    {
+        return $this->assigneeList()->pluck('id')->all();
+    }
+
+    /**
+     * Who to show: the lead first, then the others by name. Lists eager-load
+     * `assignees` to avoid a query per task.
+     *
+     * @return Collection<int, User>
+     */
+    public function assigneeList(): Collection
+    {
+        return $this->assignees
+            ->sortBy(fn (User $u) => [$u->id === $this->assignee_id ? 0 : 1, mb_strtolower($u->name)])
+            ->values();
+    }
+
+    /** The task's estimate split evenly between its assignees, in minutes. */
+    public function estimateShare(): ?float
+    {
+        if ($this->estimate_minutes === null) {
+            return null;
+        }
+
+        return $this->estimate_minutes / max(1, $this->relationLoaded('assignees') ? $this->assignees->count() : $this->assignees()->count());
     }
 
     public function creator(): BelongsTo
