@@ -1,4 +1,4 @@
-{{-- Expects: $release (with rootTasks.subtasks), $users --}}
+{{-- Expects: $release, $users, $tasks (the root tasks to list, with subtasks) and $hidden (finished tasks left out). --}}
 @php use App\Models\Task; use App\Models\Release; @endphp
 
 <div class="space-y-3">
@@ -32,7 +32,7 @@
     </form>
 
     {{-- Task list --}}
-    @forelse ($release->rootTasks as $task)
+    @forelse ($tasks as $task)
         @php $progress = $task->subtaskProgress(); @endphp
         <div class="rounded-lg border border-slate-200 p-3" x-data="{ addSub: false }">
             <div class="flex flex-wrap items-start justify-between gap-2">
@@ -95,4 +95,11 @@
     @empty
         <p class="py-4 text-center text-sm text-slate-400">No tasks yet. Add the first one above.</p>
     @endforelse
+
+    @if ($hidden > 0)
+        <p class="pt-1 text-center text-xs text-slate-500">
+            {{ $hidden }} older finished {{ Str::plural('task', $hidden) }} not shown.
+            <a href="{{ request()->fullUrlWithQuery(['tasks' => 'all']) }}" class="font-medium text-brand-700 hover:text-brand-800">Show all</a>
+        </p>
+    @endif
 </div>

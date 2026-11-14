@@ -256,7 +256,9 @@ class Release extends Model
 
     public function offDayCount(): int
     {
-        return $this->offDays()->count();
+        // Lists load the count up front; only a lone release asks the database.
+        return $this->attributes['off_days_count']
+            ?? ($this->relationLoaded('offDays') ? $this->offDays->count() : $this->offDays()->count());
     }
 
     public function workingDays(): int

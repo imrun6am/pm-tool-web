@@ -7,8 +7,10 @@ use App\Models\Activity;
 use App\Models\Project;
 use App\Models\Release;
 use App\Models\ReleaseTemplate;
+use App\Models\Task;
 use App\Models\Team;
 use App\Models\User;
+use App\Services\BoardService;
 use App\Services\ReleaseProgressService;
 use App\Services\ReleaseService;
 use App\Services\ReleaseStatusService;
@@ -121,9 +123,21 @@ class ReleaseController extends Controller
             'project', 'team', 'phases', 'documents.uploader',
             // Developers and QA see only their own teams' tasks here too.
             'rootTasks' => fn ($q) => $q->visibleTo(request()->user()),
-            'rootTasks.subtasks.assignee', 'rootTasks.subtasks.assignees', 'rootTasks.assignee', 'rootTasks.assignees', 'rootTasks.comments',
+            'rootTasks.subtasks.assignee', 'rootTasks.subtasks.assignees', 'rootTasks.assignee', 'rootTasks.assignees',
             'offDays', 'comments.user', 'members',
         ]);
+
+        // Open tasks are always listed; finished ones only the latest, unless
+        // every one is asked for, so a long release stays quick to open.
+        $isFinished = fn (Task $task) => in_array($task->status, Task::DONE_STATUSES, true);
+        $finishedShown = $release->rootTasks->filter($isFinished)
+            ->sortBy([['updated_at', 'desc'], ['id', 'desc']])
+            ->when(request()->input('tasks') !== 'all', fn ($tasks) => $tasks->take(BoardService::FINISHED_LIMIT))
+            ->pluck('id')
+            ->flip();
+        $listedTasks = $release->rootTasks
+            ->filter(fn (Task $task) => ! $isFinished($task) || $finishedShown->has($task->id))
+            ->values();
 
         // Meeting notes the viewer may see (attendees-only ones are filtered out).
         $release->setRelation('meetingNotes', $release->meetingNotes()
@@ -137,6 +151,8 @@ class ReleaseController extends Controller
 
         return view('releases.show', [
             'release' => $release,
+            'listedTasks' => $listedTasks,
+            'hiddenTasks' => $release->rootTasks->count() - $listedTasks->count(),
             'conflicts' => $this->releases->conflictsFor($release),
             'history' => $history,
             'burnUp' => $progress->burnUp($release),

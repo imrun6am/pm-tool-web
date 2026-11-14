@@ -17,7 +17,7 @@ class TaskTrashService
     {
         return Task::onlyTrashed()
             ->where('trashed_with_parent', false)
-            ->with(['release', 'team', 'assignee', 'deletedBy'])
+            ->with(['release', 'team', 'assignee', 'assignees', 'deletedBy'])
             ->withExists('openBlockers as has_open_blockers')
             ->orderByDesc('deleted_at')
             ->orderByDesc('id');

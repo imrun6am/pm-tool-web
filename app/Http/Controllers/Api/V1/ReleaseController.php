@@ -51,7 +51,8 @@ class ReleaseController extends ApiController
             'project', 'team', 'phases', 'completedBy', 'members',
             'documents.uploader', 'offDays', 'comments.user',
             // Developers and QA see only their own teams' tasks here too.
-            'rootTasks' => fn ($q) => $q->visibleTo($request->user()),
+            'rootTasks' => fn ($q) => $q->visibleTo($request->user())->withExists('openBlockers as has_open_blockers'),
+            'rootTasks.subtasks' => fn ($q) => $q->withExists('openBlockers as has_open_blockers'),
             'rootTasks.assignee', 'rootTasks.assignees', 'rootTasks.subtasks.assignee', 'rootTasks.subtasks.assignees',
         ])->loadCount([
             'tasks' => fn ($q) => $q->visibleTo($request->user()),

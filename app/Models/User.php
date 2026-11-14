@@ -71,6 +71,9 @@ class User extends Authenticatable
         self::ROLE_TEAM_LEAD,
     ];
 
+    /** @var array{0: int, 1: Collection<int, int>}|null currentTeamIds() for one request */
+    private ?array $teamIdsMemo = null;
+
     protected function casts(): array
     {
         return [
@@ -236,7 +239,16 @@ class User extends Authenticatable
      */
     public function currentTeamIds(): Collection
     {
-        return $this->teams()->pluck('teams.id');
+        // Team scoping asks this many times while drawing one page, so keep the
+        // answer for the current request only: a new request (or test call)
+        // reads it fresh, which picks up joining or leaving a team.
+        $request = spl_object_id(request());
+
+        if ($this->teamIdsMemo === null || $this->teamIdsMemo[0] !== $request) {
+            $this->teamIdsMemo = [$request, $this->teams()->pluck('teams.id')];
+        }
+
+        return $this->teamIdsMemo[1];
     }
 
     /**

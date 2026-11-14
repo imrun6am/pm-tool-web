@@ -253,7 +253,7 @@
                             @if (auth()->user()->canManageReleases())
                                 @include('releases._apply-template')
                             @endif
-                            @include('partials.tasks-panel', ['release' => $release, 'users' => $users])
+                            @include('partials.tasks-panel', ['release' => $release, 'users' => $users, 'tasks' => $listedTasks, 'hidden' => $hiddenTasks])
                         </div>
                     </x-live-region>
 
