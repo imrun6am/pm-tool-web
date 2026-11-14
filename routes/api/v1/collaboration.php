@@ -3,7 +3,6 @@
 use App\Http\Controllers\Api\V1\BoardController;
 use App\Http\Controllers\Api\V1\CapacityController;
 use App\Http\Controllers\Api\V1\CommentController;
-use App\Http\Controllers\Api\V1\DailyStandupController;
 use App\Http\Controllers\Api\V1\EventController;
 use App\Http\Controllers\Api\V1\LabelController;
 use App\Http\Controllers\Api\V1\MeetingNoteController;
@@ -180,7 +179,6 @@ Route::post('meeting-notes', [MeetingNoteController::class, 'store'])->name('mee
 Route::get('meeting-notes/{meetingNote}', [MeetingNoteController::class, 'show'])->name('meeting-notes.show');
 Route::put('meeting-notes/{meetingNote}', [MeetingNoteController::class, 'update'])->name('meeting-notes.update');
 Route::delete('meeting-notes/{meetingNote}', [MeetingNoteController::class, 'destroy'])->name('meeting-notes.destroy');
-Route::post('standups', [DailyStandupController::class, 'store'])->name('standups.store');
 
 /*
  | Quick links.

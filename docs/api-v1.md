@@ -351,7 +351,6 @@ serialized, so there is no public URL to leak.
 | `GET/PUT/DELETE`  | `/notes/{id}` — **author only**, leads included          |
 | `GET/POST`        | `/meeting-notes` — filters below                         |
 | `GET/PUT/DELETE`  | `/meeting-notes/{id}` — author edits; author or lead deletes |
-| `POST`            | `/standups` — generate or refresh a team's standup; see below |
 | `GET/POST`        | `/quick-links` — returns `{ mine, shared }`              |
 | `PUT/DELETE`      | `/quick-links/{id}` — **author only**                    |
 | `POST`            | `/quick-links/{id}/pin` — toggles; **anyone who can see it** |
@@ -536,25 +535,8 @@ list is server-defined: read it from `meeting_note_types` at `GET /meta` rather 
 so a type added server-side reaches your client without a release. A note whose stored type has
 since been retired still returns a readable `type_label`.
 
-**Daily standups.** Each working day, a team with something to report gets one meeting note of type
-`standup`, generated from its tasksheets and refreshed through the day. On these notes:
-
-- `standup` is an object (it's `null` on any other note). It holds `team_id`, `team_name`, `date`,
-  `previous_date`, `generated_at`, `attendees_edited`, `can_refresh`, `counts`, `people`, `on_leave`,
-  `not_filled` and `ai`.
-- Each entry in `people` has `previous` (`result`, `tickets`, `comment`, `leave`) and `today` (`plan`,
-  `result`, `tickets`, `comment`, `leave`). Fields with nothing in them are left out, and text is
-  sanitized HTML.
-- `ai` is `null` unless a finished AI digest exists. Otherwise it's `{covers, summary, blockers}`.
-- `author` is `null` and `body` holds only what people wrote, which may be empty.
-- A developer or QA sees one only for a team they're on now, even if listed as an attendee.
-- Leads and the team's current members may edit it with `PUT`. Only `title`, `body` and `attendees`
-  change; any other field is ignored. Changing `attendees` stops the generator updating them.
-
-`POST /standups` takes `team_id` and an optional `date` (today by default; not in the future). It
-returns the note with **201** when it was created, including one that had been deleted, and **200**
-when it already existed. It returns **422** with a `message` for a day off or a day with nothing to
-report, and **403** for anyone but a lead or a current member of the team.
+`author` can be `null` on a few older notes that were generated rather than written by someone.
+Nobody can edit those; a lead can still delete them.
 
 ### Tasksheet
 

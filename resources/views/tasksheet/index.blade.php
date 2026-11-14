@@ -72,9 +72,6 @@
                     </div>
                 </x-filter-bar>
 
-                {{-- This team's standup note for the day --}}
-                @include('tasksheet._standup-link', ['team' => $team, 'day' => $day])
-
                 {{-- AI: standup digest for this team and day (leads) --}}
                 @include('ai.panels.standup-digest', ['team' => $team, 'day' => $day])
             @endif

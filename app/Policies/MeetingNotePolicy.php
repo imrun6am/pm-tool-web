@@ -2,16 +2,13 @@
 
 namespace App\Policies;
 
-use App\Models\DailyStandup;
 use App\Models\MeetingNote;
 use App\Models\User;
 
 /**
  * Meeting notes are shared team records, so — unlike NotePolicy, where not
  * even leads may touch someone else's personal note — a lead may delete any
- * meeting note (e.g. cleanup after someone leaves). Editing stays author-only,
- * except a generated standup, which has no author: anyone who may generate it may
- * add to it.
+ * meeting note (e.g. cleanup after someone leaves). Editing stays author-only.
  */
 class MeetingNotePolicy
 {
@@ -33,13 +30,7 @@ class MeetingNotePolicy
 
     public function update(User $user, MeetingNote $meetingNote): bool
     {
-        if ($meetingNote->created_by === $user->id) {
-            return true;
-        }
-
-        $team = $meetingNote->standup?->team;
-
-        return $team !== null && $user->can('generate', [DailyStandup::class, $team]);
+        return $meetingNote->created_by === $user->id;
     }
 
     public function delete(User $user, MeetingNote $meetingNote): bool

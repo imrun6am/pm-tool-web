@@ -136,9 +136,7 @@ Scheduled work only runs if the server calls Laravel's scheduler every minute. A
 * * * * * cd /path/to/pm-tool && php artisan schedule:run >> /dev/null 2>&1
 ```
 
-This runs the due-date reminders, standup digests, each team's daily standup note, and the daily
-cleanup. To generate standup notes by hand, run `php artisan standup:generate`, with `--date=`,
-`--team=` or `--restore` if needed. The cleanup removes
+This runs the due-date reminders and standup digests, and the daily cleanup. The cleanup removes
 expired tasksheet exports, trashed tasks past 30 days, and logs older than `LOG_RETENTION_MONTHS`
 (3 by default):
 

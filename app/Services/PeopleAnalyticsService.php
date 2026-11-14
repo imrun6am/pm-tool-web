@@ -5,7 +5,6 @@ namespace App\Services;
 use App\Models\Activity;
 use App\Models\AiUsageLog;
 use App\Models\Comment;
-use App\Models\DailyStandup;
 use App\Models\Event;
 use App\Models\KpiReport;
 use App\Models\KpiReportMember;
@@ -733,8 +732,6 @@ class PeopleAnalyticsService
 
         $add('notesAttended', DB::table('meeting_note_user')
             ->join('meeting_notes', 'meeting_notes.id', '=', 'meeting_note_user.meeting_note_id')
-            // A generated standup's attendees are who was expected, not who attended.
-            ->whereNotIn('meeting_notes.id', DailyStandup::query()->whereNotNull('meeting_note_id')->select('meeting_note_id'))
             ->whereDate('meeting_notes.meeting_date', '>=', $from->toDateString())
             ->whereDate('meeting_notes.meeting_date', '<=', $to->toDateString())
             ->when($userId, fn ($q) => $q->where('meeting_note_user.user_id', $userId))

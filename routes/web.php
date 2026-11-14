@@ -6,7 +6,6 @@ use App\Http\Controllers\BoardController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\CapacityController;
 use App\Http\Controllers\CommentController;
-use App\Http\Controllers\DailyStandupController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\EventImportController;
@@ -288,9 +287,6 @@ Route::middleware('auth')->group(function () {
     Route::get('meeting-notes/{meetingNote}/edit', [MeetingNoteController::class, 'edit'])->name('meeting-notes.edit');
     Route::put('meeting-notes/{meetingNote}', [MeetingNoteController::class, 'update'])->name('meeting-notes.update');
     Route::delete('meeting-notes/{meetingNote}', [MeetingNoteController::class, 'destroy'])->name('meeting-notes.destroy');
-
-    // Generate or refresh a team's standup note from its tasksheets
-    Route::post('standups', [DailyStandupController::class, 'store'])->name('standups.store');
 
     // Quick links (drawer; limited roles are private-only)
     Route::post('quick-links', [QuickLinkController::class, 'store'])->name('quick-links.store');

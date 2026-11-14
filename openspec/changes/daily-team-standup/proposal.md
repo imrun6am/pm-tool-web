@@ -1,3 +1,5 @@
+> **Removed (2026-11-14).** This feature was taken out. See `openspec/changes/remove-daily-team-standup/`.
+
 ## Why
 
 Teams hold a standup every working day, and everything they need for it is already on the tasksheet: what each person logged yesterday, what they plan today, and who is off. Someone has to read the sheet row by row to get that picture, and nothing keeps a record of the meeting. The AI standup digest helps only leads, only on the tasksheet page, and only when AI is on.

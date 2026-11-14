@@ -192,9 +192,8 @@ class WorkspaceAsk
             ->selectRaw('release_id, count(*) as n')->groupBy('release_id')->pluck('n', 'release_id');
         $inDetail = $asked->asks('progress') || $namedReleases->isNotEmpty();
 
-        // Generated standups have no body of their own, and would crowd real minutes out of the latest few.
-        $meetings = $match(MeetingNote::visibleTo($user)->handWritten(), ['title', 'body'])->latest('meeting_date')->limit(8)->get()
-            ->merge($asked->asks('meetings') ? MeetingNote::visibleTo($user)->handWritten()->latest('meeting_date')->latest('id')->limit(self::LATEST_NOTES)->get() : collect())
+        $meetings = $match(MeetingNote::visibleTo($user), ['title', 'body'])->latest('meeting_date')->limit(8)->get()
+            ->merge($asked->asks('meetings') ? MeetingNote::visibleTo($user)->latest('meeting_date')->latest('id')->limit(self::LATEST_NOTES)->get() : collect())
             ->unique('id');
         $notes = $match(Note::visibleTo($user)->with('author:id,name'), ['body'])->latest('date')->limit(8)->get()
             ->merge($asked->asks('notes') ? Note::visibleTo($user)->with('author:id,name')->latest('date')->latest('id')->limit(self::LATEST_NOTES)->get() : collect())

@@ -30,8 +30,3 @@ Schedule::command('notifications:due-reminders')->dailyAt('08:00');
 
 // AI standup digests for the previous working day, ready before standup.
 Schedule::command('ai:standup-digests')->dailyAt('08:30')->when(fn () => WorkingWeek::isWorkingDay(today()));
-
-// Each team's standup note, from its tasksheets. Starts after the digest so it can
-// quote it, and refreshes while plans (09:00-10:00) and results (18:00-20:00) come
-// in. Teams whose tasksheets haven't changed write nothing.
-Schedule::command('standup:generate')->everyFifteenMinutes()->between('08:45', '20:00')->when(fn () => WorkingWeek::isWorkingDay(today()));
