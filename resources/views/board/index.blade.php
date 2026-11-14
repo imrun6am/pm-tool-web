@@ -35,7 +35,8 @@
     ];
     $tone = fn (string $status) => $palette[$status] ?? $palette['todo'];
 
-    $counts = collect($statuses)->map(fn ($label, $status) => $columns[$status]->count());
+    // Every card in each column, including the older finished ones not drawn.
+    $counts = collect($statuses)->map(fn ($label, $status) => $totals[$status]);
     $total = $counts->sum();
     $donePct = $total > 0 ? (int) round(($counts['done'] ?? 0) / $total * 100) : 0;
 
@@ -187,9 +188,13 @@
             {{-- Columns --}}
             <div class="board-scroller flex items-start gap-3 pb-2 lg:min-h-0 lg:flex-1 lg:items-stretch">
                 @foreach ($statuses as $status => $label)
-                    @php $cards = $columns[$status]; $t = $tone($status); $isArchive = $status === 'archive'; @endphp
+                    @php
+                        $cards = $columns[$status]; $t = $tone($status); $isArchive = $status === 'archive';
+                        $columnTotal = $totals[$status];
+                        $hidden = $columnTotal - $cards->count();
+                    @endphp
                     <section @class(['board-column lg:min-h-0', $t['col'], $columnWidth => ! $isArchive])
-                             data-status="{{ $status }}" aria-labelledby="col-{{ $status }}"
+                             data-status="{{ $status }}" data-hidden="{{ $hidden }}" aria-labelledby="col-{{ $status }}"
                              @if ($isArchive)
                                  x-data="{
                                      collapsed: (() => { try { return localStorage.getItem('rp.board.archive') !== 'open'; } catch (e) { return true; } })(),
@@ -204,7 +209,7 @@
                             {{-- Collapsed rail --}}
                             <button type="button" x-show="collapsed" @click="toggle()" aria-controls="col-list-{{ $status }}" :aria-expanded="(! collapsed).toString()"
                                     class="flex w-full flex-col items-center gap-3 rounded-lg py-2 text-slate-500 transition-colors hover:bg-white/70 hover:text-slate-700">
-                                <span class="board-count tabular rounded-full px-1.5 py-0.5 text-xs font-semibold {{ $t['pill'] }}">{{ $cards->count() }}</span>
+                                <span class="board-count tabular rounded-full px-1.5 py-0.5 text-xs font-semibold {{ $t['pill'] }}">{{ $columnTotal }}</span>
                                 <span class="text-xs font-semibold [writing-mode:vertical-rl]">{{ $label }}</span>
                                 <x-icon name="chevron-double-left" variant="outline" class="h-4 w-4 rotate-180" />
                             </button>
@@ -219,9 +224,9 @@
                                     $limitable = $showLimits && ! in_array($status, \App\Models\Task::DONE_STATUSES, true);
                                 @endphp
                                 <span class="ml-auto flex items-center gap-1">
-                                    <span @class(['board-count-wrap tabular rounded-full px-2 py-0.5 text-xs font-semibold', $t['pill'] => ! ($limit && $cards->count() > $limit), 'is-over bg-danger-100 text-danger-700' => $limit && $cards->count() > $limit])
-                                          @if ($limit) data-limit="{{ $limit }}" title="{{ $cards->count() > $limit ? 'Over the limit of '.$limit : 'Limit '.$limit }}" @endif>
-                                        <span class="board-count">{{ $cards->count() }}</span>@if ($limit)<span class="font-normal opacity-70"> / {{ $limit }}</span>@endif
+                                    <span @class(['board-count-wrap tabular rounded-full px-2 py-0.5 text-xs font-semibold', $t['pill'] => ! ($limit && $columnTotal > $limit), 'is-over bg-danger-100 text-danger-700' => $limit && $columnTotal > $limit])
+                                          @if ($limit) data-limit="{{ $limit }}" title="{{ $columnTotal > $limit ? 'Over the limit of '.$limit : 'Limit '.$limit }}" @endif>
+                                        <span class="board-count">{{ $columnTotal }}</span>@if ($limit)<span class="font-normal opacity-70"> / {{ $limit }}</span>@endif
                                     </span>
                                     @if ($canSetLimits && $limitable)
                                         <span x-data="{ open: false }" class="relative" @click.outside="open = false" @keydown.escape="open = false">
@@ -260,6 +265,13 @@
                                     Drop tasks here
                                 </p>
                             </div>
+                            @if ($hidden > 0)
+                                {{-- Older finished cards aren't drawn, so the board stays quick as work piles up. --}}
+                                <p class="mt-2.5 flex-none px-1 text-center text-xs text-slate-500">
+                                    Showing the latest {{ $cards->count() }} of {{ $columnTotal }}.
+                                    <a href="{{ request()->fullUrlWithQuery(['finished' => 'all']) }}" class="font-medium text-brand-700 hover:text-brand-800">Show all</a>
+                                </p>
+                            @endif
 
                             {{-- Add a card --}}
                             @php $reopen = $errors->any() && old('status') === $status; @endphp
@@ -677,7 +689,9 @@
                 let total = 0;
                 const counts = {};
                 document.querySelectorAll('.board-column').forEach(function (col) {
-                    const n = col.querySelectorAll('.board-card').length;
+                    const shown = col.querySelectorAll('.board-card').length;
+                    // Older finished cards the page didn't draw still count.
+                    const n = shown + Number(col.dataset.hidden || 0);
                     counts[col.dataset.status] = n;
                     total += n;
                     col.querySelectorAll('.board-count').forEach((el) => { el.textContent = n; });
@@ -689,7 +703,7 @@
                         el.title = over ? 'Over the limit of ' + limit : 'Limit ' + limit;
                     });
                     const empty = col.querySelector('.board-empty');
-                    if (empty) empty.style.display = n === 0 ? '' : 'none';
+                    if (empty) empty.style.display = shown === 0 ? '' : 'none';
                 });
 
                 document.querySelector('.board-total').textContent = total;

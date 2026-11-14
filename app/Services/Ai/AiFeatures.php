@@ -106,14 +106,16 @@ class AiFeatures
         $this->get($feature); // unknown keys are rejected
 
         AiFeatureSetting::updateOrCreate(['feature' => $feature], $values + ['updated_by' => $by->id]);
-        Cache::forget(self::CACHE_KEY);
+        Cache::memo()->forget(self::CACHE_KEY);
     }
 
     /** @return array<string, array{enabled?: bool, model?: string, effort?: string}> */
     private function overrides(): array
     {
         try {
-            return Cache::remember(self::CACHE_KEY, 300, fn () => AiFeatureSetting::all()
+            // Memoized for the request (or queued job): a page can ask per row,
+            // and the board asks once for every card.
+            return Cache::memo()->remember(self::CACHE_KEY, 300, fn () => AiFeatureSetting::all()
                 ->mapWithKeys(fn (AiFeatureSetting $s) => [$s->feature => array_filter([
                     'enabled' => $s->enabled,
                     'model' => $s->model,

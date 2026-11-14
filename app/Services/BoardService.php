@@ -22,6 +22,9 @@ class BoardService
     /** The most cards one bulk delete may take, to bound its transaction. */
     public const MAX_BULK_DELETE = 1000;
 
+    /** How many of the latest cards the web board shows in Done and in Archive. */
+    public const FINISHED_LIMIT = 50;
+
     /** The ways the board can group a column's cards. */
     public const GROUPS = ['assignee', 'priority'];
 
@@ -102,24 +105,67 @@ class BoardService
      */
     public function columns(array $filters = [], ?User $viewer = null): array
     {
-        $tasks = Task::query()
+        return $this->board($filters, $viewer)['columns'];
+    }
+
+    /**
+     * columns(), with the finished columns (Done and Archive) cut to their
+     * `$finishedLimit` most recently finished cards when a limit is given.
+     * Finished work piles up for good, so drawing all of it would slow the
+     * board down more every week. `totals` counts every card in each column,
+     * shown or not.
+     *
+     * @param  array{release_id?: int|string|null, team_id?: int|string|null, assignee_id?: int|string|null, priority?: ?string, label_id?: ?int, blocked?: bool}  $filters
+     * @return array{columns: array<string, Collection<int, Task>>, totals: array<string, int>}
+     */
+    public function board(array $filters = [], ?User $viewer = null, ?int $finishedLimit = null): array
+    {
+        $capped = $finishedLimit === null ? [] : Task::DONE_STATUSES;
+
+        $cards = fn () => Task::query()
             ->when($viewer, fn ($q) => $q->visibleTo($viewer))
             ->whereNull('parent_id') // top-level tasks are the cards
+            ->tap(fn ($q) => TaskService::whereFields($q, $filters))
+            ->when($filters['release_id'] ?? null, fn ($q, $id) => TaskService::whereIdOrNone($q, 'release_id', $id))
+            ->when($filters['team_id'] ?? null, fn ($q, $id) => TaskService::whereIdOrNone($q, 'team_id', $id))
+            ->when($filters['assignee_id'] ?? null, fn ($q, $id) => TaskService::whereIdOrNone($q, 'assignee_id', $id));
+
+        $withDetails = fn ($q) => $q
             ->with(['release.project', 'team', 'assignee', 'assignees', 'subtasks', 'labels'])
             ->withExists('openBlockers as has_open_blockers')
             ->withMax('statusChanges', 'changed_at')
-            ->tap(fn ($q) => TaskService::whereFields($q, $filters))
-            ->withCount('comments')
-            ->when($filters['release_id'] ?? null, fn ($q, $id) => TaskService::whereIdOrNone($q, 'release_id', $id))
-            ->when($filters['team_id'] ?? null, fn ($q, $id) => TaskService::whereIdOrNone($q, 'team_id', $id))
-            ->when($filters['assignee_id'] ?? null, fn ($q, $id) => TaskService::whereIdOrNone($q, 'assignee_id', $id))
+            ->withCount('comments');
+
+        $tasks = $withDetails($cards())
+            ->when($capped, fn ($q) => $q->whereNotIn('status', $capped))
             ->orderBy('position')
             ->orderBy('id')
             ->get();
 
-        return collect(array_keys(Task::STATUSES))
+        $finishedTotals = [];
+        foreach ($capped as $status) {
+            $finishedTotals[$status] = $cards()->where('status', $status)->count();
+
+            // The most recently finished, still shown in the column's own order.
+            $tasks = $tasks->concat($withDetails($cards()->where('status', $status))
+                ->orderByDesc('status_changes_max_changed_at')
+                ->orderByDesc('updated_at')
+                ->orderByDesc('id')
+                ->limit($finishedLimit)
+                ->get()
+                ->sortBy([['position', 'asc'], ['id', 'asc']]));
+        }
+
+        $columns = collect(array_keys(Task::STATUSES))
             ->mapWithKeys(fn (string $status) => [$status => $tasks->where('status', $status)->values()])
             ->all();
+
+        return [
+            'columns' => $columns,
+            'totals' => collect($columns)
+                ->map(fn (Collection $column, string $status) => $finishedTotals[$status] ?? $column->count())
+                ->all(),
+        ];
     }
 
     /**

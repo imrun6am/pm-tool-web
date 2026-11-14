@@ -48,10 +48,14 @@ class BoardController extends Controller
 
         $group = in_array($request->input('group'), BoardService::GROUPS, true) ? $request->input('group') : null;
 
-        $columns = $this->board->columns($filters, $viewer);
+        // Done and Archive show their latest cards unless every one is asked for.
+        $allFinished = $request->input('finished') === 'all';
+        $board = $this->board->board($filters, $viewer, $allFinished ? null : BoardService::FINISHED_LIMIT);
+        $columns = $board['columns'];
 
         return view('board.index', [
             'columns' => $group ? array_map(fn ($cards) => $this->board->grouped($cards, $group), $columns) : $columns,
+            'totals' => $board['totals'],
             'group' => $group,
             'wipLimits' => is_int($teamId) ? $this->board->wipLimits($teamId) : [],
             'statuses' => Task::STATUSES,

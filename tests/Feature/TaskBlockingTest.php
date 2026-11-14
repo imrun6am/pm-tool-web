@@ -277,7 +277,8 @@ class TaskBlockingTest extends TestCase
 
         $this->actingAs($admin)->get(route('board.index'))->assertOk();
 
-        $this->assertSame(1, $queries);
+        // One per card query (open columns, Done, Archive), whatever the card count.
+        $this->assertSame(1 + count(Task::DONE_STATUSES), $queries);
     }
 
     public function test_flagging_tells_the_team_lead_and_assignee_but_not_the_person_flagging(): void
