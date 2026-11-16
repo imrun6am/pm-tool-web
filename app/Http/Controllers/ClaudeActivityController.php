@@ -57,6 +57,11 @@ class ClaudeActivityController extends Controller
             $model = ClaudeActivityLog::where('session_id', $sessionId)->whereNotNull('model')->latest('id')->value('model');
         }
 
+        // A browser action (the PreToolUse hook, matched to Claude in Chrome's
+        // tools): which tool, its action, and the page it went to. Nothing
+        // else from the tool's input is kept: it can hold typed text or code.
+        $tool = $event === 'PreToolUse' ? self::browserTool($payload) : null;
+
         ClaudeActivityLog::create([
             'event' => $str($event, 32),
             'session_id' => $sessionId,
@@ -70,7 +75,8 @@ class ClaudeActivityController extends Controller
             'ip' => $request->ip(),
             'cwd' => $str($payload['cwd'] ?? null, 1024),
             // SessionStart's source, SessionEnd's reason, or the model switched from.
-            'detail' => $str($payload['source'] ?? $payload['reason'] ?? $payload['from_model'] ?? null, 64),
+            'detail' => $tool['detail'] ?? $str($payload['source'] ?? $payload['reason'] ?? $payload['from_model'] ?? null, 64),
+            'url' => $tool['url'] ?? null,
             'prompt_excerpt' => $event === 'UserPromptSubmit'
                 ? $str($payload['prompt'] ?? null, min(ClaudeActivityLog::PROMPT_EXCERPT_MAX, max(0, (int) config('claude_monitor.prompt_excerpt_length'))))
                 : null,
@@ -139,6 +145,7 @@ class ClaudeActivityController extends Controller
             ->selectRaw('MIN(created_at) as first_seen, MAX(created_at) as last_seen, COUNT(*) as events')
             ->selectRaw('COUNT(DISTINCT session_id) as sessions, COUNT(DISTINCT ip) as ips')
             ->selectRaw("SUM(CASE WHEN event = 'UserPromptSubmit' THEN 1 ELSE 0 END) as prompts")
+            ->selectRaw("SUM(CASE WHEN event = 'PreToolUse' THEN 1 ELSE 0 END) as browser_actions")
             ->first();
 
         return view('claude-activity.device', [
@@ -193,6 +200,32 @@ class ClaudeActivityController extends Controller
         $this->noteDeletion($request, $deleted);
 
         return back()->with('success', $deleted === 1 ? '1 event deleted.' : number_format($deleted).' events deleted.');
+    }
+
+    /**
+     * A browser tool call as `detail` ("navigate", "computer: left_click") and
+     * the page it went to, cut to scheme, host and path: a query string can
+     * carry a token or a search.
+     *
+     * @return array{detail: ?string, url: ?string}
+     */
+    private static function browserTool(array $payload): array
+    {
+        $name = is_string($payload['tool_name'] ?? null) ? $payload['tool_name'] : '';
+        $name = (string) preg_replace('/^mcp__claude-in-chrome__/', '', $name);
+        $input = is_array($payload['tool_input'] ?? null) ? $payload['tool_input'] : [];
+        $action = is_string($input['action'] ?? null) ? $input['action'] : null;
+
+        $url = null;
+        if (is_string($input['url'] ?? null) && ($parts = parse_url(trim($input['url']))) && isset($parts['host'])) {
+            $url = Str::limit(($parts['scheme'] ?? 'https').'://'.$parts['host'].(isset($parts['port']) ? ':'.$parts['port'] : '').($parts['path'] ?? ''), 1024, '');
+        } elseif (is_string($input['url'] ?? null) && in_array($input['url'], ['back', 'forward'], true)) {
+            $action = $input['url'];
+        }
+
+        $detail = trim($name.($action !== null ? ': '.$action : ''));
+
+        return ['detail' => $detail !== '' ? Str::limit($detail, 64, '') : null, 'url' => $url];
     }
 
     /**
@@ -273,6 +306,8 @@ class ClaudeActivityController extends Controller
             ->when($filters['q'] ?? null, fn ($q, $text) => $q->where(function ($w) use ($like, $text) {
                 $like($w, 'prompt_excerpt', $text);
                 $like($w, 'cwd', $text, 'or');
+                $like($w, 'url', $text, 'or');
+                $like($w, 'detail', $text, 'or');
                 $like($w, 'hostname', $text, 'or');
             }));
     }

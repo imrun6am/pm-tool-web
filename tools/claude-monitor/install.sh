@@ -3,7 +3,8 @@
 # Claude Code activity monitor — installer for macOS and Linux.
 #
 # Installs a hook that reports every Claude Code session start, prompt, model
-# switch and session end on this device to the PM tool's /api/claude-activity endpoint.
+# switch, browser action (Claude in Chrome) and session end on this device to
+# the PM tool's /api/claude-activity endpoint.
 # It goes in Claude Code's *managed* settings, which only an administrator can
 # change and which a user's own settings can't switch off.
 #
@@ -109,7 +110,8 @@ cat > "$SETTINGS" <<JSON
     "SessionStart": [{ "hooks": [{ "type": "command", "command": "$CMD" }] }],
     "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "$CMD" }] }],
     "SessionEnd": [{ "hooks": [{ "type": "command", "command": "$CMD" }] }],
-    "PostModelSwitch": [{ "hooks": [{ "type": "command", "command": "$CMD" }] }]
+    "PostModelSwitch": [{ "hooks": [{ "type": "command", "command": "$CMD" }] }],
+    "PreToolUse": [{ "matcher": "mcp__claude-in-chrome__.*", "hooks": [{ "type": "command", "command": "$CMD" }] }]
   }
 }
 JSON

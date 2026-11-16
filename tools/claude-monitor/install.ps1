@@ -1,7 +1,8 @@
 # Claude Code activity monitor — installer for Windows.
 #
 # Installs a hook that reports every Claude Code session start, prompt, model
-# switch and session end on this device to the PM tool's /api/claude-activity endpoint,
+# switch, browser action (Claude in Chrome) and session end on this device to
+# the PM tool's /api/claude-activity endpoint,
 # in Claude Code's managed settings (admin-only, can't be switched off by a user).
 #
 # Run in PowerShell *as Administrator*:
@@ -90,7 +91,9 @@ exit 0
 
 $command = "powershell -NoProfile -ExecutionPolicy Bypass -File `"$Hook`""
 $entry = @(@{ hooks = @(@{ type = 'command'; command = $command }) })
-$json = @{ hooks = [ordered]@{ SessionStart = $entry; UserPromptSubmit = $entry; SessionEnd = $entry; PostModelSwitch = $entry } } |
+# Browser actions: only Claude in Chrome's tools.
+$browser = @(@{ matcher = 'mcp__claude-in-chrome__.*'; hooks = @(@{ type = 'command'; command = $command }) })
+$json = @{ hooks = [ordered]@{ SessionStart = $entry; UserPromptSubmit = $entry; SessionEnd = $entry; PostModelSwitch = $entry; PreToolUse = $browser } } |
     ConvertTo-Json -Depth 6
 # Windows PowerShell's Set-Content -Encoding UTF8 starts the file with a
 # byte-order mark, which a JSON reader can reject. Write it without one.

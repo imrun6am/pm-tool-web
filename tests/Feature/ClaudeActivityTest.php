@@ -325,4 +325,29 @@ class ClaudeActivityTest extends TestCase
             ->assertViewHas('logs', fn ($logs) => $logs->total() === 2)
             ->assertViewHas('macs', fn ($macs) => $macs->pluck('mac_address')->all() === ['a0:78:17:a8:3b:0d']);
     }
+
+    public function test_browser_actions_keep_the_tool_and_page_but_not_what_was_typed(): void
+    {
+        $this->sendHook(['hook_event_name' => 'SessionStart', 'session_id' => 'b1', 'model' => 'claude-sonnet-5-5'])->assertCreated();
+        $this->sendHook(['hook_event_name' => 'PreToolUse', 'session_id' => 'b1', 'tool_name' => 'mcp__claude-in-chrome__navigate',
+            'tool_input' => ['url' => 'https://mail.example.com/inbox?token=secret#top', 'tabId' => 3]])->assertCreated();
+        $this->sendHook(['hook_event_name' => 'PreToolUse', 'session_id' => 'b1', 'tool_name' => 'mcp__claude-in-chrome__computer',
+            'tool_input' => ['action' => 'type', 'text' => 'my password']])->assertCreated();
+        $this->sendHook(['hook_event_name' => 'PreToolUse', 'session_id' => 'b1', 'tool_name' => 'mcp__claude-in-chrome__navigate',
+            'tool_input' => ['url' => 'back']])->assertCreated();
+
+        [$nav, $typed, $back] = ClaudeActivityLog::where('event', 'PreToolUse')->orderBy('id')->get()->all();
+        $this->assertSame(['navigate', 'https://mail.example.com/inbox', 'claude-sonnet-5-5'], [$nav->detail, $nav->url, $nav->model]);
+        $this->assertSame(['computer: type', null], [$typed->detail, $typed->url]);
+        $this->assertSame('navigate: back', $back->detail);
+        $this->assertStringNotContainsString('my password', json_encode(ClaudeActivityLog::all()->toArray()));
+        $this->assertStringNotContainsString('secret', json_encode(ClaudeActivityLog::all()->toArray()));
+
+        $this->actingAs($this->admin())->get(route('claude-activity.device', ['device' => 'dev-1', 'event' => 'PreToolUse', 'q' => 'mail.example']))
+            ->assertOk()
+            ->assertSee('Browser action')
+            ->assertSee('https://mail.example.com/inbox')
+            ->assertViewHas('logs', fn ($logs) => $logs->total() === 1)
+            ->assertViewHas('summary', fn ($s) => (int) $s->browser_actions === 3);
+    }
 }

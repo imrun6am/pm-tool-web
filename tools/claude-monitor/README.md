@@ -2,7 +2,7 @@
 
 Records which device uses Claude Code on your account, and when. Each monitored
 device posts an event to the PM tool on every session start, prompt, model
-switch and session end. You read them at **Claude activity** in the sidebar (`/claude-activity`).
+switch, browser action and session end. You read them at **Claude activity** in the sidebar (`/claude-activity`).
 
 Nothing can edit an entry, so it stays even after the conversation is deleted
 from Claude. Whoever may read the log can delete entries: a whole device from
@@ -25,6 +25,7 @@ and dates.
 | First 300 characters of each prompt | Claude Code's hook input (`CLAUDE_MONITOR_PROMPT_CHARS`, at most 1,000) |
 | Computer name, OS user, OS, entry point | the device (on a Mac, the name set in System Settings) |
 | Model | Claude Code's hook input: on session start and on each model switch (`/model`); prompts and session ends take the latest model their session reported. Sessions started before the hook was installed show none |
+| Browser actions | Claude Code's hook input, for each Claude in Chrome tool Claude Code uses: the tool and action (`navigate`, `computer: left_click`, …) and the page address without its query string. Text typed and scripts run in the page aren't kept |
 | MAC address | the device: the adapter its default route uses (on a Mac, the hardware address, not a private Wi-Fi one). Reported by the device, so it could be faked |
 | Device id | random id fixed when the hook is installed |
 | **IP address** | as seen by the server, so the device can't fake it |
@@ -70,6 +71,10 @@ on the page straight away. Restart open Claude Code sessions afterwards.
 - It covers Claude Code: the terminal, the desktop app's Code tab and Remote
   Control sessions on a monitored device. It can't see claude.ai chat in a
   browser or the mobile app.
+- Claude in Chrome shows up only when Claude Code drives Chrome through it.
+  Chatting with the extension directly in Chrome doesn't run Claude Code's
+  hooks, so it isn't recorded; your Claude account's admin tools are the place
+  to look for that.
 - A device you didn't install it on reports nothing. If your usage goes up
   with no matching events here, the activity came from such a device.
 - Anyone with admin rights on a monitored device can remove the hook. What

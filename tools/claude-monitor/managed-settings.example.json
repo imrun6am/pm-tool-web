@@ -3,6 +3,7 @@
     "SessionStart": [{ "hooks": [{ "type": "command", "command": "\"/Library/Application Support/ClaudeCode/claude-monitor-hook.sh\"" }] }],
     "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "\"/Library/Application Support/ClaudeCode/claude-monitor-hook.sh\"" }] }],
     "SessionEnd": [{ "hooks": [{ "type": "command", "command": "\"/Library/Application Support/ClaudeCode/claude-monitor-hook.sh\"" }] }],
-    "PostModelSwitch": [{ "hooks": [{ "type": "command", "command": "\"/Library/Application Support/ClaudeCode/claude-monitor-hook.sh\"" }] }]
+    "PostModelSwitch": [{ "hooks": [{ "type": "command", "command": "\"/Library/Application Support/ClaudeCode/claude-monitor-hook.sh\"" }] }],
+    "PreToolUse": [{ "matcher": "mcp__claude-in-chrome__.*", "hooks": [{ "type": "command", "command": "\"/Library/Application Support/ClaudeCode/claude-monitor-hook.sh\"" }] }]
   }
 }

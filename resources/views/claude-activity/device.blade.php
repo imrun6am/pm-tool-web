@@ -17,7 +17,8 @@
     <div class="py-6 sm:py-8">
         <div class="app-container space-y-6">
             <div class="stat-strip">
-                <x-stat label="Events" :value="number_format($summary->events)" icon="command-line" tone="slate" />
+                <x-stat label="Events" :value="number_format($summary->events)" icon="command-line" tone="slate"
+                        :sub="$summary->browser_actions ? number_format($summary->browser_actions).' in the browser' : null" />
                 <x-stat label="Prompts" :value="number_format($summary->prompts)" icon="chat-bubbles" tone="info" />
                 <x-stat label="Sessions" :value="number_format($summary->sessions)" icon="clock" tone="violet"
                         :sub="'Since '.$firstSeen->format('M j, Y')" />

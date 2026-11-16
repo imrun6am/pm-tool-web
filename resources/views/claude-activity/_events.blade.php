@@ -13,7 +13,7 @@
     use Illuminate\Support\Str;
 
     $filtered = collect($filters)->except(['sort', 'per_page'])->filter()->isNotEmpty();
-    $eventTone = ['SessionStart' => 'badge-success', 'UserPromptSubmit' => 'badge-info', 'SessionEnd' => 'badge-slate', 'PostModelSwitch' => 'badge-warning', 'MonitorInstalled' => 'badge-violet'];
+    $eventTone = ['SessionStart' => 'badge-success', 'UserPromptSubmit' => 'badge-info', 'SessionEnd' => 'badge-slate', 'PostModelSwitch' => 'badge-warning', 'PreToolUse' => 'badge-brand', 'MonitorInstalled' => 'badge-violet'];
     $total = $logs->total();
     // What "delete all matching" sends: the filters, and the device it's scoped to.
     $matching = collect($filters)->except(['sort', 'per_page'])->filter()
@@ -151,7 +151,7 @@
                             <th scope="col">When</th>
                             <th scope="col">Event</th>
                             <th scope="col">IP / MAC</th>
-                            <th scope="col">Folder / prompt</th>
+                            <th scope="col">Page / prompt / folder</th>
                             <th scope="col">Session</th>
                             <th scope="col"><span class="sr-only">Delete</span></th>
                         </tr>
@@ -183,6 +183,9 @@
                                     @endif
                                 </td>
                                 <td class="max-w-md">
+                                    @if ($log->url)
+                                        <p class="truncate font-mono text-xs text-slate-800" title="{{ $log->url }}">{{ $log->url }}</p>
+                                    @endif
                                     @if ($log->prompt_excerpt)
                                         <p class="line-clamp-2 text-slate-800" title="{{ $log->prompt_excerpt }}">{{ $log->prompt_excerpt }}</p>
                                     @endif
