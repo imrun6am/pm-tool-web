@@ -46,7 +46,7 @@ class ClaudeActivityController extends Controller
             'cwd' => $str($payload['cwd'] ?? null, 1024),
             'detail' => $str($payload['source'] ?? $payload['reason'] ?? null, 64),
             'prompt_excerpt' => $event === 'UserPromptSubmit'
-                ? $str($payload['prompt'] ?? null, max(0, (int) config('claude_monitor.prompt_excerpt_length')))
+                ? $str($payload['prompt'] ?? null, min(ClaudeActivityLog::PROMPT_EXCERPT_MAX, max(0, (int) config('claude_monitor.prompt_excerpt_length'))))
                 : null,
             'transcript_path' => $str($payload['transcript_path'] ?? null, 1024),
         ]);
@@ -77,13 +77,25 @@ class ClaudeActivityController extends Controller
             ->paginate(50)
             ->withQueryString();
 
+        // One row per device id. The computer name isn't part of the grouping:
+        // a Mac's name can change with the network it's on, and one device
+        // must not split into several rows. The newest event names it.
         $devices = ClaudeActivityLog::query()
-            ->select('device_id', 'hostname', 'os_user', 'platform')
+            ->select('device_id')
             ->selectRaw('MIN(created_at) as first_seen, MAX(created_at) as last_seen, COUNT(*) as events')
-            ->selectRaw('COUNT(DISTINCT ip) as ip_count, COUNT(DISTINCT session_id) as sessions')
-            ->groupBy('device_id', 'hostname', 'os_user', 'platform')
+            ->selectRaw('COUNT(DISTINCT session_id) as sessions, COUNT(DISTINCT hostname) as host_names')
+            ->selectRaw('MAX(id) as latest_id')
+            ->groupBy('device_id')
             ->orderByDesc('last_seen')
             ->get();
+
+        $latest = ClaudeActivityLog::whereIn('id', $devices->pluck('latest_id'))->get()->keyBy('id');
+        $devices->each(function (ClaudeActivityLog $device) use ($latest) {
+            $newest = $latest->get($device->latest_id);
+            $device->hostname = $newest?->hostname;
+            $device->os_user = $newest?->os_user;
+            $device->platform = $newest?->platform;
+        });
 
         // Every IP each device has posted from, newest first.
         $ipsByDevice = ClaudeActivityLog::query()
@@ -103,7 +115,10 @@ class ClaudeActivityController extends Controller
         ]);
     }
 
-    /** The viewer list in config, or admins when it's empty. */
+    /**
+     * The user ids listed in config, or admins when the list is empty. Ids
+     * because a user can't change their own, unlike their email.
+     */
     public static function canView(?User $user): bool
     {
         if (! $user) {
@@ -114,6 +129,6 @@ class ClaudeActivityController extends Controller
 
         return $viewers === []
             ? $user->isAdmin()
-            : in_array(strtolower($user->email), $viewers, true);
+            : in_array((string) $user->id, $viewers, true);
     }
 }

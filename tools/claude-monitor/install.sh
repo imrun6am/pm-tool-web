@@ -65,13 +65,16 @@ mkdir -p "$DIR"
 # where in headers. The post runs in the background with a short timeout and
 # prints nothing, so it never slows Claude down or adds to the prompt.
 payload="$(cat)"
+# On macOS, the computer name set in System Settings: the hostname there can
+# change with the network the Mac is on.
+host="$(scutil --get ComputerName 2>/dev/null || hostname)"
 (
     curl -sS -m 8 -X POST "$ENDPOINT" \
         -H "Authorization: Bearer $TOKEN" \
         -H "Content-Type: application/json" \
         -H "Accept: application/json" \
         -H "X-Claude-Device-Id: $DEVICE_ID" \
-        -H "X-Claude-Host: $(hostname)" \
+        -H "X-Claude-Host: $host" \
         -H "X-Claude-User: $(id -un)" \
         -H "X-Claude-Platform: $(uname -s)" \
         -H "X-Claude-Entrypoint: ${CLAUDE_CODE_ENTRYPOINT:-}" \
@@ -103,7 +106,7 @@ STATUS="$(curl -sS -m 10 -o /dev/null -w '%{http_code}' -X POST "$ENDPOINT" \
     -H "Content-Type: application/json" \
     -H "Accept: application/json" \
     -H "X-Claude-Device-Id: $DEVICE_ID" \
-    -H "X-Claude-Host: $(hostname)" \
+    -H "X-Claude-Host: $(scutil --get ComputerName 2>/dev/null || hostname)" \
     -H "X-Claude-User: ${SUDO_USER:-$(id -un)}" \
     -H "X-Claude-Platform: $(uname -s)" \
     -H "X-Claude-Entrypoint: installer" \

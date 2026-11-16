@@ -12,8 +12,8 @@ stays even after the conversation is deleted from Claude.
 | Field | Source |
 |---|---|
 | Event, session id, project folder | Claude Code's hook input |
-| First 300 characters of each prompt | Claude Code's hook input (`CLAUDE_MONITOR_PROMPT_CHARS`) |
-| Computer name, OS user, OS, entry point | the device |
+| First 300 characters of each prompt | Claude Code's hook input (`CLAUDE_MONITOR_PROMPT_CHARS`, at most 1,000) |
+| Computer name, OS user, OS, entry point | the device (on a Mac, the name set in System Settings) |
 | Device id | random id fixed when the hook is installed |
 | **IP address** | as seen by the server, so the device can't fake it |
 
@@ -24,11 +24,15 @@ stays even after the conversation is deleted from Claude.
 
    ```
    CLAUDE_MONITOR_TOKEN=<long random secret>
-   CLAUDE_MONITOR_VIEWERS=you@example.com
+   CLAUDE_MONITOR_VIEWERS=1
    ```
 
-   `CLAUDE_MONITOR_VIEWERS` lists who may read the log. Leave it blank and
-   every PM tool admin can read it.
+   `CLAUDE_MONITOR_VIEWERS` lists the user ids that may read the log,
+   comma-separated. A user's id is the number in the address of their page
+   under **Users** (`/users/1/edit`). Ids, not emails: anyone can change their
+   own email in Profile, so an email no account holds yet would let in
+   whoever takes it first. An entry that isn't an id matches nobody. Leave it
+   blank and every PM tool admin can read the log.
 3. `php artisan config:cache` if config is cached.
 
 ## Device setup
@@ -59,6 +63,13 @@ on the page straight away. Restart open Claude Code sessions afterwards.
 - Anyone with admin rights on a monitored device can remove the hook. What
   it already sent stays on the server.
 - An event sent while the device is offline is lost.
+- The token is the same on every device and sits in the hook, which every
+  user on the device can read (the hook runs as them). Anyone holding it can
+  post events with any device name, so the **IP address** is the one field
+  they can't fake. If a device leaks it, set a new `CLAUDE_MONITOR_TOKEN` and
+  reinstall on every device.
+- The hook never holds up Claude Code: on macOS and Linux it posts in the
+  background, and on Windows it hands the event to a hidden copy of itself.
 
 ## Uninstall
 

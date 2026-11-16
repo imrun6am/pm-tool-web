@@ -113,12 +113,51 @@ class ClaudeActivityTest extends TestCase
 
     public function test_viewer_list_limits_access_even_for_admins(): void
     {
-        $owner = User::factory()->create(['email' => 'owner@example.com']);
+        $owner = User::factory()->create();
         $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
-        config(['claude_monitor.viewers' => ['owner@example.com']]);
+        config(['claude_monitor.viewers' => [(string) $owner->id]]);
 
         $this->actingAs($owner)->get('/claude-activity')->assertOk();
         $this->actingAs($admin)->get('/claude-activity')->assertForbidden();
+    }
+
+    public function test_taking_an_email_does_not_open_the_page(): void
+    {
+        // An email entry matches nobody, so changing your own email to it in
+        // Profile gets you nowhere.
+        config(['claude_monitor.viewers' => ['owner@example.com']]);
+        $dev = User::factory()->create(['role' => User::ROLE_DEVELOPER]);
+
+        $this->actingAs($dev)->patch('/profile', ['name' => $dev->name, 'email' => 'owner@example.com'])->assertRedirect();
+
+        $this->assertSame('owner@example.com', $dev->fresh()->email);
+        $this->actingAs($dev->fresh())->get('/claude-activity')->assertForbidden();
+    }
+
+    public function test_a_device_that_changes_its_name_stays_one_row(): void
+    {
+        $this->travelTo(now()->subHour());
+        $this->sendHook(['hook_event_name' => 'SessionStart', 'session_id' => 's1'], headers: ['X-Claude-Host' => 'Mds-MacBook-Pro.local'])->assertCreated();
+        $this->travelBack();
+        $this->sendHook(['hook_event_name' => 'SessionStart', 'session_id' => 's2'], headers: ['X-Claude-Host' => 'imrun-mac'])->assertCreated();
+        $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
+
+        $this->actingAs($admin)->get('/claude-activity')
+            ->assertOk()
+            ->assertViewHas('devices', fn ($devices) => $devices->count() === 1
+                && $devices->first()->hostname === 'imrun-mac'
+                && (int) $devices->first()->sessions === 2
+                && (int) $devices->first()->events === 2)
+            ->assertSee('also seen under 1 other name');
+    }
+
+    public function test_prompt_excerpt_never_outgrows_its_column(): void
+    {
+        config(['claude_monitor.prompt_excerpt_length' => 5000]);
+
+        $this->sendHook(['hook_event_name' => 'UserPromptSubmit', 'prompt' => str_repeat('a', 3000)])->assertCreated();
+
+        $this->assertSame(ClaudeActivityLog::PROMPT_EXCERPT_MAX, strlen(ClaudeActivityLog::sole()->prompt_excerpt));
     }
 
     public function test_device_and_event_filters(): void

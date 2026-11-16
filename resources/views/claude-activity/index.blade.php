@@ -48,6 +48,9 @@
                                             <p class="font-medium text-slate-900">{{ $device->hostname ?? 'Unknown host' }}</p>
                                             <p class="text-xs text-slate-500">
                                                 {{ $device->os_user ?? '?' }} · {{ $device->platform ?? '?' }}
+                                                @if ($device->host_names > 1)
+                                                    · also seen under {{ $device->host_names - 1 }} other {{ \Illuminate\Support\Str::plural('name', $device->host_names - 1) }}
+                                                @endif
                                                 @unless ($device->device_id)
                                                     · <span class="text-danger-600">no device id</span>
                                                 @endunless

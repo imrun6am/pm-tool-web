@@ -13,6 +13,9 @@ class ClaudeActivityLog extends Model
 {
     public const UPDATED_AT = null;
 
+    /** The prompt_excerpt column's size; a longer setting is cut to this. */
+    public const PROMPT_EXCERPT_MAX = 1000;
+
     public const EVENTS = [
         'SessionStart' => 'Session started',
         'UserPromptSubmit' => 'Prompt sent',
