@@ -8,13 +8,9 @@
 # It goes in Claude Code's *managed* settings, which only an administrator can
 # change and which a user's own settings can't switch off.
 #
-# On macOS it also hides the Claude desktop app's Chat tab, which no hook can
-# record, so the app opens on its Code tab. Pass --keep-chat to leave Chat on.
-#
 # Usage:
 #   sudo ./install.sh https://pm.example.com      # asks for the token (not echoed)
 #   sudo ./install.sh https://pm.example.com <CLAUDE_MONITOR_TOKEN>
-#   sudo ./install.sh https://pm.example.com --keep-chat
 #   sudo ./install.sh --uninstall
 #
 # Or straight from GitHub, without cloning:
@@ -33,48 +29,21 @@ case "$(uname -s)" in
     *)      echo "Unsupported OS. On Windows use install.ps1." >&2; exit 1 ;;
 esac
 
-URL=""
-TOKEN=""
-KEEP_CHAT=0
-UNINSTALL=0
-for arg in "$@"; do
-    case "$arg" in
-        --keep-chat) KEEP_CHAT=1 ;;
-        --uninstall) UNINSTALL=1 ;;
-        -*) echo "Unknown option: $arg" >&2; exit 1 ;;
-        *)  if [ -z "$URL" ]; then URL="$arg"; elif [ -z "$TOKEN" ]; then TOKEN="$arg"; fi ;;
-    esac
-done
-
-# The Claude desktop app's policy settings (macOS). desktopHome=off leaves only
-# the Code tab; chatTabEnabled=false does the same for app versions before
-# desktopHome, and is ignored from December 17, 2026.
-DESKTOP_PREFS="/Library/Preferences/com.anthropic.claudefordesktop"
-show_chat() {
-    [ "$(uname -s)" = "Darwin" ] || return 0
-    defaults delete "$DESKTOP_PREFS" desktopHome >/dev/null 2>&1 || true
-    defaults delete "$DESKTOP_PREFS" chatTabEnabled >/dev/null 2>&1 || true
-}
-hide_chat() {
-    [ "$(uname -s)" = "Darwin" ] || return 0
-    defaults write "$DESKTOP_PREFS" desktopHome -string off
-    defaults write "$DESKTOP_PREFS" chatTabEnabled -bool false
-}
-
-if [ "$UNINSTALL" = 1 ]; then
-    show_chat
+if [ "${1:-}" = "--uninstall" ]; then
     if [ -f "$DIR/managed-settings.json" ] && ! grep -q "claude-monitor-hook" "$DIR/managed-settings.json"; then
         echo "$DIR/managed-settings.json isn't ours; leaving it. Removing only the hook." >&2
     else
         rm -f "$DIR/managed-settings.json"
     fi
     rm -f "$DIR/claude-monitor-hook.sh"
-    echo "Claude monitor removed. Restart open Claude Code sessions and the Claude app."
+    echo "Claude monitor removed. Restart open Claude Code sessions."
     exit 0
 fi
 
+URL="${1:-}"
+TOKEN="${2:-}"
 if [ -z "$URL" ]; then
-    echo "Usage: sudo $0 <pm-tool URL> [CLAUDE_MONITOR_TOKEN] [--keep-chat]" >&2
+    echo "Usage: sudo $0 <pm-tool URL> [CLAUDE_MONITOR_TOKEN]" >&2
     echo "       sudo $0 --uninstall" >&2
     exit 1
 fi
@@ -178,9 +147,6 @@ JSON
 chown root "$SETTINGS"
 chmod 644 "$SETTINGS"
 
-# --- the desktop app's Chat tab -------------------------------------------
-if [ "$KEEP_CHAT" = 1 ]; then show_chat; else hide_chat; fi
-
 # --- check it reaches the server ------------------------------------------
 STATUS="$(curl -sS -m 10 -o /dev/null -w '%{http_code}' -X POST "$ENDPOINT" \
     -H "Authorization: Bearer $TOKEN" \
@@ -197,13 +163,6 @@ echo "Installed:"
 echo "  hook      $HOOK"
 echo "  settings  $SETTINGS"
 echo "  device id $DEVICE_ID"
-if [ "$(uname -s)" = "Darwin" ]; then
-    if [ "$KEEP_CHAT" = 1 ]; then
-        echo "  desktop   Chat tab left on"
-    else
-        echo "  desktop   Chat tab hidden ($DESKTOP_PREFS.plist); quit and reopen the Claude app"
-    fi
-fi
 if [ "$STATUS" = "201" ]; then
     echo "Test event sent — this device now shows on the Claude activity page."
 else

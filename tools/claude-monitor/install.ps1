@@ -5,12 +5,8 @@
 # the PM tool's /api/claude-activity endpoint,
 # in Claude Code's managed settings (admin-only, can't be switched off by a user).
 #
-# It also hides the Claude desktop app's Chat tab, which no hook can record, so
-# the app opens on its Code tab. Pass -KeepChat to leave Chat on.
-#
 # Run in PowerShell *as Administrator*:
 #   powershell -ExecutionPolicy Bypass -File .\install.ps1 -Url https://pm.example.com   # asks for the token
-#   powershell -ExecutionPolicy Bypass -File .\install.ps1 -Url https://pm.example.com -KeepChat
 #   powershell -ExecutionPolicy Bypass -File .\install.ps1 -Uninstall
 #
 # Or straight from GitHub, without cloning:
@@ -19,8 +15,7 @@
 param(
     [string]$Url,
     [string]$Token,
-    [switch]$Uninstall,
-    [switch]$KeepChat
+    [switch]$Uninstall
 )
 $ErrorActionPreference = 'Stop'
 
@@ -32,31 +27,16 @@ $Dir = 'C:\Program Files\ClaudeCode'
 $Hook = Join-Path $Dir 'claude-monitor-hook.ps1'
 $Settings = Join-Path $Dir 'managed-settings.json'
 
-# The Claude desktop app's policy settings. desktopHome=off leaves only the
-# Code tab; chatTabEnabled=0 does the same for app versions before desktopHome,
-# and is ignored from December 17, 2026.
-$Policy = 'HKLM:\SOFTWARE\Policies\Claude'
-function Show-Chat {
-    Remove-ItemProperty -Path $Policy -Name 'desktopHome', 'chatTabEnabled' -ErrorAction SilentlyContinue
-}
-function Hide-Chat {
-    # Not New-Item -Force on an existing key: that would wipe its other values.
-    if (-not (Test-Path $Policy)) { New-Item -Path $Policy -Force | Out-Null }
-    New-ItemProperty -Path $Policy -Name 'desktopHome' -Value 'off' -PropertyType String -Force | Out-Null
-    New-ItemProperty -Path $Policy -Name 'chatTabEnabled' -Value 0 -PropertyType DWord -Force | Out-Null
-}
-
 if ($Uninstall) {
-    Show-Chat
     if ((Test-Path $Settings) -and (Select-String -Path $Settings -Pattern 'claude-monitor-hook' -Quiet)) {
         Remove-Item $Settings -Force
     }
     Remove-Item $Hook -Force -ErrorAction SilentlyContinue
-    Write-Host 'Claude monitor removed. Restart open Claude Code sessions and the Claude app.'
+    Write-Host 'Claude monitor removed. Restart open Claude Code sessions.'
     exit 0
 }
 
-if (-not $Url) { Write-Error 'Usage: install.ps1 -Url https://pm.example.com [-Token <token>] [-KeepChat] | -Uninstall' }
+if (-not $Url) { Write-Error 'Usage: install.ps1 -Url https://pm.example.com [-Token <token>] | -Uninstall' }
 if (-not $Token) {
     # Asked for here, hidden, so it stays out of the console history.
     $secure = Read-Host 'CLAUDE_MONITOR_TOKEN (input hidden)' -AsSecureString
@@ -145,10 +125,6 @@ $json = @{ hooks = [ordered]@{ SessionStart = $entry; UserPromptSubmit = $entry;
 # Only administrators may change the hook or the settings.
 icacls $Dir /inheritance:r /grant:r 'Administrators:(OI)(CI)F' 'SYSTEM:(OI)(CI)F' 'Users:(OI)(CI)RX' | Out-Null
 
-# The desktop app's Chat tab.
-if ($KeepChat) { Show-Chat } else { Hide-Chat }
-$chatNote = if ($KeepChat) { 'Desktop app: Chat tab left on.' } else { "Desktop app: Chat tab hidden ($Policy); quit and reopen the Claude app." }
-
 try {
     $headers = @{
         'Authorization' = "Bearer $Token"; 'Accept' = 'application/json'
@@ -158,10 +134,8 @@ try {
     Invoke-RestMethod -Uri $Endpoint -Method Post -Headers $headers -ContentType 'application/json' `
         -Body '{"hook_event_name":"MonitorInstalled"}' -TimeoutSec 10 | Out-Null
     Write-Host "Installed. Device id $DeviceId. Test event sent - this device now shows on the Claude activity page."
-    Write-Host $chatNote
     Write-Host 'Restart any open Claude Code sessions so they pick up the hook.'
 } catch {
-    Write-Host $chatNote
     Write-Warning "Installed, but the test event failed: $($_.Exception.Message). Check the URL, the token and that the PM tool is reachable."
     exit 2
 }
