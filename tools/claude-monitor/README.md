@@ -68,9 +68,11 @@ yesterday?"). It reads the same log, by person, device, period or text.
 
 Copy this folder to each device, then:
 
-- **macOS / Linux:** `sudo ./install.sh https://your-pm-tool.example.com <token>`
+- **macOS / Linux:** `sudo ./install.sh https://your-pm-tool.example.com` (asks for the token, hidden)
 - **Windows** (PowerShell as Administrator):
-  `powershell -ExecutionPolicy Bypass -File .\install.ps1 -Url https://your-pm-tool.example.com -Token <token>`
+  `powershell -ExecutionPolicy Bypass -File .\install.ps1 -Url https://your-pm-tool.example.com`
+
+Add `--keep-chat` (`-KeepChat`) to leave the desktop app's Chat tab on.
 
 The installer writes the hook into Claude Code's **managed settings**:
 
@@ -81,6 +83,28 @@ The installer writes the hook into Claude Code's **managed settings**:
 Only an administrator can change files there, and a user's own settings can't
 turn managed hooks off. The installer sends a test event, so the device appears
 on the page straight away. Restart open Claude Code sessions afterwards.
+
+## The desktop app's Chat tab
+
+No hook runs when someone chats in the Claude desktop app's Chat tab, so those
+chats can't be recorded. The installer therefore hides that tab, and the app
+opens on its Code tab, which is recorded. It sets the app's policy settings
+`desktopHome` = `off` and `chatTabEnabled` = false (the older name, ignored from
+December 17, 2026):
+
+- macOS: `/Library/Preferences/com.anthropic.claudefordesktop.plist`
+- Windows: `HKLM\SOFTWARE\Policies\Claude`
+
+Quit and reopen the Claude app afterwards. To leave the Chat tab on, install
+with `--keep-chat` (`-KeepChat` on Windows); running it that way later shows the
+tab again, and so does uninstalling.
+
+This only steers people to the Code tab. Chat on claude.ai in a browser, in the
+mobile app and in the Claude in Chrome extension stays open, and on Team and Pro
+plans nothing can turn that off. Anthropic documents these two settings for
+managed deployments; check on one Mac that the tab goes away with your
+account before rolling it out. Some app versions may only honour them from an
+MDM profile (Jamf, Kandji, Intune) in the `com.anthropic.claudefordesktop` domain.
 
 ## Limits
 
@@ -106,5 +130,6 @@ on the page straight away. Restart open Claude Code sessions afterwards.
 
 ## Uninstall
 
-Delete `managed-settings.json` and `claude-monitor-hook.sh` (`.ps1` on Windows)
-from the folder above.
+`sudo ./install.sh --uninstall` (`.\install.ps1 -Uninstall` on Windows). It
+removes the hook and the managed settings, and shows the desktop app's Chat tab
+again.
