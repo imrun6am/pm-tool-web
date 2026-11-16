@@ -371,6 +371,11 @@ Route::middleware('auth')->group(function () {
 
     // Claude Code activity monitor — viewers in config/claude_monitor.php, else admins.
     Route::get('claude-activity', [ClaudeActivityController::class, 'index'])->name('claude-activity.index');
+    Route::get('claude-activity/devices/{device}', [ClaudeActivityController::class, 'device'])
+        ->where('device', '[^/]+')->name('claude-activity.device');
+    Route::post('claude-activity/delete', [ClaudeActivityController::class, 'bulkDestroy'])->name('claude-activity.bulk-destroy');
+    Route::delete('claude-activity/{log}', [ClaudeActivityController::class, 'destroy'])
+        ->whereNumber('log')->name('claude-activity.destroy');
 
     // Profile (Breeze)
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');

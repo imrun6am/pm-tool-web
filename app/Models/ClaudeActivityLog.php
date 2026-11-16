@@ -6,8 +6,8 @@ use Illuminate\Database\Eloquent\Model;
 use LogicException;
 
 /**
- * One Claude Code event reported by a monitored device. Append-only: once
- * written a row can't be changed or removed through the app.
+ * One Claude Code event reported by a monitored device. Once written a row
+ * can't be changed; whoever may read the log may delete rows from it.
  */
 class ClaudeActivityLog extends Model
 {
@@ -30,8 +30,7 @@ class ClaudeActivityLog extends Model
 
     protected static function booted(): void
     {
-        static::updating(fn () => throw new LogicException('Claude activity logs are append-only.'));
-        static::deleting(fn () => throw new LogicException('Claude activity logs are append-only.'));
+        static::updating(fn () => throw new LogicException('Claude activity logs can\'t be changed.'));
     }
 
     public function eventLabel(): string

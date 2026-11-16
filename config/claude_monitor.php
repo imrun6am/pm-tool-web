@@ -6,9 +6,9 @@
 |--------------------------------------------------------------------------
 |
 | Devices running Claude Code post an event here (session start, each prompt,
-| session end) through a hook installed by tools/claude-monitor. The log is
-| append-only: there is no route or UI that edits or deletes a row, so an
-| entry survives even when the conversation itself is deleted later.
+| session end) through a hook installed by tools/claude-monitor. Nothing edits
+| a row, so an entry survives the conversation being deleted later; only the
+| log's viewers can delete entries, from the Claude activity pages.
 |
 */
 

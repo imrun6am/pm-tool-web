@@ -4,8 +4,14 @@ Records which device uses Claude Code on your account, and when. Each monitored
 device posts an event to the PM tool on every session start, prompt and session
 end. You read them at **Claude activity** in the sidebar (`/claude-activity`).
 
-The log is append-only: the app has no way to edit or delete a row, so an entry
-stays even after the conversation is deleted from Claude.
+Nothing can edit an entry, so it stays even after the conversation is deleted
+from Claude. Whoever may read the log can delete entries: one at a time, the
+ticked ones, or every event matching the filters. Each deletion is noted in
+the app's log (`storage/logs`) with who did it and how many.
+
+Click **Show events** on a device for its own page: its names, IP addresses,
+counts, and its events with filters for text, event, OS user, entry point,
+IP, session and dates.
 
 ## What is recorded
 

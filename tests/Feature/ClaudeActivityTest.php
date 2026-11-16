@@ -79,7 +79,7 @@ class ClaudeActivityTest extends TestCase
         $this->assertSame(0, ClaudeActivityLog::count());
     }
 
-    public function test_rows_cannot_be_changed_or_deleted(): void
+    public function test_rows_cannot_be_changed(): void
     {
         $this->sendHook(['hook_event_name' => 'SessionStart'])->assertCreated();
         $log = ClaudeActivityLog::sole();
@@ -87,12 +87,6 @@ class ClaudeActivityTest extends TestCase
         try {
             $log->update(['hostname' => 'someone-else']);
             $this->fail('Update should be refused.');
-        } catch (LogicException) {
-        }
-
-        try {
-            $log->delete();
-            $this->fail('Delete should be refused.');
         } catch (LogicException) {
         }
 
@@ -169,5 +163,109 @@ class ClaudeActivityTest extends TestCase
         $this->actingAs($admin)->get('/claude-activity?device=dev-2&event=SessionStart')
             ->assertOk()
             ->assertViewHas('logs', fn ($logs) => $logs->total() === 1 && $logs->first()->hostname === 'unknown-laptop');
+    }
+
+    private function admin(): User
+    {
+        return User::factory()->create(['role' => User::ROLE_ADMIN]);
+    }
+
+    /** Two devices: dev-1 (office-mac, two prompts) and dev-2 (home-pc, one). */
+    private function twoDevices(): void
+    {
+        $this->sendHook(['hook_event_name' => 'UserPromptSubmit', 'session_id' => 's1', 'cwd' => '/work/billing', 'prompt' => 'fix the invoice'])->assertCreated();
+        $this->sendHook(['hook_event_name' => 'UserPromptSubmit', 'session_id' => 's2', 'cwd' => '/work/api', 'prompt' => 'add 100% coverage'], headers: ['X-Claude-User' => 'guest'])->assertCreated();
+        $this->sendHook(['hook_event_name' => 'UserPromptSubmit', 'session_id' => 's3', 'prompt' => 'home stuff'], headers: ['X-Claude-Device-Id' => 'dev-2', 'X-Claude-Host' => 'home-pc'])->assertCreated();
+    }
+
+    public function test_show_events_opens_the_device_page(): void
+    {
+        $this->twoDevices();
+
+        $this->actingAs($this->admin())->get('/claude-activity')
+            ->assertOk()
+            ->assertSee(route('claude-activity.device', 'dev-1'), false);
+
+        $this->get(route('claude-activity.device', 'dev-1'))
+            ->assertOk()
+            ->assertSee('office-mac')
+            ->assertSee('fix the invoice')
+            ->assertDontSee('home stuff')
+            ->assertViewHas('summary', fn ($s) => (int) $s->events === 2 && (int) $s->prompts === 2 && (int) $s->sessions === 2);
+    }
+
+    public function test_device_page_filters(): void
+    {
+        $this->twoDevices();
+        $this->actingAs($this->admin());
+        $ids = fn (array $query) => $this->get(route('claude-activity.device', ['device' => 'dev-1', ...$query]))
+            ->assertOk()->viewData('logs')->pluck('session_id')->all();
+
+        $this->assertSame(['s1'], $ids(['q' => 'billing']));
+        $this->assertSame(['s2'], $ids(['q' => '100%']));
+        $this->assertSame(['s2'], $ids(['q' => '%'])); // a literal %, not a wildcard
+        $this->assertSame(['s2'], $ids(['os_user' => 'guest']));
+        $this->assertSame(['s1'], $ids(['session' => 's1']));
+        $this->assertSame(['s1', 's2'], $ids(['sort' => 'oldest']));
+        $this->assertSame([], $ids(['from' => now()->addDay()->toDateString()]));
+        $this->assertSame(['s2', 's1'], $ids(['to' => now()->toDateString()]));
+    }
+
+    public function test_events_without_a_device_id_have_their_own_page(): void
+    {
+        $this->sendHook(['hook_event_name' => 'SessionStart'], headers: ['X-Claude-Device-Id' => ''])->assertCreated();
+        $this->sendHook(['hook_event_name' => 'SessionStart'])->assertCreated();
+
+        $this->actingAs($this->admin())->get(route('claude-activity.device', 'none'))
+            ->assertOk()
+            ->assertViewHas('logs', fn ($logs) => $logs->total() === 1 && $logs->first()->device_id === null);
+
+        $this->get(route('claude-activity.device', 'no-such-device'))->assertNotFound();
+    }
+
+    public function test_delete_one_and_the_ticked_events(): void
+    {
+        $this->twoDevices();
+        $this->actingAs($this->admin());
+        [$first, $second, $third] = ClaudeActivityLog::orderBy('id')->get()->all();
+
+        $this->delete(route('claude-activity.destroy', $first))->assertRedirect()->assertSessionHas('success', 'Event deleted.');
+        $this->post(route('claude-activity.bulk-destroy'), ['ids' => [$second->id]])->assertRedirect()->assertSessionHas('success', '1 event deleted.');
+
+        $this->assertSame([$third->id], ClaudeActivityLog::pluck('id')->all());
+    }
+
+    public function test_delete_all_matching_stays_within_the_device_and_filters(): void
+    {
+        $this->twoDevices();
+
+        $this->actingAs($this->admin())
+            ->post(route('claude-activity.bulk-destroy'), ['all' => 1, 'device' => 'dev-1', 'os_user' => 'guest'])
+            ->assertSessionHas('success', '1 event deleted.');
+        $this->assertSame(['s1', 's3'], ClaudeActivityLog::orderBy('id')->pluck('session_id')->all());
+
+        $this->post(route('claude-activity.bulk-destroy'), ['all' => 1, 'device' => 'dev-1'])->assertSessionHas('success', '1 event deleted.');
+        $this->assertSame(['s3'], ClaudeActivityLog::pluck('session_id')->all());
+    }
+
+    public function test_bulk_delete_needs_ids_or_all(): void
+    {
+        $this->twoDevices();
+
+        $this->actingAs($this->admin())->post(route('claude-activity.bulk-destroy'), [])->assertSessionHasErrors('ids');
+        $this->assertSame(3, ClaudeActivityLog::count());
+    }
+
+    public function test_only_viewers_open_the_device_page_or_delete(): void
+    {
+        $this->twoDevices();
+        $log = ClaudeActivityLog::first();
+        $lead = User::factory()->create(['role' => User::ROLE_CTO]);
+
+        $this->actingAs($lead)->get(route('claude-activity.device', 'dev-1'))->assertForbidden();
+        $this->delete(route('claude-activity.destroy', $log))->assertForbidden();
+        $this->post(route('claude-activity.bulk-destroy'), ['all' => 1])->assertForbidden();
+
+        $this->assertSame(3, ClaudeActivityLog::count());
     }
 }
