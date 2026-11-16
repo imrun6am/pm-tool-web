@@ -20,12 +20,13 @@ class ClaudeActivityLog extends Model
         'SessionStart' => 'Session started',
         'UserPromptSubmit' => 'Prompt sent',
         'SessionEnd' => 'Session ended',
+        'PostModelSwitch' => 'Model switched',
         'MonitorInstalled' => 'Monitor installed',
     ];
 
     protected $fillable = [
-        'event', 'session_id', 'device_id', 'hostname', 'os_user', 'platform',
-        'entrypoint', 'ip', 'cwd', 'detail', 'prompt_excerpt', 'transcript_path',
+        'event', 'session_id', 'device_id', 'hostname', 'mac_address', 'os_user', 'platform',
+        'entrypoint', 'model', 'ip', 'cwd', 'detail', 'prompt_excerpt', 'transcript_path',
     ];
 
     protected static function booted(): void

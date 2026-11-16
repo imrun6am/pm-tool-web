@@ -2,6 +2,7 @@
   "hooks": {
     "SessionStart": [{ "hooks": [{ "type": "command", "command": "\"/Library/Application Support/ClaudeCode/claude-monitor-hook.sh\"" }] }],
     "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "\"/Library/Application Support/ClaudeCode/claude-monitor-hook.sh\"" }] }],
-    "SessionEnd": [{ "hooks": [{ "type": "command", "command": "\"/Library/Application Support/ClaudeCode/claude-monitor-hook.sh\"" }] }]
+    "SessionEnd": [{ "hooks": [{ "type": "command", "command": "\"/Library/Application Support/ClaudeCode/claude-monitor-hook.sh\"" }] }],
+    "PostModelSwitch": [{ "hooks": [{ "type": "command", "command": "\"/Library/Application Support/ClaudeCode/claude-monitor-hook.sh\"" }] }]
   }
 }

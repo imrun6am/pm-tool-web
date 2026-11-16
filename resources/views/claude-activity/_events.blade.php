@@ -1,26 +1,23 @@
 {{--
-    The event list both Claude activity pages share: filters, the events, and
-    deleting them (one, the ticked ones, or every event the filters match).
+    A device's event list on its Claude activity page: filters, the events,
+    and deleting them (one, the ticked ones, or every event the filters match).
       $logs     paginator of ClaudeActivityLog
       $filters  the validated filters
       $options  ['os_users' => …, 'entrypoints' => …] for the selects
       $action   the page's URL, which the filters submit to
-      $devices  the device rows for a device filter, or null on a device page
-      $device   the device a device page shows, or null
+      $device   the device id the page shows ("none" for events without one)
 --}}
 @php
     use App\Http\Controllers\ClaudeActivityController;
     use App\Models\ClaudeActivityLog;
     use Illuminate\Support\Str;
 
-    $devices ??= null;
-    $device ??= null;
     $filtered = collect($filters)->except(['sort', 'per_page'])->filter()->isNotEmpty();
-    $eventTone = ['SessionStart' => 'badge-success', 'UserPromptSubmit' => 'badge-info', 'SessionEnd' => 'badge-slate', 'MonitorInstalled' => 'badge-violet'];
+    $eventTone = ['SessionStart' => 'badge-success', 'UserPromptSubmit' => 'badge-info', 'SessionEnd' => 'badge-slate', 'PostModelSwitch' => 'badge-warning', 'MonitorInstalled' => 'badge-violet'];
     $total = $logs->total();
     // What "delete all matching" sends: the filters, and the device it's scoped to.
     $matching = collect($filters)->except(['sort', 'per_page'])->filter()
-        ->when($device, fn ($f) => $f->put('device', $device));
+        ->put('device', $device);
 @endphp
 
 <section class="card" aria-labelledby="claude-events">
@@ -33,16 +30,6 @@
                 <input id="events-q" type="search" name="q" value="{{ $filters['q'] ?? '' }}" placeholder="Search prompts, folders…" class="filter-search">
             </x-slot>
 
-            @if ($devices)
-                <label for="events-device" class="filter-label">Device</label>
-                <select id="events-device" name="device" class="filter-select max-w-[12rem]">
-                    <option value="">All devices</option>
-                    @foreach ($devices as $d)
-                        @php $value = $d->device_id ?? ClaudeActivityController::NO_DEVICE; @endphp
-                        <option value="{{ $value }}" @selected(($filters['device'] ?? null) === $value)>{{ $d->hostname ?? 'Unknown host' }}{{ $d->device_id ? '' : ' (no device id)' }}</option>
-                    @endforeach
-                </select>
-            @endif
 
             <label for="events-event" class="filter-label">Event</label>
             <select id="events-event" name="event" class="filter-select">
@@ -72,8 +59,21 @@
                 </select>
             @endif
 
+            @if ($options['models']->isNotEmpty() || ($filters['model'] ?? null))
+                <label for="events-model" class="filter-label">Model</label>
+                <select id="events-model" name="model" class="filter-select max-w-[12rem]">
+                    <option value="">Any model</option>
+                    @foreach ($options['models'] as $value)
+                        <option value="{{ $value }}" @selected(($filters['model'] ?? null) === $value)>{{ $value }}</option>
+                    @endforeach
+                </select>
+            @endif
+
             <label for="events-ip" class="filter-label">IP address</label>
             <input id="events-ip" type="text" name="ip" value="{{ $filters['ip'] ?? '' }}" placeholder="IP address" class="filter-date w-36 font-mono" inputmode="decimal" autocomplete="off">
+
+            <label for="events-mac" class="filter-label">MAC address</label>
+            <input id="events-mac" type="text" name="mac" value="{{ $filters['mac'] ?? '' }}" placeholder="MAC address" class="filter-date w-40 font-mono" autocomplete="off">
 
             <label for="events-session" class="filter-label">Session id</label>
             <input id="events-session" type="text" name="session" value="{{ $filters['session'] ?? '' }}" placeholder="Session id" class="filter-date w-36 font-mono" autocomplete="off">
@@ -123,7 +123,7 @@
                 {{-- Delete every event these filters match, on every page --}}
                 <form method="POST" action="{{ route('claude-activity.bulk-destroy') }}" class="ml-auto"
                       data-confirm-title="Delete {{ number_format($total) }} {{ Str::plural('event', $total) }}?" data-confirm-verb="Delete {{ number_format($total) }}"
-                      data-confirm="{{ $filtered || $device ? 'Every event that matches '.($filtered ? 'these filters' : 'this device').', on every page, will be deleted.' : 'Every event from every device will be deleted.' }} This can't be undone.">
+                      data-confirm="Every event {{ $filtered ? 'that matches these filters' : 'from this device' }}, on every page, will be deleted. This can't be undone.">
                     @csrf
                     <input type="hidden" name="all" value="1">
                     @foreach ($matching as $name => $value)
@@ -150,10 +150,7 @@
                             </th>
                             <th scope="col">When</th>
                             <th scope="col">Event</th>
-                            @unless ($device)
-                                <th scope="col">Device</th>
-                            @endunless
-                            <th scope="col">IP</th>
+                            <th scope="col">IP / MAC</th>
                             <th scope="col">Folder / prompt</th>
                             <th scope="col">Session</th>
                             <th scope="col"><span class="sr-only">Delete</span></th>
@@ -170,18 +167,19 @@
                                 <td class="whitespace-nowrap">
                                     <span class="badge {{ $eventTone[$log->event] ?? 'badge-slate' }}">{{ $log->eventLabel() }}</span>
                                     @if ($log->detail)
-                                        <span class="text-xs text-slate-500">{{ $log->detail }}</span>
+                                        <span class="text-xs text-slate-500">{{ $log->event === 'PostModelSwitch' ? 'from '.$log->detail : $log->detail }}</span>
+                                    @endif
+                                    @if ($log->model)
+                                        <a href="{{ request()->fullUrlWithQuery(['model' => $log->model, 'page' => null]) }}"
+                                           class="mt-1 block font-mono text-xs text-slate-500 hover:underline" title="Only events with this model">{{ $log->model }}</a>
                                     @endif
                                 </td>
-                                @unless ($device)
-                                    <td>
-                                        <a href="{{ ClaudeActivityController::deviceUrl($log->device_id) }}" class="text-slate-900 hover:text-brand-700 hover:underline">{{ $log->hostname ?? 'Unknown host' }}</a>
-                                        <p class="text-xs text-slate-500">{{ $log->os_user }}@if ($log->entrypoint) · {{ $log->entrypoint }}@endif</p>
-                                    </td>
-                                @endunless
                                 <td class="whitespace-nowrap font-mono text-sm text-slate-700">
                                     @if ($log->ip)
                                         <a href="{{ request()->fullUrlWithQuery(['ip' => $log->ip, 'page' => null]) }}" class="hover:underline" title="Only events from this IP">{{ $log->ip }}</a>
+                                    @endif
+                                    @if ($log->mac_address)
+                                        <a href="{{ request()->fullUrlWithQuery(['mac' => $log->mac_address, 'page' => null]) }}" class="block text-xs text-slate-500 hover:underline" title="Only events from this MAC address">{{ $log->mac_address }}</a>
                                     @endif
                                 </td>
                                 <td class="max-w-md">
@@ -191,7 +189,7 @@
                                     @if ($log->cwd)
                                         <p class="truncate font-mono text-xs text-slate-500" title="{{ $log->cwd }}">{{ $log->cwd }}</p>
                                     @endif
-                                    @if ($device && ($log->entrypoint || $log->os_user))
+                                    @if ($log->entrypoint || $log->os_user)
                                         <p class="text-xs text-slate-400">{{ $log->os_user }}@if ($log->entrypoint) · {{ $log->entrypoint }}@endif</p>
                                     @endif
                                 </td>

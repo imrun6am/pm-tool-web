@@ -18,7 +18,8 @@ use Illuminate\View\View;
 
 /**
  * Claude Code activity monitor: devices post hook events to store(); the
- * account owner reads them on index() and device(), and may delete them.
+ * account owner sees the devices on index() and each one's events on
+ * device(), and may delete events.
  * Nothing edits a row.
  */
 class ClaudeActivityController extends Controller
@@ -47,17 +48,29 @@ class ClaudeActivityController extends Controller
 
         $event = $payload['hook_event_name'];
 
+        // The model. Claude Code names it only on SessionStart (`model`, which
+        // can be missing) and PostModelSwitch (`to_model`); a prompt or session
+        // end takes the latest model its session reported.
+        $model = $str($payload['model'] ?? $payload['to_model'] ?? null, 100);
+        $sessionId = $str($payload['session_id'] ?? null, 64);
+        if ($model === null && $sessionId !== null) {
+            $model = ClaudeActivityLog::where('session_id', $sessionId)->whereNotNull('model')->latest('id')->value('model');
+        }
+
         ClaudeActivityLog::create([
             'event' => $str($event, 32),
-            'session_id' => $str($payload['session_id'] ?? null, 64),
+            'session_id' => $sessionId,
             'device_id' => $header('X-Claude-Device-Id', 64),
             'hostname' => $header('X-Claude-Host', 255),
             'os_user' => $header('X-Claude-User', 128),
             'platform' => $header('X-Claude-Platform', 32),
             'entrypoint' => $header('X-Claude-Entrypoint', 64),
+            'model' => $model,
+            'mac_address' => self::mac($request->header('X-Claude-Mac')),
             'ip' => $request->ip(),
             'cwd' => $str($payload['cwd'] ?? null, 1024),
-            'detail' => $str($payload['source'] ?? $payload['reason'] ?? null, 64),
+            // SessionStart's source, SessionEnd's reason, or the model switched from.
+            'detail' => $str($payload['source'] ?? $payload['reason'] ?? $payload['from_model'] ?? null, 64),
             'prompt_excerpt' => $event === 'UserPromptSubmit'
                 ? $str($payload['prompt'] ?? null, min(ClaudeActivityLog::PROMPT_EXCERPT_MAX, max(0, (int) config('claude_monitor.prompt_excerpt_length'))))
                 : null,
@@ -67,12 +80,10 @@ class ClaudeActivityController extends Controller
         return response()->json(['ok' => true], 201);
     }
 
-    /** GET /claude-activity — every device, and the events of all of them. */
+    /** GET /claude-activity — every device that has reported. */
     public function index(Request $request): View
     {
         abort_unless(self::canView($request->user()), 403);
-
-        $filters = $this->filters($request, withDevice: true);
 
         // One row per device id. The computer name isn't part of the grouping:
         // a Mac's name can change with the network it's on, and one device
@@ -82,6 +93,8 @@ class ClaudeActivityController extends Controller
             ->selectRaw('MIN(created_at) as first_seen, MAX(created_at) as last_seen, COUNT(*) as events')
             ->selectRaw('COUNT(DISTINCT session_id) as sessions, COUNT(DISTINCT hostname) as host_names')
             ->selectRaw('MAX(id) as latest_id')
+            // Not every event has a MAC address; name the newest one that does.
+            ->selectRaw('MAX(CASE WHEN mac_address IS NOT NULL THEN id END) as mac_id')
             ->groupBy('device_id')
             ->orderByDesc('last_seen')
             ->get());
@@ -95,12 +108,19 @@ class ClaudeActivityController extends Controller
             ->get()
             ->groupBy('device_id');
 
+        // The models each device has used, most recent first.
+        $modelsByDevice = ClaudeActivityLog::query()
+            ->select('device_id', 'model', DB::raw('MAX(created_at) as last_seen'))
+            ->whereNotNull('model')
+            ->groupBy('device_id', 'model')
+            ->orderByDesc('last_seen')
+            ->get()
+            ->groupBy('device_id');
+
         return view('claude-activity.index', [
-            'logs' => $this->events(ClaudeActivityLog::query(), $filters),
             'devices' => $devices,
             'ipsByDevice' => $ipsByDevice,
-            'filters' => $filters,
-            'options' => $this->options(ClaudeActivityLog::query()),
+            'modelsByDevice' => $modelsByDevice,
             'configured' => (string) config('claude_monitor.token') !== '',
         ]);
     }
@@ -128,6 +148,10 @@ class ClaudeActivityController extends Controller
             'summary' => $summary,
             'ips' => $scope()->select('ip', DB::raw('MAX(created_at) as last_seen'), DB::raw('COUNT(*) as events'))
                 ->whereNotNull('ip')->groupBy('ip')->orderByDesc('last_seen')->get(),
+            'macs' => $scope()->select('mac_address', DB::raw('MAX(created_at) as last_seen'), DB::raw('COUNT(*) as events'))
+                ->whereNotNull('mac_address')->groupBy('mac_address')->orderByDesc('last_seen')->get(),
+            'models' => $scope()->select('model', DB::raw('MAX(created_at) as last_seen'), DB::raw('COUNT(*) as events'))
+                ->whereNotNull('model')->groupBy('model')->orderByDesc('last_seen')->get(),
             'logs' => $this->events($scope(), $filters),
             'filters' => $filters,
             'options' => $this->options($scope()),
@@ -171,6 +195,17 @@ class ClaudeActivityController extends Controller
         return back()->with('success', $deleted === 1 ? '1 event deleted.' : number_format($deleted).' events deleted.');
     }
 
+    /**
+     * A MAC address as aa:bb:cc:dd:ee:ff, or null when the header isn't one.
+     * Windows sends AA-BB-…, macOS and Linux aa:bb:….
+     */
+    private static function mac(?string $value): ?string
+    {
+        $mac = strtolower(str_replace('-', ':', trim((string) $value)));
+
+        return preg_match('/^([0-9a-f]{2}:){5}[0-9a-f]{2}$/', $mac) && $mac !== '00:00:00:00:00:00' ? $mac : null;
+    }
+
     /** The URL of a device's page; devices that sent no id share "none". */
     public static function deviceUrl(?string $deviceId, array $query = []): string
     {
@@ -178,8 +213,8 @@ class ClaudeActivityController extends Controller
     }
 
     /**
-     * The filters both pages share, validated. `device` only where the page
-     * lists several devices.
+     * The device page's filters, validated. `device` only when deleting
+     * every match, which names the device in the form.
      *
      * @return array<string, mixed>
      */
@@ -192,6 +227,8 @@ class ClaudeActivityController extends Controller
             'ip' => ['nullable', 'string', 'max:45'],
             'os_user' => ['nullable', 'string', 'max:128'],
             'entrypoint' => ['nullable', 'string', 'max:64'],
+            'model' => ['nullable', 'string', 'max:100'],
+            'mac' => ['nullable', 'string', 'max:17'],
             'session' => ['nullable', 'string', 'max:64'],
             'from' => ['nullable', 'date'],
             'to' => ['nullable', 'date'],
@@ -228,6 +265,8 @@ class ClaudeActivityController extends Controller
             ->when($filters['ip'] ?? null, fn ($q, $ip) => $q->where('ip', $ip))
             ->when($filters['os_user'] ?? null, fn ($q, $user) => $q->where('os_user', $user))
             ->when($filters['entrypoint'] ?? null, fn ($q, $entry) => $q->where('entrypoint', $entry))
+            ->when($filters['model'] ?? null, fn ($q, $model) => $q->where('model', $model))
+            ->when($filters['mac'] ?? null, fn ($q, $mac) => $q->where('mac_address', self::mac($mac) ?? $mac))
             ->when($filters['session'] ?? null, fn ($q, $session) => $q->where('session_id', $session))
             ->when($filters['from'] ?? null, fn ($q, $from) => $q->where('created_at', '>=', Carbon::parse($from)->startOfDay()))
             ->when($filters['to'] ?? null, fn ($q, $to) => $q->where('created_at', '<', Carbon::parse($to)->addDay()->startOfDay()))
@@ -246,25 +285,27 @@ class ClaudeActivityController extends Controller
     /**
      * The values the select filters offer, from the events in $query.
      *
-     * @return array{os_users: Collection<int, string>, entrypoints: Collection<int, string>}
+     * @return array{os_users: Collection<int, string>, entrypoints: Collection<int, string>, models: Collection<int, string>}
      */
     private function options(Builder $query): array
     {
         $values = fn (string $column) => (clone $query)->whereNotNull($column)->distinct()->orderBy($column)->pluck($column);
 
-        return ['os_users' => $values('os_user'), 'entrypoints' => $values('entrypoint')];
+        return ['os_users' => $values('os_user'), 'entrypoints' => $values('entrypoint'), 'models' => $values('model')];
     }
 
     /** Fill each device row's name, user and OS from its newest event. */
     private function nameDevices(Collection $devices): Collection
     {
-        $latest = ClaudeActivityLog::whereIn('id', $devices->pluck('latest_id'))->get()->keyBy('id');
+        $latest = ClaudeActivityLog::whereIn('id', $devices->pluck('latest_id')->merge($devices->pluck('mac_id'))->filter())
+            ->get()->keyBy('id');
 
         return $devices->each(function (ClaudeActivityLog $device) use ($latest) {
             $newest = $latest->get($device->latest_id);
             $device->hostname = $newest?->hostname;
             $device->os_user = $newest?->os_user;
             $device->platform = $newest?->platform;
+            $device->mac_address = $latest->get($device->mac_id)?->mac_address;
         });
     }
 

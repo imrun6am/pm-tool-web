@@ -1,7 +1,7 @@
 <x-app-layout>
     <x-slot name="header">
         <x-page-header title="Claude activity"
-                       description="Every Claude Code session and prompt on your monitored devices, recorded when it happens. Entries can't be edited, so they stay even after a conversation is deleted." />
+                       description="Every device that has used Claude Code with the monitor installed. Open one to see its sessions and prompts. Entries can't be edited, so they stay even after a conversation is deleted." />
     </x-slot>
 
     <div class="py-6 sm:py-8">
@@ -28,21 +28,27 @@
                                 <tr>
                                     <th scope="col">Device</th>
                                     <th scope="col">IP addresses</th>
+                                    <th scope="col">Models</th>
                                     <th scope="col" class="text-right">Sessions</th>
                                     <th scope="col" class="text-right">Events</th>
-                                    <th scope="col">First seen</th>
                                     <th scope="col">Last seen</th>
-                                    <th scope="col"><span class="sr-only">Filter</span></th>
+                                    <th scope="col"><span class="sr-only">Actions</span></th>
                                 </tr>
                             </thead>
                             <tbody>
                                 @foreach ($devices as $device)
-                                    @php $ips = $ipsByDevice[$device->device_id] ?? collect(); @endphp
+                                    @php
+                                        $ips = $ipsByDevice[$device->device_id] ?? collect();
+                                        $models = $modelsByDevice[$device->device_id] ?? collect();
+                                    @endphp
                                     <tr>
                                         <td>
                                             <a href="{{ \App\Http\Controllers\ClaudeActivityController::deviceUrl($device->device_id) }}" class="font-medium text-slate-900 hover:text-brand-700 hover:underline">{{ $device->hostname ?? 'Unknown host' }}</a>
                                             <p class="text-xs text-slate-500">
                                                 {{ $device->os_user ?? '?' }} · {{ $device->platform ?? '?' }}
+                                                @if ($device->mac_address)
+                                                    · <span class="font-mono">{{ $device->mac_address }}</span>
+                                                @endif
                                                 @if ($device->host_names > 1)
                                                     · also seen under {{ $device->host_names - 1 }} other {{ \Illuminate\Support\Str::plural('name', $device->host_names - 1) }}
                                                 @endif
@@ -53,18 +59,43 @@
                                         </td>
                                         <td class="text-sm">
                                             @foreach ($ips->take(3) as $row)
-                                                <a href="{{ \App\Http\Controllers\ClaudeActivityController::deviceUrl($device->device_id, ['ip' => $row->ip]) }}" class="block font-mono text-slate-700 hover:underline">{{ $row->ip }}</a>
+                                                <a href="{{ \App\Http\Controllers\ClaudeActivityController::deviceUrl($device->device_id, ['ip' => $row->ip]) }}" class="block whitespace-nowrap font-mono text-slate-700 hover:underline">{{ $row->ip }}</a>
                                             @endforeach
                                             @if ($ips->count() > 3)
                                                 <span class="text-xs text-slate-500">+{{ $ips->count() - 3 }} more</span>
                                             @endif
                                         </td>
+                                        <td class="text-sm">
+                                            @forelse ($models->take(3) as $row)
+                                                <a href="{{ \App\Http\Controllers\ClaudeActivityController::deviceUrl($device->device_id, ['model' => $row->model]) }}" class="block whitespace-nowrap font-mono text-slate-700 hover:underline">{{ $row->model }}</a>
+                                            @empty
+                                                <span class="text-slate-400">—</span>
+                                            @endforelse
+                                            @if ($models->count() > 3)
+                                                <span class="text-xs text-slate-500">+{{ $models->count() - 3 }} more</span>
+                                            @endif
+                                        </td>
                                         <td class="text-right tabular-nums">{{ number_format($device->sessions) }}</td>
                                         <td class="text-right tabular-nums">{{ number_format($device->events) }}</td>
-                                        <td class="whitespace-nowrap text-slate-600">{{ \Illuminate\Support\Carbon::parse($device->first_seen)->format('M j, Y H:i') }}</td>
-                                        <td class="whitespace-nowrap text-slate-600" title="{{ $device->last_seen }}">{{ \Illuminate\Support\Carbon::parse($device->last_seen)->diffForHumans() }}</td>
-                                        <td class="text-right">
-                                            <a href="{{ \App\Http\Controllers\ClaudeActivityController::deviceUrl($device->device_id) }}" class="btn btn-secondary btn-sm">Show events</a>
+                                        <td class="whitespace-nowrap text-slate-600">
+                                            <span title="{{ $device->last_seen }}">{{ \Illuminate\Support\Carbon::parse($device->last_seen)->diffForHumans() }}</span>
+                                            <span class="block text-xs text-slate-500">since {{ \Illuminate\Support\Carbon::parse($device->first_seen)->format('M j, Y') }}</span>
+                                        </td>
+                                        <td class="whitespace-nowrap text-right">
+                                            <div class="flex items-center justify-end gap-1">
+                                                <a href="{{ \App\Http\Controllers\ClaudeActivityController::deviceUrl($device->device_id) }}" class="btn btn-secondary btn-sm">Show events</a>
+                                                {{-- Every event this device sent; it drops off the list until it reports again. --}}
+                                                <form method="POST" action="{{ route('claude-activity.bulk-destroy') }}"
+                                                      data-confirm-title="Delete {{ $device->hostname ?? 'this device' }}?" data-confirm-verb="Delete {{ number_format($device->events) }} {{ \Illuminate\Support\Str::plural('event', $device->events) }}"
+                                                      data-confirm="All {{ number_format($device->events) }} {{ \Illuminate\Support\Str::plural('event', $device->events) }} from {{ $device->hostname ?? 'this device' }} will be deleted. If it uses Claude Code again, it shows up here again. This can't be undone.">
+                                                    @csrf
+                                                    <input type="hidden" name="all" value="1">
+                                                    <input type="hidden" name="device" value="{{ $device->device_id ?? \App\Http\Controllers\ClaudeActivityController::NO_DEVICE }}">
+                                                    <button class="btn-ghost btn-sm text-slate-400 hover:text-danger-600" aria-label="Delete {{ $device->hostname ?? 'this device' }} and its events" title="Delete this device and its events">
+                                                        <x-icon name="trash" class="h-4 w-4" />
+                                                    </button>
+                                                </form>
+                                            </div>
                                         </td>
                                     </tr>
                                 @endforeach
@@ -74,7 +105,6 @@
                 @endif
             </section>
 
-            @include('claude-activity._events', ['action' => route('claude-activity.index'), 'devices' => $devices])
         </div>
     </div>
 </x-app-layout>

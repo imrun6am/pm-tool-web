@@ -101,8 +101,10 @@ class ClaudeActivityTest extends TestCase
         $this->actingAs($admin)->get('/claude-activity')
             ->assertOk()
             ->assertSee('office-mac')
-            ->assertSee('hello there')
-            ->assertSee('127.0.0.1');
+            ->assertSee('127.0.0.1')
+            // Events are on each device's own page, not here.
+            ->assertDontSee('hello there')
+            ->assertViewMissing('logs');
     }
 
     public function test_viewer_list_limits_access_even_for_admins(): void
@@ -160,7 +162,7 @@ class ClaudeActivityTest extends TestCase
         $this->sendHook(['hook_event_name' => 'SessionStart'], headers: ['X-Claude-Device-Id' => 'dev-2', 'X-Claude-Host' => 'unknown-laptop'])->assertCreated();
         $admin = User::factory()->create(['role' => User::ROLE_ADMIN]);
 
-        $this->actingAs($admin)->get('/claude-activity?device=dev-2&event=SessionStart')
+        $this->actingAs($admin)->get(route('claude-activity.device', ['device' => 'dev-2', 'event' => 'SessionStart']))
             ->assertOk()
             ->assertViewHas('logs', fn ($logs) => $logs->total() === 1 && $logs->first()->hostname === 'unknown-laptop');
     }
@@ -267,5 +269,60 @@ class ClaudeActivityTest extends TestCase
         $this->post(route('claude-activity.bulk-destroy'), ['all' => 1])->assertForbidden();
 
         $this->assertSame(3, ClaudeActivityLog::count());
+    }
+
+    public function test_a_device_can_be_deleted_from_the_device_list(): void
+    {
+        $this->twoDevices();
+        $admin = $this->admin();
+
+        $this->actingAs($admin)->get('/claude-activity')
+            ->assertOk()
+            ->assertSee('All 2 events from office-mac will be deleted.', false);
+
+        $this->from('/claude-activity')->post(route('claude-activity.bulk-destroy'), ['all' => 1, 'device' => 'dev-1'])
+            ->assertRedirect('/claude-activity')
+            ->assertSessionHas('success', '2 events deleted.');
+
+        $this->assertSame(['dev-2'], ClaudeActivityLog::pluck('device_id')->all());
+        $this->get('/claude-activity')->assertViewHas('devices', fn ($devices) => $devices->pluck('device_id')->all() === ['dev-2']);
+    }
+
+    public function test_model_comes_from_session_start_and_switches_and_carries_to_prompts(): void
+    {
+        $this->sendHook(['hook_event_name' => 'SessionStart', 'session_id' => 'm1', 'model' => 'claude-sonnet-5-5'])->assertCreated();
+        $this->sendHook(['hook_event_name' => 'UserPromptSubmit', 'session_id' => 'm1', 'prompt' => 'first'])->assertCreated();
+        $this->sendHook(['hook_event_name' => 'PostModelSwitch', 'session_id' => 'm1', 'from_model' => 'claude-sonnet-5-5', 'to_model' => 'claude-opus-5-5'])->assertCreated();
+        $this->sendHook(['hook_event_name' => 'UserPromptSubmit', 'session_id' => 'm1', 'prompt' => 'second'])->assertCreated();
+        $this->sendHook(['hook_event_name' => 'UserPromptSubmit', 'session_id' => 'other', 'prompt' => 'unknown'])->assertCreated();
+
+        $this->assertSame(
+            ['claude-sonnet-5-5', 'claude-sonnet-5-5', 'claude-opus-5-5', 'claude-opus-5-5', null],
+            ClaudeActivityLog::orderBy('id')->pluck('model')->all(),
+        );
+        $switch = ClaudeActivityLog::where('event', 'PostModelSwitch')->sole();
+        $this->assertSame('claude-sonnet-5-5', $switch->detail);
+
+        $this->actingAs($this->admin())->get(route('claude-activity.device', ['device' => 'dev-1', 'model' => 'claude-opus-5-5']))
+            ->assertOk()
+            ->assertSee('Model switched')
+            ->assertViewHas('logs', fn ($logs) => $logs->total() === 2)
+            ->assertViewHas('models', fn ($models) => $models->pluck('model')->sort()->values()->all() === ['claude-opus-5-5', 'claude-sonnet-5-5']);
+    }
+
+    public function test_mac_address_is_kept_in_one_format(): void
+    {
+        $this->sendHook(['hook_event_name' => 'SessionStart'], headers: ['X-Claude-Mac' => 'A0-78-17-A8-3B-0D'])->assertCreated();
+        $this->sendHook(['hook_event_name' => 'SessionStart'], headers: ['X-Claude-Mac' => 'a0:78:17:a8:3b:0d'])->assertCreated();
+        $this->sendHook(['hook_event_name' => 'SessionStart'], headers: ['X-Claude-Mac' => 'not-a-mac'])->assertCreated();
+        $this->sendHook(['hook_event_name' => 'SessionStart'], headers: ['X-Claude-Mac' => '00:00:00:00:00:00'])->assertCreated();
+
+        $this->assertSame(['a0:78:17:a8:3b:0d', 'a0:78:17:a8:3b:0d', null, null], ClaudeActivityLog::orderBy('id')->pluck('mac_address')->all());
+
+        $this->actingAs($this->admin())->get('/claude-activity')->assertSee('a0:78:17:a8:3b:0d');
+        $this->get(route('claude-activity.device', ['device' => 'dev-1', 'mac' => 'A0-78-17-A8-3B-0D']))
+            ->assertOk()
+            ->assertViewHas('logs', fn ($logs) => $logs->total() === 2)
+            ->assertViewHas('macs', fn ($macs) => $macs->pluck('mac_address')->all() === ['a0:78:17:a8:3b:0d']);
     }
 }

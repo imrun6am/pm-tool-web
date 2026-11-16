@@ -29,7 +29,7 @@
                 <div class="card-header">
                     <h2 id="device-where" class="card-title">Where it reported from</h2>
                 </div>
-                <div class="grid gap-6 p-4 sm:p-6 md:grid-cols-2">
+                <div class="grid gap-6 p-4 sm:p-6 md:grid-cols-3">
                     <div>
                         <h3 class="text-sm font-semibold text-slate-900">IP addresses ({{ $ips->count() }})</h3>
                         @if ($ips->isEmpty())
@@ -50,6 +50,25 @@
                         @endif
                     </div>
                     <div>
+                        <h3 class="text-sm font-semibold text-slate-900">Models ({{ $models->count() }})</h3>
+                        @if ($models->isEmpty())
+                            <p class="mt-2 text-sm text-slate-500">None recorded yet.</p>
+                        @else
+                            <ul class="mt-2 divide-y divide-slate-100 text-sm">
+                                @foreach ($models as $row)
+                                    <li class="flex items-center justify-between gap-3 py-1.5">
+                                        <a href="{{ ClaudeActivityController::deviceUrl($newest?->device_id, ['model' => $row->model]) }}"
+                                           class="font-mono text-slate-700 hover:underline" title="Only events with this model">{{ $row->model }}</a>
+                                        <span class="whitespace-nowrap text-xs text-slate-500">
+                                            {{ number_format($row->events) }} {{ \Illuminate\Support\Str::plural('event', $row->events) }} ·
+                                            last {{ Carbon::parse($row->last_seen)->diffForHumans() }}
+                                        </span>
+                                    </li>
+                                @endforeach
+                            </ul>
+                        @endif
+                    </div>
+                    <div>
                         <h3 class="text-sm font-semibold text-slate-900">Computer names ({{ $hostNames->count() }})</h3>
                         @if ($hostNames->isEmpty())
                             <p class="mt-2 text-sm text-slate-500">None recorded.</p>
@@ -57,6 +76,20 @@
                             <ul class="mt-2 space-y-1 text-sm text-slate-700">
                                 @foreach ($hostNames as $host)
                                     <li>{{ $host }}@if ($host === $newest?->hostname) <span class="text-xs text-slate-500">(latest)</span>@endif</li>
+                                @endforeach
+                            </ul>
+                        @endif
+                        <h3 class="mt-5 text-sm font-semibold text-slate-900">MAC addresses ({{ $macs->count() }})</h3>
+                        @if ($macs->isEmpty())
+                            <p class="mt-2 text-sm text-slate-500">None recorded yet.</p>
+                        @else
+                            <ul class="mt-2 divide-y divide-slate-100 text-sm">
+                                @foreach ($macs as $row)
+                                    <li class="flex items-center justify-between gap-3 py-1.5">
+                                        <a href="{{ ClaudeActivityController::deviceUrl($newest?->device_id, ['mac' => $row->mac_address]) }}"
+                                           class="font-mono text-slate-700 hover:underline" title="Only events from this MAC address">{{ $row->mac_address }}</a>
+                                        <span class="whitespace-nowrap text-xs text-slate-500">last {{ Carbon::parse($row->last_seen)->diffForHumans() }}</span>
+                                    </li>
                                 @endforeach
                             </ul>
                         @endif

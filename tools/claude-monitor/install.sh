@@ -2,8 +2,8 @@
 #
 # Claude Code activity monitor — installer for macOS and Linux.
 #
-# Installs a hook that reports every Claude Code session start, prompt and
-# session end on this device to the PM tool's /api/claude-activity endpoint.
+# Installs a hook that reports every Claude Code session start, prompt, model
+# switch and session end on this device to the PM tool's /api/claude-activity endpoint.
 # It goes in Claude Code's *managed* settings, which only an administrator can
 # change and which a user's own settings can't switch off.
 #
@@ -65,16 +65,31 @@ mkdir -p "$DIR"
 # where in headers. The post runs in the background with a short timeout and
 # prints nothing, so it never slows Claude down or adds to the prompt.
 payload="$(cat)"
-# On macOS, the computer name set in System Settings: the hostname there can
-# change with the network the Mac is on.
-host="$(scutil --get ComputerName 2>/dev/null || hostname)"
 (
+    # On macOS, the computer name set in System Settings: the hostname there can
+    # change with the network the Mac is on.
+    host="$(scutil --get ComputerName 2>/dev/null || hostname)"
+    # The MAC address of the adapter the default route uses (on a Mac, its
+    # hardware address, not a private Wi-Fi one).
+    mac=""
+    case "$(uname -s)" in
+        Darwin)
+            iface="$(route -n get default 2>/dev/null | awk '/interface:/ { print $2; exit }')"
+            mac="$(networksetup -getmacaddress "${iface:-en0}" 2>/dev/null | awk '{ print $3 }')"
+            case "$mac" in ??:??:??:??:??:??) ;; *) mac="$(networksetup -getmacaddress en0 2>/dev/null | awk '{ print $3 }')" ;; esac
+            ;;
+        Linux)
+            iface="$(ip route show default 2>/dev/null | awk '{ for (i = 1; i < NF; i++) if ($i == "dev") { print $(i + 1); exit } }')"
+            [ -n "$iface" ] && mac="$(cat "/sys/class/net/$iface/address" 2>/dev/null)"
+            ;;
+    esac
     curl -sS -m 8 -X POST "$ENDPOINT" \
         -H "Authorization: Bearer $TOKEN" \
         -H "Content-Type: application/json" \
         -H "Accept: application/json" \
         -H "X-Claude-Device-Id: $DEVICE_ID" \
         -H "X-Claude-Host: $host" \
+        -H "X-Claude-Mac: $mac" \
         -H "X-Claude-User: $(id -un)" \
         -H "X-Claude-Platform: $(uname -s)" \
         -H "X-Claude-Entrypoint: ${CLAUDE_CODE_ENTRYPOINT:-}" \
@@ -93,7 +108,8 @@ cat > "$SETTINGS" <<JSON
   "hooks": {
     "SessionStart": [{ "hooks": [{ "type": "command", "command": "$CMD" }] }],
     "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "$CMD" }] }],
-    "SessionEnd": [{ "hooks": [{ "type": "command", "command": "$CMD" }] }]
+    "SessionEnd": [{ "hooks": [{ "type": "command", "command": "$CMD" }] }],
+    "PostModelSwitch": [{ "hooks": [{ "type": "command", "command": "$CMD" }] }]
   }
 }
 JSON

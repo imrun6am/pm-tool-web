@@ -1,17 +1,21 @@
 # Claude Code activity monitor
 
 Records which device uses Claude Code on your account, and when. Each monitored
-device posts an event to the PM tool on every session start, prompt and session
-end. You read them at **Claude activity** in the sidebar (`/claude-activity`).
+device posts an event to the PM tool on every session start, prompt, model
+switch and session end. You read them at **Claude activity** in the sidebar (`/claude-activity`).
 
 Nothing can edit an entry, so it stays even after the conversation is deleted
-from Claude. Whoever may read the log can delete entries: one at a time, the
-ticked ones, or every event matching the filters. Each deletion is noted in
-the app's log (`storage/logs`) with who did it and how many.
+from Claude. Whoever may read the log can delete entries: a whole device from
+the device list (it comes back if it reports again), or on a device's page one
+event at a time, the ticked ones, or every event matching the filters. Each
+deletion is noted in the app's log (`storage/logs`) with who did it and how
+many.
 
-Click **Show events** on a device for its own page: its names, IP addresses,
-counts, and its events with filters for text, event, OS user, entry point,
-IP, session and dates.
+The **Claude activity** page lists the devices, with the IP addresses, models
+and latest MAC address each one used. Click **Show events** on one for its own
+page: its names, IP and MAC addresses, models, counts, and its events with
+filters for text, event, OS user, entry point, model, IP, MAC address, session
+and dates.
 
 ## What is recorded
 
@@ -20,6 +24,8 @@ IP, session and dates.
 | Event, session id, project folder | Claude Code's hook input |
 | First 300 characters of each prompt | Claude Code's hook input (`CLAUDE_MONITOR_PROMPT_CHARS`, at most 1,000) |
 | Computer name, OS user, OS, entry point | the device (on a Mac, the name set in System Settings) |
+| Model | Claude Code's hook input: on session start and on each model switch (`/model`); prompts and session ends take the latest model their session reported. Sessions started before the hook was installed show none |
+| MAC address | the device: the adapter its default route uses (on a Mac, the hardware address, not a private Wi-Fi one). Reported by the device, so it could be faked |
 | Device id | random id fixed when the hook is installed |
 | **IP address** | as seen by the server, so the device can't fake it |
 

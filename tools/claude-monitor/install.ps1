@@ -1,7 +1,7 @@
 # Claude Code activity monitor — installer for Windows.
 #
-# Installs a hook that reports every Claude Code session start, prompt and
-# session end on this device to the PM tool's /api/claude-activity endpoint,
+# Installs a hook that reports every Claude Code session start, prompt, model
+# switch and session end on this device to the PM tool's /api/claude-activity endpoint,
 # in Claude Code's managed settings (admin-only, can't be switched off by a user).
 #
 # Run in PowerShell *as Administrator*:
@@ -62,6 +62,11 @@ if ($Send) {
             'X-Claude-Platform'  = 'Windows'
         }
         if ($env:CLAUDE_CODE_ENTRYPOINT) { $headers['X-Claude-Entrypoint'] = $env:CLAUDE_CODE_ENTRYPOINT }
+        # The MAC address of the adapter the default route uses.
+        try {
+            $route = Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction Stop | Sort-Object RouteMetric | Select-Object -First 1
+            $headers['X-Claude-Mac'] = (Get-NetAdapter -InterfaceIndex $route.InterfaceIndex -ErrorAction Stop).MacAddress
+        } catch { }
         Invoke-RestMethod -Uri $Endpoint -Method Post -Headers $headers -ContentType 'application/json' `
             -Body ([IO.File]::ReadAllBytes($Send)) -TimeoutSec 8 | Out-Null
     } catch { } finally {
@@ -85,7 +90,7 @@ exit 0
 
 $command = "powershell -NoProfile -ExecutionPolicy Bypass -File `"$Hook`""
 $entry = @(@{ hooks = @(@{ type = 'command'; command = $command }) })
-$json = @{ hooks = [ordered]@{ SessionStart = $entry; UserPromptSubmit = $entry; SessionEnd = $entry } } |
+$json = @{ hooks = [ordered]@{ SessionStart = $entry; UserPromptSubmit = $entry; SessionEnd = $entry; PostModelSwitch = $entry } } |
     ConvertTo-Json -Depth 6
 # Windows PowerShell's Set-Content -Encoding UTF8 starts the file with a
 # byte-order mark, which a JSON reader can reject. Write it without one.
