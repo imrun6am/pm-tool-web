@@ -85,16 +85,19 @@
                                             <div class="flex items-center justify-end gap-1">
                                                 <a href="{{ \App\Http\Controllers\ClaudeActivityController::deviceUrl($device->device_id) }}" class="btn btn-secondary btn-sm">Show events</a>
                                                 {{-- Every event this device sent; it drops off the list until it reports again. --}}
-                                                <form method="POST" action="{{ route('claude-activity.bulk-destroy') }}"
-                                                      data-confirm-title="Delete {{ $device->hostname ?? 'this device' }}?" data-confirm-verb="Delete {{ number_format($device->events) }} {{ \Illuminate\Support\Str::plural('event', $device->events) }}"
-                                                      data-confirm="All {{ number_format($device->events) }} {{ \Illuminate\Support\Str::plural('event', $device->events) }} from {{ $device->hostname ?? 'this device' }} will be deleted. If it uses Claude Code again, it shows up here again. This can't be undone.">
-                                                    @csrf
-                                                    <input type="hidden" name="all" value="1">
-                                                    <input type="hidden" name="device" value="{{ $device->device_id ?? \App\Http\Controllers\ClaudeActivityController::NO_DEVICE }}">
-                                                    <button class="btn-ghost btn-sm text-slate-400 hover:text-danger-600" aria-label="Delete {{ $device->hostname ?? 'this device' }} and its events" title="Delete this device and its events">
-                                                        <x-icon name="trash" class="h-4 w-4" />
-                                                    </button>
-                                                </form>
+                                                @php
+                                                    $deviceName = $device->hostname ?? 'this device';
+                                                    $eventCount = number_format($device->events).' '.\Illuminate\Support\Str::plural('event', $device->events);
+                                                @endphp
+                                                <button type="button" class="btn-ghost btn-sm text-slate-400 hover:text-danger-600"
+                                                        aria-label="Delete {{ $deviceName }} and its events" title="Delete this device and its events"
+                                                        x-data @click="$dispatch('claude-delete-all', @js([
+                                                            'title' => "Delete {$deviceName}?",
+                                                            'message' => "All {$eventCount} from {$deviceName} will be deleted. If it uses Claude Code again, it shows up here again.",
+                                                            'fields' => ['all' => 1, 'device' => $device->device_id ?? \App\Http\Controllers\ClaudeActivityController::NO_DEVICE],
+                                                        ]))">
+                                                    <x-icon name="trash" class="h-4 w-4" />
+                                                </button>
                                             </div>
                                         </td>
                                     </tr>
@@ -107,4 +110,6 @@
 
         </div>
     </div>
+
+    @include('claude-activity._delete-all-modal')
 </x-app-layout>

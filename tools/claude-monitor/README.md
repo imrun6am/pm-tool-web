@@ -7,7 +7,8 @@ switch, browser action and session end. You read them at **Claude activity** in 
 Nothing can edit an entry, so it stays even after the conversation is deleted
 from Claude. Whoever may read the log can delete entries: a whole device from
 the device list (it comes back if it reports again), or on a device's page one
-event at a time, the ticked ones, or every event matching the filters. Each
+event at a time, the ticked ones, or every event matching the filters.
+Deleting a whole device, or every match, asks for your password. Each
 deletion is noted in the app's log (`storage/logs`) with who did it and how
 many.
 

@@ -178,7 +178,8 @@ class ClaudeActivityController extends Controller
 
     /**
      * POST /claude-activity/delete — the ticked events (`ids`), or with `all`
-     * every event matching the filters sent along (and the device, if any).
+     * every event matching the filters sent along (and the device, if any),
+     * which also needs the viewer's `password`.
      */
     public function bulkDestroy(Request $request): RedirectResponse
     {
@@ -191,6 +192,10 @@ class ClaudeActivityController extends Controller
         ]);
 
         if ($request->boolean('all')) {
+            // A whole device, or everything a filter matches: confirm with
+            // the viewer's password, not just a click.
+            $request->validateWithBag('deleteAll', ['password' => ['required', 'current_password']]);
+
             $filters = $this->filters($request, withDevice: true);
             $deleted = $this->filtered(ClaudeActivityLog::query(), $filters)->delete();
         } else {

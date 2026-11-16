@@ -242,11 +242,11 @@ class ClaudeActivityTest extends TestCase
         $this->twoDevices();
 
         $this->actingAs($this->admin())
-            ->post(route('claude-activity.bulk-destroy'), ['all' => 1, 'device' => 'dev-1', 'os_user' => 'guest'])
+            ->post(route('claude-activity.bulk-destroy'), ['all' => 1, 'device' => 'dev-1', 'os_user' => 'guest', 'password' => 'password'])
             ->assertSessionHas('success', '1 event deleted.');
         $this->assertSame(['s1', 's3'], ClaudeActivityLog::orderBy('id')->pluck('session_id')->all());
 
-        $this->post(route('claude-activity.bulk-destroy'), ['all' => 1, 'device' => 'dev-1'])->assertSessionHas('success', '1 event deleted.');
+        $this->post(route('claude-activity.bulk-destroy'), ['all' => 1, 'device' => 'dev-1', 'password' => 'password'])->assertSessionHas('success', '1 event deleted.');
         $this->assertSame(['s3'], ClaudeActivityLog::pluck('session_id')->all());
     }
 
@@ -278,9 +278,10 @@ class ClaudeActivityTest extends TestCase
 
         $this->actingAs($admin)->get('/claude-activity')
             ->assertOk()
-            ->assertSee('All 2 events from office-mac will be deleted.', false);
+            ->assertSee('All 2 events from office-mac will be deleted.', false)
+            ->assertSee('Enter your password to confirm.');
 
-        $this->from('/claude-activity')->post(route('claude-activity.bulk-destroy'), ['all' => 1, 'device' => 'dev-1'])
+        $this->from('/claude-activity')->post(route('claude-activity.bulk-destroy'), ['all' => 1, 'device' => 'dev-1', 'password' => 'password'])
             ->assertRedirect('/claude-activity')
             ->assertSessionHas('success', '2 events deleted.');
 
@@ -349,5 +350,27 @@ class ClaudeActivityTest extends TestCase
             ->assertSee('https://mail.example.com/inbox')
             ->assertViewHas('logs', fn ($logs) => $logs->total() === 1)
             ->assertViewHas('summary', fn ($s) => (int) $s->browser_actions === 3);
+    }
+
+    public function test_deleting_a_device_needs_the_right_password(): void
+    {
+        $this->twoDevices();
+        $admin = $this->admin();
+
+        $this->actingAs($admin)->from('/claude-activity')
+            ->post(route('claude-activity.bulk-destroy'), ['all' => 1, 'device' => 'dev-1', 'password' => 'wrong', '_title' => 'Delete office-mac?'])
+            ->assertRedirect('/claude-activity')
+            ->assertSessionHasErrors('password', null, 'deleteAll');
+        $this->from('/claude-activity')
+            ->post(route('claude-activity.bulk-destroy'), ['all' => 1, 'device' => 'dev-1'])
+            ->assertSessionHasErrors('password', null, 'deleteAll');
+        $this->assertSame(3, ClaudeActivityLog::count());
+
+        // The dialog opens again, still about the same device.
+        $this->post(route('claude-activity.bulk-destroy'), ['all' => 1, 'device' => 'dev-1', 'password' => 'wrong', '_title' => 'Delete office-mac?']);
+        $this->get('/claude-activity')->assertSee('Delete office-mac?')->assertSee('The password is incorrect.');
+
+        // Ticked events still delete with a click.
+        $this->post(route('claude-activity.bulk-destroy'), ['ids' => [ClaudeActivityLog::first()->id]])->assertSessionHas('success', '1 event deleted.');
     }
 }

@@ -104,4 +104,6 @@
             ])
         </div>
     </div>
+
+    @include('claude-activity._delete-all-modal')
 </x-app-layout>

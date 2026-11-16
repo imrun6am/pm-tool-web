@@ -121,19 +121,15 @@
                 </form>
 
                 {{-- Delete every event these filters match, on every page --}}
-                <form method="POST" action="{{ route('claude-activity.bulk-destroy') }}" class="ml-auto"
-                      data-confirm-title="Delete {{ number_format($total) }} {{ Str::plural('event', $total) }}?" data-confirm-verb="Delete {{ number_format($total) }}"
-                      data-confirm="Every event {{ $filtered ? 'that matches these filters' : 'from this device' }}, on every page, will be deleted. This can't be undone.">
-                    @csrf
-                    <input type="hidden" name="all" value="1">
-                    @foreach ($matching as $name => $value)
-                        <input type="hidden" name="{{ $name }}" value="{{ $value }}">
-                    @endforeach
-                    <button class="btn-ghost btn-sm text-danger-600">
-                        <x-icon name="trash" class="h-4 w-4" />
-                        Delete all {{ number_format($total) }} {{ $filtered ? 'matching' : '' }}
-                    </button>
-                </form>
+                <button type="button" class="btn-ghost btn-sm ml-auto text-danger-600"
+                        @click="$dispatch('claude-delete-all', @js([
+                            'title' => 'Delete '.number_format($total).' '.Str::plural('event', $total).'?',
+                            'message' => 'Every event '.($filtered ? 'that matches these filters' : 'from this device').', on every page, will be deleted.',
+                            'fields' => ['all' => 1, ...$matching->all()],
+                        ]))">
+                    <x-icon name="trash" class="h-4 w-4" />
+                    Delete all {{ number_format($total) }} {{ $filtered ? 'matching' : '' }}
+                </button>
             </div>
 
             @if ($errors->hasAny(['ids', 'ids.*']))
