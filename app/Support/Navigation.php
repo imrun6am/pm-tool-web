@@ -2,6 +2,7 @@
 
 namespace App\Support;
 
+use App\Http\Controllers\ClaudeActivityController;
 use App\Models\User;
 use App\Services\Ai\AiFeatures;
 
@@ -189,6 +190,7 @@ class Navigation
                     ['key' => 'people-analytics', 'label' => 'People analytics', 'route' => 'reports.people', 'patterns' => ['reports.people*'], 'icon' => 'chart-pie', 'visible' => fn (User $u) => $u->isAdmin()],
                     ['key' => 'users', 'label' => 'Users', 'route' => 'users.index', 'patterns' => ['users.*'], 'icon' => 'identification', 'visible' => fn (User $u) => $u->canManageUsers()],
                     ['key' => 'ai-usage', 'label' => 'AI usage', 'route' => 'ai.usage', 'patterns' => ['ai.usage'], 'icon' => 'sparkles', 'visible' => fn (User $u) => $u->isAdmin()],
+                    ['key' => 'claude-activity', 'label' => 'Claude activity', 'route' => 'claude-activity.index', 'patterns' => ['claude-activity.*'], 'icon' => 'command-line', 'visible' => fn (User $u) => ClaudeActivityController::canView($u)],
                 ],
             ],
         ];

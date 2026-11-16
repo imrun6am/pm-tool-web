@@ -33,7 +33,7 @@ class NavigationTest extends TestCase
     {
         foreach (User::LEAD_ROLES as $role) {
             // KPI reports are admin-only (Claude-drafted HR reviews).
-            $administration = $role === User::ROLE_ADMIN ? ['performance', 'kpi-reports', 'people-analytics', 'users', 'ai-usage'] : ['performance', 'users'];
+            $administration = $role === User::ROLE_ADMIN ? ['performance', 'kpi-reports', 'people-analytics', 'users', 'ai-usage', 'claude-activity'] : ['performance', 'users'];
 
             $this->assertSame([
                 'overview' => ['dashboard', 'ask'],
@@ -68,7 +68,7 @@ class NavigationTest extends TestCase
     {
         $items = collect(Navigation::groups($this->user(User::ROLE_ADMIN)))->flatMap(fn ($g) => $g['items']);
 
-        $this->assertCount(20, $items);
+        $this->assertCount(21, $items);
         $this->assertSame($items->count(), $items->pluck('icon')->unique()->count());
     }
 

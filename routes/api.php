@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\ClaudeActivityController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -17,3 +18,7 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('v1')
     ->as('api-v1.')
     ->group(base_path('routes/api/v1.php'));
+
+// Claude Code activity monitor: devices post hook events with a shared
+// bearer token (CLAUDE_MONITOR_TOKEN), not a user's Sanctum token.
+Route::post('claude-activity', [ClaudeActivityController::class, 'store'])->name('api.claude-activity.store');

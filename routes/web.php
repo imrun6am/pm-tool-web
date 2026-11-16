@@ -5,6 +5,7 @@ use App\Http\Controllers\AiEnhanceController;
 use App\Http\Controllers\BoardController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\CapacityController;
+use App\Http\Controllers\ClaudeActivityController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EventController;
@@ -367,6 +368,9 @@ Route::middleware('auth')->group(function () {
         Route::post('users/{user}/toggle-active', [UserController::class, 'toggleActive'])->name('users.toggle');
         Route::delete('users/{user}', [UserController::class, 'destroy'])->name('users.destroy');
     });
+
+    // Claude Code activity monitor — viewers in config/claude_monitor.php, else admins.
+    Route::get('claude-activity', [ClaudeActivityController::class, 'index'])->name('claude-activity.index');
 
     // Profile (Breeze)
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
