@@ -373,4 +373,17 @@ class ClaudeActivityTest extends TestCase
         // Ticked events still delete with a click.
         $this->post(route('claude-activity.bulk-destroy'), ['ids' => [ClaudeActivityLog::first()->id]])->assertSessionHas('success', '1 event deleted.');
     }
+
+    public function test_each_event_carries_its_full_details_for_the_drawer(): void
+    {
+        $this->sendHook(['hook_event_name' => 'UserPromptSubmit', 'session_id' => 'd1', 'cwd' => '/work/billing',
+            'transcript_path' => '/Users/imrun/.claude/projects/billing/d1.jsonl', 'prompt' => 'Explain the billing module'])->assertCreated();
+
+        $html = $this->actingAs($this->admin())->get(route('claude-activity.device', 'dev-1'))->assertOk()->getContent();
+
+        $this->assertStringContainsString('aria-labelledby="claude-event-title"', $html);
+        // Only the drawer shows the transcript path; it comes in the row's details.
+        // @js writes each "/" of a path as \\\/ inside its JSON.parse('…').
+        $this->assertStringContainsString(str_replace('/', '\\\\\\/', 'projects/billing/d1.jsonl'), $html);
+    }
 }

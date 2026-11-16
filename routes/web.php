@@ -6,6 +6,7 @@ use App\Http\Controllers\BoardController;
 use App\Http\Controllers\CalendarController;
 use App\Http\Controllers\CapacityController;
 use App\Http\Controllers\ClaudeActivityController;
+use App\Http\Controllers\ClaudeHabitReportController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\EventController;
@@ -371,6 +372,12 @@ Route::middleware('auth')->group(function () {
 
     // Claude Code activity monitor — viewers in config/claude_monitor.php, else admins.
     Route::get('claude-activity', [ClaudeActivityController::class, 'index'])->name('claude-activity.index');
+    Route::get('claude-activity/habits', [ClaudeHabitReportController::class, 'index'])->name('claude-activity.habits.index');
+    Route::post('claude-activity/habits', [ClaudeHabitReportController::class, 'store'])->name('claude-activity.habits.store');
+    Route::get('claude-activity/habits/{report}', [ClaudeHabitReportController::class, 'show'])->whereNumber('report')->name('claude-activity.habits.show');
+    Route::delete('claude-activity/habits/{report}', [ClaudeHabitReportController::class, 'destroy'])->whereNumber('report')->name('claude-activity.habits.destroy');
+    Route::post('claude-activity/devices/{device}/owner', [ClaudeActivityController::class, 'setOwner'])
+        ->where('device', '[^/]+')->name('claude-activity.owner');
     Route::get('claude-activity/devices/{device}', [ClaudeActivityController::class, 'device'])
         ->where('device', '[^/]+')->name('claude-activity.device');
     Route::post('claude-activity/delete', [ClaudeActivityController::class, 'bulkDestroy'])->name('claude-activity.bulk-destroy');

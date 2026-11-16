@@ -20,7 +20,7 @@
         ->put('device', $device);
 @endphp
 
-<section class="card" aria-labelledby="claude-events">
+<section class="card" aria-labelledby="claude-events" x-data="{ log: null }" @keydown.escape.window="log = null">
     <div class="card-header flex-col items-stretch gap-3">
         <h2 id="claude-events" class="card-title">Events</h2>
 
@@ -154,12 +154,27 @@
                     </thead>
                     <tbody>
                         @foreach ($logs as $log)
-                            <tr>
+                            @php
+                                $details = [
+                                    'id' => $log->id,
+                                    'event' => $log->event,
+                                    'label' => $log->eventLabel(),
+                                    'tone' => $eventTone[$log->event] ?? 'badge-slate',
+                                    'when' => $log->created_at->format('D, M j, Y H:i:s'),
+                                    'ago' => $log->created_at->diffForHumans(),
+                                    ...$log->only(['detail', 'model', 'hostname', 'os_user', 'platform', 'entrypoint', 'ip', 'mac_address', 'session_id', 'device_id', 'cwd', 'url', 'prompt_excerpt', 'transcript_path']),
+                                ];
+                            @endphp
+                            {{-- A click anywhere but a control opens the event's details. --}}
+                            <tr class="cursor-pointer" @click="if (! $event.target.closest('a, button, input, label, form')) log = @js($details)">
                                 <td>
                                     <input type="checkbox" name="ids[]" value="{{ $log->id }}" form="claude-bulk-delete" class="checkbox-sm"
                                            aria-label="Select the {{ $log->eventLabel() }} event at {{ $log->created_at->format('M j, H:i:s') }}" @change="sync()">
                                 </td>
-                                <td class="whitespace-nowrap text-slate-600" title="{{ $log->created_at->diffForHumans() }}">{{ $log->created_at->format('M j, H:i:s') }}</td>
+                                <td class="whitespace-nowrap text-slate-600">
+                                    <button type="button" class="hover:text-brand-700 hover:underline" title="{{ $log->created_at->diffForHumans() }} — show details"
+                                            @click="log = @js($details)">{{ $log->created_at->format('M j, H:i:s') }}</button>
+                                </td>
                                 <td class="whitespace-nowrap">
                                     <span class="badge {{ $eventTone[$log->event] ?? 'badge-slate' }}">{{ $log->eventLabel() }}</span>
                                     @if ($log->detail)
@@ -215,4 +230,6 @@
             <div class="border-t border-slate-100 px-4 py-3 sm:px-6">{{ $logs->links() }}</div>
         </div>
     @endif
+
+    @include('claude-activity._event-drawer')
 </section>

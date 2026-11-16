@@ -1,7 +1,13 @@
 <x-app-layout>
     <x-slot name="header">
         <x-page-header title="Claude activity"
-                       description="Every device that has used Claude Code with the monitor installed. Open one to see its sessions and prompts. Entries can't be edited, so they stay even after a conversation is deleted." />
+                       description="Every device that has used Claude Code with the monitor installed. Open one to see its sessions and prompts. Entries can't be edited, so they stay even after a conversation is deleted.">
+            <x-slot name="actions">
+                <a href="{{ route('claude-activity.habits.index') }}" class="btn-secondary btn-sm">
+                    <x-icon name="sparkles" variant="outline" class="h-4 w-4" />Habit reports
+                </a>
+            </x-slot>
+        </x-page-header>
     </x-slot>
 
     <div class="py-6 sm:py-8">
@@ -56,6 +62,21 @@
                                                     · <span class="text-danger-600">no device id</span>
                                                 @endunless
                                             </p>
+                                            @if ($device->device_id)
+                                                {{-- Who uses it: habit reports cover a person's linked devices. --}}
+                                                <form method="POST" action="{{ route('claude-activity.owner', $device->device_id) }}" class="mt-1.5">
+                                                    @csrf
+                                                    <label for="owner-{{ $loop->index }}" class="sr-only">Person using {{ $device->hostname ?? 'this device' }}</label>
+                                                    <select id="owner-{{ $loop->index }}" name="user_id" class="filter-select field-sm max-w-[12rem] text-xs" data-native
+                                                            x-data @change="$el.form.requestSubmit()">
+                                                        <option value="">Not linked to a person</option>
+                                                        @foreach ($people as $person)
+                                                            <option value="{{ $person->id }}" @selected($owners->get($device->device_id)?->user_id === $person->id)>{{ $person->name }}</option>
+                                                        @endforeach
+                                                    </select>
+                                                    <noscript><button class="btn-secondary btn-sm">Save</button></noscript>
+                                                </form>
+                                            @endif
                                         </td>
                                         <td class="text-sm">
                                             @foreach ($ips->take(3) as $row)

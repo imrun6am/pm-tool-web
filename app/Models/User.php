@@ -226,6 +226,12 @@ class User extends Authenticatable
         return $this->belongsToMany(Task::class)->withTimestamps();
     }
 
+    /** The monitored Claude Code devices linked to this user (Claude activity). */
+    public function claudeDevices(): HasMany
+    {
+        return $this->hasMany(ClaudeDeviceOwner::class);
+    }
+
     /** Teams this user currently belongs to (left teams excluded). */
     public function teams(): BelongsToMany
     {

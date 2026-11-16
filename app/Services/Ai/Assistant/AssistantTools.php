@@ -17,6 +17,7 @@ class AssistantTools
         Tools\GetTasksheet::class,
         Tools\TeamOverview::class,
         Tools\ReleaseFacts::class,
+        Tools\ClaudeActivity::class,
         Tools\CreateEvent::class,
         Tools\CreateTask::class,
         Tools\AddToTasksheet::class,

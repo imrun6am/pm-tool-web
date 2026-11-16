@@ -18,6 +18,21 @@ page: its names, IP and MAC addresses, models, counts, and its events with
 filters for text, event, OS user, entry point, model, IP, MAC address, session
 and dates.
 
+Click an event for a drawer with everything recorded about it.
+
+**Habit reports** (button on the Claude activity page): link each device to the
+person who uses it, then ask for an AI review of that person's prompts and
+sessions over a period: what kind of work they ask for, which projects, good
+practice, mistakes, where they went in circles, and what to improve. The
+counts are worked out by the app; the AI reads only the stored start of each
+prompt, never Claude's answers. It's written in the background (the queue
+worker must be running) and is switched on or off, with its model, on the AI
+usage page as "Claude Code habit reports".
+
+**AI assistant:** admins and the CTO can ask the assistant about Claude Code
+usage ("who used Claude Code most this week?", "what did Rahim work on
+yesterday?"). It reads the same log, by person, device, period or text.
+
 ## What is recorded
 
 | Field | Source |

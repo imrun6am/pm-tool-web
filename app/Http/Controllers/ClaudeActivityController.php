@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ClaudeActivityLog;
+use App\Models\ClaudeDeviceOwner;
 use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -124,6 +125,8 @@ class ClaudeActivityController extends Controller
             ->groupBy('device_id');
 
         return view('claude-activity.index', [
+            'owners' => ClaudeDeviceOwner::with('user:id,name')->get()->keyBy('device_id'),
+            'people' => User::active()->orderBy('name')->get(['id', 'name']),
             'devices' => $devices,
             'ipsByDevice' => $ipsByDevice,
             'modelsByDevice' => $modelsByDevice,
@@ -163,6 +166,25 @@ class ClaudeActivityController extends Controller
             'filters' => $filters,
             'options' => $this->options($scope()),
         ]);
+    }
+
+    /** POST /claude-activity/devices/{device}/owner — link a device to a person, or unlink it. */
+    public function setOwner(Request $request, string $device): RedirectResponse
+    {
+        abort_unless(self::canView($request->user()), 403);
+        abort_if($device === self::NO_DEVICE, 404);
+
+        $data = $request->validate(['user_id' => ['nullable', 'integer', 'exists:users,id']]);
+
+        if (empty($data['user_id'])) {
+            ClaudeDeviceOwner::where('device_id', $device)->delete();
+
+            return back()->with('success', 'Device unlinked.');
+        }
+
+        $owner = ClaudeDeviceOwner::updateOrCreate(['device_id' => $device], ['user_id' => $data['user_id'], 'assigned_by' => $request->user()->id]);
+
+        return back()->with('success', 'Device linked to '.$owner->user->name.'.');
     }
 
     /** DELETE /claude-activity/{log} — one event. */

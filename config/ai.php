@@ -172,6 +172,13 @@ return [
             'effort' => env('AI_REQUEST_IMPORT_EFFORT', 'medium'),
             'enabled' => true,
         ],
+        'claude_habits' => [
+            'label' => 'Claude Code habit reports',
+            'description' => 'Reviews one person\'s Claude Code prompts and sessions: what they ask for, which projects, good practice, mistakes and what to improve.',
+            'model' => env('AI_CLAUDE_HABITS_MODEL', $model),
+            'effort' => env('AI_CLAUDE_HABITS_EFFORT', 'medium'),
+            'enabled' => true,
+        ],
         'release_retro' => [
             'label' => 'Release retrospective',
             'description' => 'Drafts closing notes for a release: what went well, what slipped, what to change.',
