@@ -20,6 +20,15 @@ and dates.
 
 Click an event for a drawer with everything recorded about it.
 
+**One computer, one device.** Installing the monitor again from scratch gives a
+computer a new device id. Events that report a MAC address the server has seen
+before go under the device that reported it first, and any other device id
+that reported it is merged into that one, with its linked person. Devices
+already split before this was added merge on their next event, or all at once
+with `php artisan claude-activity:merge-devices`. Computers that share a MAC
+address (say, the same USB network adapter or dock) merge too, and a merge
+can't be undone from the page.
+
 **Habit reports** (button on the Claude activity page): link each device to the
 person who uses it, then ask for an AI review of that person's prompts and
 sessions over a period: what kind of work they ask for, which projects, good
@@ -38,7 +47,7 @@ yesterday?"). It reads the same log, by person, device, period or text.
 | Field | Source |
 |---|---|
 | Event, session id, project folder | Claude Code's hook input |
-| First 300 characters of each prompt | Claude Code's hook input (`CLAUDE_MONITOR_PROMPT_CHARS`, at most 1,000) |
+| First 500 characters of each prompt | Claude Code's hook input (`CLAUDE_MONITOR_PROMPT_CHARS`, at most 1,000) |
 | Computer name, OS user, OS, entry point | the device (on a Mac, the name set in System Settings) |
 | Model | Claude Code's hook input: on session start and on each model switch (`/model`); prompts and session ends take the latest model their session reported. Sessions started before the hook was installed show none |
 | Browser actions | Claude Code's hook input, for each Claude in Chrome tool Claude Code uses: the tool and action (`navigate`, `computer: left_click`, …) and the page address without its query string. Text typed and scripts run in the page aren't kept |

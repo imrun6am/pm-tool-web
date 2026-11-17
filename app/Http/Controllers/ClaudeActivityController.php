@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\ClaudeActivityLog;
 use App\Models\ClaudeDeviceOwner;
 use App\Models\User;
+use App\Services\ClaudeActivity\DeviceMerger;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -32,7 +33,7 @@ class ClaudeActivityController extends Controller
     public const PAGE_SIZES = [25, 50, 100];
 
     /** POST /api/claude-activity — called by the hook on each monitored device. */
-    public function store(Request $request): JsonResponse
+    public function store(Request $request, DeviceMerger $merger): JsonResponse
     {
         $token = (string) config('claude_monitor.token');
         abort_if($token === '', 503, 'Claude activity monitor is not configured.');
@@ -63,16 +64,24 @@ class ClaudeActivityController extends Controller
         // else from the tool's input is kept: it can hold typed text or code.
         $tool = $event === 'PreToolUse' ? self::browserTool($payload) : null;
 
+        // One computer, one device: a reinstall gives it a new device id, so
+        // ids that reported the same MAC address are merged into the first.
+        $deviceId = $header('X-Claude-Device-Id', 64);
+        $mac = self::mac($request->header('X-Claude-Mac'));
+        if ($deviceId !== null && $mac !== null) {
+            $deviceId = $merger->resolve($deviceId, $mac);
+        }
+
         ClaudeActivityLog::create([
             'event' => $str($event, 32),
             'session_id' => $sessionId,
-            'device_id' => $header('X-Claude-Device-Id', 64),
+            'device_id' => $deviceId,
             'hostname' => $header('X-Claude-Host', 255),
             'os_user' => $header('X-Claude-User', 128),
             'platform' => $header('X-Claude-Platform', 32),
             'entrypoint' => $header('X-Claude-Entrypoint', 64),
             'model' => $model,
-            'mac_address' => self::mac($request->header('X-Claude-Mac')),
+            'mac_address' => $mac,
             'ip' => $request->ip(),
             'cwd' => $str($payload['cwd'] ?? null, 1024),
             // SessionStart's source, SessionEnd's reason, or the model switched from.
@@ -147,6 +156,7 @@ class ClaudeActivityController extends Controller
         $summary = $scope()
             ->selectRaw('MIN(created_at) as first_seen, MAX(created_at) as last_seen, COUNT(*) as events')
             ->selectRaw('COUNT(DISTINCT session_id) as sessions, COUNT(DISTINCT ip) as ips')
+            ->selectRaw('COUNT(DISTINCT DATE(created_at)) as active_days')
             ->selectRaw("SUM(CASE WHEN event = 'UserPromptSubmit' THEN 1 ELSE 0 END) as prompts")
             ->selectRaw("SUM(CASE WHEN event = 'PreToolUse' THEN 1 ELSE 0 END) as browser_actions")
             ->first();
@@ -154,6 +164,8 @@ class ClaudeActivityController extends Controller
         return view('claude-activity.device', [
             'device' => $device,
             'newest' => $scope()->latest('id')->first(),
+            'owner' => $device === self::NO_DEVICE ? null : ClaudeDeviceOwner::with('user:id,name')->where('device_id', $device)->first(),
+            'people' => User::active()->orderBy('name')->get(['id', 'name']),
             'hostNames' => $scope()->whereNotNull('hostname')->distinct()->orderBy('hostname')->pluck('hostname'),
             'summary' => $summary,
             'ips' => $scope()->select('ip', DB::raw('MAX(created_at) as last_seen'), DB::raw('COUNT(*) as events'))
@@ -225,8 +237,15 @@ class ClaudeActivityController extends Controller
         }
 
         $this->noteDeletion($request, $deleted);
+        $message = $deleted === 1 ? '1 event deleted.' : number_format($deleted).' events deleted.';
 
-        return back()->with('success', $deleted === 1 ? '1 event deleted.' : number_format($deleted).' events deleted.');
+        // Deleting a device's last events leaves its page empty (a 404): go to the list.
+        $device = $request->boolean('all') ? $request->string('device')->toString() : '';
+        if ($device !== '' && ! self::forDevice(ClaudeActivityLog::query(), $device)->exists()) {
+            return redirect()->route('claude-activity.index')->with('success', $message);
+        }
+
+        return back()->with('success', $message);
     }
 
     /**

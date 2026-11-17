@@ -27,5 +27,5 @@ return [
 
     // How much of each prompt is kept, at most 1,000 characters (the column's
     // size). The full prompt is never stored.
-    'prompt_excerpt_length' => (int) env('CLAUDE_MONITOR_PROMPT_CHARS', 300),
+    'prompt_excerpt_length' => (int) env('CLAUDE_MONITOR_PROMPT_CHARS', 500),
 ];

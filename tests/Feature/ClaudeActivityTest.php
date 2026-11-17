@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\ClaudeActivityLog;
+use App\Models\ClaudeDeviceOwner;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use LogicException;
@@ -287,6 +288,90 @@ class ClaudeActivityTest extends TestCase
 
         $this->assertSame(['dev-2'], ClaudeActivityLog::pluck('device_id')->all());
         $this->get('/claude-activity')->assertViewHas('devices', fn ($devices) => $devices->pluck('device_id')->all() === ['dev-2']);
+    }
+
+    public function test_deleting_a_device_from_its_own_page_goes_back_to_the_list(): void
+    {
+        $this->twoDevices();
+        $this->actingAs($this->admin());
+
+        $this->get(route('claude-activity.device', 'dev-1'))->assertOk()->assertSee('Delete device');
+
+        $this->from(route('claude-activity.device', 'dev-1'))
+            ->post(route('claude-activity.bulk-destroy'), ['all' => 1, 'device' => 'dev-1', 'password' => 'password'])
+            ->assertRedirect(route('claude-activity.index'))
+            ->assertSessionHas('success', '2 events deleted.');
+
+        // Deleting only some of a device's events stays on its page.
+        $this->from(route('claude-activity.device', 'dev-2'))
+            ->post(route('claude-activity.bulk-destroy'), ['all' => 1, 'device' => 'dev-2', 'event' => 'SessionEnd', 'password' => 'password'])
+            ->assertRedirect(route('claude-activity.device', 'dev-2'));
+    }
+
+    public function test_device_page_shows_three_ip_addresses_then_the_rest_on_show_all(): void
+    {
+        foreach (range(1, 13) as $n) {
+            ClaudeActivityLog::forceCreate(['event' => 'SessionStart', 'device_id' => 'dev-1', 'hostname' => 'office-mac',
+                'ip' => "10.0.0.{$n}", 'created_at' => now()->subMinutes(100 - $n)]);
+        }
+        $owner = User::factory()->create(['name' => 'Rahim Khan']);
+        ClaudeDeviceOwner::create(['device_id' => 'dev-1', 'user_id' => $owner->id]);
+
+        $html = $this->actingAs($this->admin())->get(route('claude-activity.device', 'dev-1'))
+            ->assertOk()
+            ->assertSee('+10 more IP addresses')
+            ->assertSee('Show all')
+            ->assertSee('Used by Rahim Khan')
+            ->assertViewHas('summary', fn ($s) => (int) $s->active_days === 1)
+            ->getContent();
+
+        // Newest first; from the fourth on, hidden until Show all.
+        $this->assertLessThan(strpos($html, '>10.0.0.12<'), strpos($html, '>10.0.0.13<'));
+        $this->assertMatchesRegularExpression('/x-show="all" x-cloak[^>]*>\s*<div[^>]*>\s*<a[^>]*>10\.0\.0\.10</', $html);
+        $this->assertDoesNotMatchRegularExpression('/x-show="all" x-cloak[^>]*>\s*<div[^>]*>\s*<a[^>]*>10\.0\.0\.11</', $html);
+    }
+
+    public function test_a_reinstalled_computer_stays_one_device_by_its_mac_address(): void
+    {
+        $mac = ['X-Claude-Mac' => 'AA-BB-CC-DD-EE-01'];
+        $this->sendHook(['hook_event_name' => 'SessionStart', 'session_id' => 'old'], headers: $mac)->assertCreated();
+        $owner = User::factory()->create();
+        ClaudeDeviceOwner::create(['device_id' => 'dev-1', 'user_id' => $owner->id]);
+
+        // Installed again: a new device id. The installer's own event has no MAC yet.
+        $this->sendHook(['hook_event_name' => 'MonitorInstalled'], headers: ['X-Claude-Device-Id' => 'dev-new'])->assertCreated();
+        $this->sendHook(['hook_event_name' => 'SessionStart', 'session_id' => 'new'], headers: ['X-Claude-Device-Id' => 'dev-new'] + $mac)->assertCreated();
+        // Another computer stays apart.
+        $this->sendHook(['hook_event_name' => 'SessionStart'], headers: ['X-Claude-Device-Id' => 'dev-2', 'X-Claude-Mac' => 'aa:bb:cc:dd:ee:02'])->assertCreated();
+
+        $this->assertSame(['dev-1' => 3, 'dev-2' => 1], ClaudeActivityLog::selectRaw('device_id, count(*) as n')->groupBy('device_id')->orderBy('device_id')->pluck('n', 'device_id')->map(fn ($n) => (int) $n)->all());
+        $this->assertSame([$owner->id], ClaudeDeviceOwner::where('device_id', 'dev-1')->pluck('user_id')->all());
+        $this->assertSame(1, ClaudeDeviceOwner::count());
+    }
+
+    public function test_the_merge_command_folds_devices_already_split(): void
+    {
+        foreach (['dev-a' => 'aa:bb:cc:dd:ee:01', 'dev-b' => 'aa:bb:cc:dd:ee:01', 'dev-c' => 'aa:bb:cc:dd:ee:02'] as $id => $mac) {
+            ClaudeActivityLog::create(['event' => 'SessionStart', 'device_id' => $id, 'mac_address' => $mac]);
+        }
+        $person = User::factory()->create();
+        ClaudeDeviceOwner::create(['device_id' => 'dev-b', 'user_id' => $person->id]);
+
+        $this->artisan('claude-activity:merge-devices')->expectsOutputToContain('Merged 1 device(s)')->assertSuccessful();
+
+        $this->assertSame(['dev-a', 'dev-a', 'dev-c'], ClaudeActivityLog::orderBy('id')->pluck('device_id')->all());
+        // dev-a had no person, so it takes dev-b's.
+        $this->assertSame('dev-a', ClaudeDeviceOwner::sole()->device_id);
+        $this->artisan('claude-activity:merge-devices')->expectsOutputToContain('No devices to merge.');
+    }
+
+    public function test_prompts_keep_500_characters_by_default(): void
+    {
+        config(['claude_monitor.prompt_excerpt_length' => (require config_path('claude_monitor.php'))['prompt_excerpt_length']]);
+
+        $this->sendHook(['hook_event_name' => 'UserPromptSubmit', 'prompt' => str_repeat('a', 600)])->assertCreated();
+
+        $this->assertSame(500, strlen(ClaudeActivityLog::sole()->prompt_excerpt));
     }
 
     public function test_model_comes_from_session_start_and_switches_and_carries_to_prompts(): void
