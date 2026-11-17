@@ -89,7 +89,18 @@ class ClaudeHabitReportController extends Controller
     {
         abort_unless(ClaudeActivityController::canView($request->user()), 403);
 
-        return view('claude-activity.habits.show', ['report' => $report->load(['user:id,name', 'requester:id,name'])]);
+        $report->load(['user:id,name', 'requester:id,name']);
+
+        // Reports written before projects and days had their detail counted get it from the log.
+        $projects = $report->facts['projects'] ?? [];
+        $days = $report->facts['days'] ?? null;
+        if ($report->status === ClaudeHabitReport::STATUS_COMPLETED && (! isset($projects[0]['folders']) || $days === null)) {
+            $detail = $this->analyst->detailFor($report);
+            $projects = isset($projects[0]['folders']) ? $projects : $detail['projects'];
+            $days ??= $detail['days'];
+        }
+
+        return view('claude-activity.habits.show', ['report' => $report, 'projects' => $projects, 'days' => $days ?? []]);
     }
 
     /** DELETE /claude-activity/habits/{report} */
