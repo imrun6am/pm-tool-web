@@ -20,7 +20,7 @@ class AiUsageReport
     {
         $rows = AiUsageLog::query()
             ->where('created_at', '>=', $since)
-            ->selectRaw('feature, model, count(*) as calls, sum(case when status = ? then 1 else 0 end) as failures,
+            ->selectRaw('feature, model, count(*) as calls, sum(case when status <> ? then 1 else 0 end) as failures,
                 sum(input_tokens) as input_tokens, sum(output_tokens) as output_tokens,
                 sum(cache_read_tokens) as cache_read_tokens, avg(duration_ms) as avg_ms', ['ok'])
             ->groupBy('feature', 'model')

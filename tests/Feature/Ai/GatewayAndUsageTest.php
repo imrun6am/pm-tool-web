@@ -8,6 +8,7 @@ use App\Services\Ai\AiException;
 use App\Services\Ai\AiFeatures;
 use App\Services\Ai\AiGateway;
 use App\Services\Ai\AiTransport;
+use App\Services\Ai\AiUsageReport;
 use App\Services\Calendar\EventExtractor;
 
 class GatewayAndUsageTest extends AiTestCase
@@ -43,6 +44,24 @@ class GatewayAndUsageTest extends AiTestCase
                 $this->assertSame($status, AiUsageLog::latest('id')->first()->status);
             }
         }
+    }
+
+    public function test_usage_counts_only_unsuccessful_calls_as_failures(): void
+    {
+        $this->claude->respond(['ok' => true])->respond(['ok' => true])->respond(['x' => 1], 'refusal');
+        foreach (range(1, 3) as $_) {
+            try {
+                $this->callClaude();
+            } catch (AiException) {
+            }
+        }
+
+        $catchUp = app(AiUsageReport::class)->byFeature(now()->subDay())->get('catch_up');
+        $this->assertSame(3, $catchUp['calls']);
+        $this->assertSame(1, $catchUp['failures']);
+
+        $this->actingAs($this->user(User::ROLE_ADMIN))->get(route('ai.usage'))
+            ->assertOk()->assertSee('33%')->assertSee('1 of 3');
     }
 
     public function test_a_switched_off_feature_never_calls_claude(): void
