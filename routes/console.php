@@ -29,4 +29,4 @@ Schedule::command('tasks:recur')->dailyAt('06:00');
 Schedule::command('notifications:due-reminders')->dailyAt('08:00');
 
 // AI standup digests for the previous working day, ready before standup.
-Schedule::command('ai:standup-digests')->dailyAt('08:30')->when(fn () => WorkingWeek::isWorkingDay(today()));
+//Schedule::command('ai:standup-digests')->dailyAt('08:30')->when(fn () => WorkingWeek::isWorkingDay(today()));
